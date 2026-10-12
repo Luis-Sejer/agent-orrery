@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://github.com/Luis-Sejer/agent-orrery/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Luis-Sejer/agent-orrery/ci.yml?style=flat-square&label=build" alt="Build status"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/Luis-Sejer/agent-orrery?style=flat-square&color=34955f" alt="MIT licence"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-34955f?style=flat-square" alt="MIT licence"></a>
   <img src="https://img.shields.io/badge/node-24%2B-162925?style=flat-square&logo=node.js&logoColor=white" alt="Node 24 or later">
   <img src="https://img.shields.io/badge/docker-ready-162925?style=flat-square&logo=docker&logoColor=white" alt="Runs in Docker">
   <img src="https://img.shields.io/badge/runtime%20dependencies-0-34955f?style=flat-square" alt="No runtime dependencies">
