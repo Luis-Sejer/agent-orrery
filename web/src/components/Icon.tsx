@@ -1,5 +1,6 @@
 // Stroke icons on a 24 × 24 grid, drawn in the current text colour.
 const PATHS = {
+  settings: 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4',
   search: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-3.5-3.5',
   bell: 'M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0',
   bellOff: 'M6 16V11a6 6 0 0 1 9.2-5.1M18 11v5l1.5 2H9M10 20.5a2 2 0 0 0 4 0M4 4l16 16',

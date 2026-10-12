@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import type { FlowNode } from './layout'
-import { placeAt, turnsAt, type OrreryNode, type Polar } from './radial'
+import { placeAt, type BackdropNode, type OrreryNode, type Polar, type Turns } from './radial'
 
 export type CanvasNode = FlowNode | OrreryNode
 
@@ -32,7 +32,9 @@ export function useOrbit(nodes: CanvasNode[], polar: Map<string, Polar> | null, 
     if (!orbiting) return
     const reduced = matchMedia('(prefers-reduced-motion: reduce)')
     const shown = new Map<string, { angle: number; r: number }>()
-    let seconds = 0
+    // How far each ring has turned. Each one adds up its own turning, so a ring that changes
+    // speed (moving in or out, arranged by repository) speeds up or slows down rather than jumping.
+    const turned = new Map<string, number>()
     // How fast the rings turn, from 0 (steadied) to 1 (full speed).
     let pace = 1
     let last = performance.now()
@@ -50,9 +52,10 @@ export function useOrbit(nodes: CanvasNode[], polar: Map<string, Polar> | null, 
       const still = reduced.matches
       pace += ((paused ? 0 : 1) - pace) * (1 - Math.exp(-PACE_RATE * step))
       if (pace < STOPPED) pace = 0
-      if (!still) seconds += step * pace
+      const rings = nodes.find((node): node is BackdropNode => node.type === 'backdrop')?.data.rings ?? []
+      for (const ring of rings) turned.set(ring.key, (turned.get(ring.key) ?? 0) + (still ? 0 : (2 * Math.PI * step * pace) / ring.lap))
       if ((still || pace === 0) && settled && drawn === nodes) return
-      const turns = turnsAt(still ? 0 : seconds)
+      const turns: Turns = Object.fromEntries(rings.map((ring) => [ring.key, still ? 0 : turned.get(ring.key)!]))
       const ease = still ? 1 : 1 - Math.exp(-EASE_RATE * step)
       settled = true
       const next = nodes.map((node) => {

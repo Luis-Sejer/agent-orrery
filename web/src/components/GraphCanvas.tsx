@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Background, BackgroundVariant, Controls, MiniMap, ReactFlow, useReactFlow, type Edge } from '@xyflow/react'
 
 import { buildFlow, type FlowOptions } from '../layout'
-import { buildOrrery, type Polar } from '../radial'
+import { buildOrrery, type Arrangement, type Polar } from '../radial'
 import { useOrbit, type CanvasNode } from '../useOrbit'
 import { statusOf } from '../status'
 import type { GraphSnapshot } from '../types'
@@ -14,6 +14,8 @@ const FOCUS_DURATION_MS = 600
 interface GraphCanvasProps extends FlowOptions {
   // Rooms in a grid (Agents), or rings around you (Orrery).
   layout: 'grid' | 'orrery'
+  // The orrery's rings: by status, or one per repository.
+  arrangement: Arrangement
   graph: GraphSnapshot
   theme: 'light' | 'dark'
   focusRequest: { id: string; at: number } | null
@@ -28,11 +30,11 @@ function minimapClass(node: CanvasNode, now: number): string {
   return `mini-${statusOf(node.data.node, now)}`
 }
 
-export function GraphCanvas({ layout, graph, theme, focusRequest, onSelect, ...options }: GraphCanvasProps) {
+export function GraphCanvas({ layout, arrangement, graph, theme, focusRequest, onSelect, ...options }: GraphCanvasProps) {
   const { fitView, setCenter } = useReactFlow()
   const { nodes: laidOut, edges, polar } = useMemo<{ nodes: CanvasNode[]; edges: Edge[]; polar: Map<string, Polar> | null }>(
-    () => (layout === 'orrery' ? buildOrrery(graph, options) : { ...buildFlow(graph, options), polar: null }),
-    [layout, graph, options],
+    () => (layout === 'orrery' ? buildOrrery(graph, options, arrangement) : { ...buildFlow(graph, options), polar: null }),
+    [layout, graph, options, arrangement],
   )
   // The orrery's rings steady themselves while you point at an agent or a pile, or have one selected.
   const [pointing, setPointing] = useState(false)

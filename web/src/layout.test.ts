@@ -6,7 +6,7 @@ import { statusOf } from './status'
 import type { AgentNode, GraphSnapshot } from './types'
 import { applyDismissals } from './useDismissed'
 import { newWaits } from './useNotifications'
-import { NEXT, parsePreference, resolveTheme, type ThemePreference } from './useTheme'
+import { THEMES, parsePreference, resolveTheme } from './useTheme'
 import { announcement, pickVoice } from './useVoice'
 
 const NOW = Date.parse('2026-10-12T12:00:00Z')
@@ -166,10 +166,9 @@ describe('rhythm', () => {
 })
 
 describe('theme', () => {
-  it('cycles system, light, dark, T.Y.C.H.O. and back', () => {
-    const seen: ThemePreference[] = ['system']
-    for (let step = 0; step < 4; step++) seen.push(NEXT[seen.at(-1)!])
-    expect(seen).toEqual(['system', 'light', 'dark', 'tycho', 'system'])
+  it('offers system, light, dark and T.Y.C.H.O., each of which survives a reload', () => {
+    expect(THEMES.map((theme) => theme.value)).toEqual(['system', 'light', 'dark', 'tycho'])
+    for (const { value } of THEMES) expect(parsePreference(value)).toBe(value)
   })
 
   it('lays T.Y.C.H.O. over the dark theme, and falls back to system for anything unknown', () => {

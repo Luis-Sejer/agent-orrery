@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import type { Arrangement } from './radial'
 import type { View } from './types'
 
 const VIEW_KEY = 'agent-orrery:view'
@@ -39,3 +40,33 @@ export function useView() {
 
   return { view, setView, toCanvas }
 }
+
+// A setting remembered across reloads. Storage can be off (private window); the setting then lasts
+// until the page reloads.
+function useStored<T extends string>(key: string, allowed: readonly T[]): [T, (next: T) => void] {
+  const [value, setValue] = useState<T>(() => {
+    try {
+      return allowed.find((option) => option === localStorage.getItem(key)) ?? allowed[0]
+    } catch {
+      return allowed[0]
+    }
+  })
+  const choose = useCallback(
+    (next: T) => {
+      setValue(next)
+      try {
+        localStorage.setItem(key, next)
+      } catch {
+        // Kept for this page only.
+      }
+    },
+    [key],
+  )
+  return [value, choose]
+}
+
+// How the orrery is arranged: rings by status (the default), or a ring per repository.
+export const useArrangement = () => useStored<Arrangement>('agent-orrery:arrangement', ['status', 'room'])
+
+// The clean view hides the side panel, the minimap and the zoom buttons, for a dashboard on a wall.
+export const useCleanView = () => useStored<'off' | 'on'>('agent-orrery:clean', ['off', 'on'])

@@ -249,6 +249,112 @@ kbd {
   color: var(--ink);
 }
 
+/* The views and the settings button sit on the right, search on the left. */
+.toolbar .views {
+  margin-left: auto;
+}
+
+.settings-button {
+  position: relative;
+}
+
+/* A dot while a filter narrows what you see. */
+.settings-button.narrowed::after {
+  content: '';
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--amber);
+}
+
+/* The settings popover opens in the top layer, under the button. */
+.settings {
+  inset: 60px 20px auto auto;
+  width: min(380px, calc(100vw - 40px));
+  margin: 0;
+  padding: 16px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--surface-card);
+  box-shadow: var(--shadow), 0 18px 40px rgba(25, 28, 29, 0.14);
+  color: var(--ink);
+}
+
+.settings:popover-open {
+  display: grid;
+  gap: 16px;
+}
+
+.setting {
+  display: grid;
+  gap: 6px;
+}
+
+.setting-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.setting .tabs {
+  box-shadow: none;
+  background: var(--surface-container);
+}
+
+.setting .tabs button {
+  flex: 1;
+}
+
+.setting-group {
+  display: grid;
+  gap: 2px;
+  padding-top: 8px;
+  border-top: 1px solid var(--rule);
+}
+
+.setting.toggle {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  cursor: pointer;
+}
+
+.setting.toggle small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.setting-name {
+  font-size: 14px;
+}
+
+.setting.toggle input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--green);
+  cursor: pointer;
+}
+
+/* The clean view: the orrery or the grid, and nothing else. */
+.app.clean {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.app.clean.with-drawer {
+  grid-template-columns: minmax(0, 1fr) 380px;
+}
+
+.app.clean .inbox,
+.app.clean .react-flow__minimap,
+.app.clean .react-flow__controls {
+  display: none;
+}
+
 .icon-button.on {
   color: var(--green);
 }
@@ -1115,6 +1221,26 @@ mark {
   pointer-events: auto;
 }
 
+/* Arranged by repository, a room's name sits in the gap of its own ring, on a plate so the ring
+   doesn't run through it. */
+.sector-label.on-ring {
+  flex-direction: row;
+  gap: 8px;
+  padding: 2px 10px;
+  border-radius: 6px;
+  background: var(--surface);
+  transform: translate(-50%, -50%);
+}
+
+.sector-label.on-ring .serif {
+  font-size: 20px;
+}
+
+/* The arrangement switch sits on the canvas, out of the toolbar's way. */
+.react-flow__panel .tabs.arrange {
+  box-shadow: var(--shadow);
+}
+
 .orbit-card {
   position: relative;
   width: 56px;
@@ -1692,7 +1818,7 @@ mark {
 }
 
 /* Frames with corner brackets. */
-:root[data-hud] :where(.turn, .drawer, .tabs, .search-button, .icon-button, .card, .reader, .palette) {
+:root[data-hud] :where(.turn, .drawer, .tabs, .search-button, .icon-button, .card, .reader, .palette, .settings) {
   border-radius: 2px;
   background: var(--brackets), var(--surface-card);
 }

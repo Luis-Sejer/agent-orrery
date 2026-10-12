@@ -127,9 +127,30 @@ describe('buildOrrery', () => {
     }
   })
 
+  it('gives each repository its own ring by repository, innermost the ones that need you', () => {
+    const graph = graphOf([
+      session('quiet', { room: 'alpha', home: 'alpha', lastAt: NOW - 30 * MINUTE }),
+      session('busy', { room: 'beta', home: 'beta' }),
+      session('asks', { room: 'gamma', home: 'gamma', ...waitingOn() }),
+    ])
+    const { nodes, polar } = buildOrrery(graph, options(), 'room')
+    const rings = backdrop(nodes).data.rings
+    expect(rings.map((ring) => ring.key)).toEqual(['room:gamma', 'room:beta', 'room:alpha'])
+    expect(rings.map((ring) => ring.tone)).toEqual(['waiting', 'running', 'finished'])
+    expect(rings[0].r).toBeLessThan(rings[1].r)
+    expect(rings[0].lap).toBeLessThan(rings[1].lap)
+    expect(polar.get('asks')?.ring).toBe('room:gamma')
+  })
+
+  it('shows the status rings when there is nothing to arrange by repository', () => {
+    const rings = backdrop(buildOrrery(graphOf([]), options(), 'room').nodes).data.rings
+    expect(rings.map((ring) => ring.key)).toEqual(['waiting', 'running', 'finished'])
+  })
+
   it('turns the inner rings faster, and not at all at the start', () => {
-    expect(turnsAt(0)).toEqual({ waiting: 0, running: 0, finished: 0 })
-    const { waiting, running, finished } = turnsAt(60)
+    const { rings } = backdrop(buildOrrery(graphOf([session('lead')]), options()).nodes).data
+    expect(turnsAt(rings, 0)).toEqual({ waiting: 0, running: 0, finished: 0 })
+    const { waiting, running, finished } = turnsAt(rings, 60)
     expect(waiting).toBeGreaterThan(running)
     expect(running).toBeGreaterThan(finished)
   })

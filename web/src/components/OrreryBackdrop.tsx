@@ -6,7 +6,6 @@ import { paintFrame } from 'thinking-orbs/engine'
 import { ROOM_LABEL_SIDE_REACH, type BackdropNode } from '../radial'
 import { HudContext } from '../useTheme'
 
-const RING_LABELS = { waiting: 'Waiting on you', running: 'Running', finished: 'Finished' }
 const TOP = -Math.PI / 2
 // Ring labels ride an arc this wide, centred on the empty wedge at the top.
 const LABEL_ARC = 0.7
@@ -98,38 +97,39 @@ function caption(waiting: number): string {
 // Rings, sector boundaries and room names, with you at the centre. It sits behind every agent
 // and lets clicks through, except on its own buttons. Labels turn with their rings.
 export function OrreryBackdrop({ data }: NodeProps<BackdropNode>) {
-  const { radius, rings, sectors, labelRadius, turns, waiting, onCollapse } = data
+  const { arrangement, radius, rings, sectors, turns, waiting, onCollapse } = data
   const hud = useContext(HudContext)
   const id = useId()
-  const outer = rings[rings.length - 1].r
+  const outer = rings[rings.length - 1]
+  const labelled = rings.filter((ring) => ring.label)
 
   return (
     <div className="orrery-backdrop">
       <svg viewBox={`${-radius} ${-radius} ${radius * 2} ${radius * 2}`} aria-hidden="true">
         <defs>
-          {rings.map((ring) => (
-            <path key={ring.status} id={`${id}-${ring.status}`} d={topArc(ring.r)} />
+          {labelled.map((ring) => (
+            <path key={ring.key} id={`${id}-${ring.key}`} d={topArc(ring.r)} />
           ))}
         </defs>
         {rings.map((ring) => (
-          <circle key={ring.status} className={`orrery-ring ring-${ring.status}`} r={ring.r} />
+          <circle key={ring.key} className={`orrery-ring ring-${ring.tone}`} r={ring.r} />
         ))}
-        <g transform={`rotate(${degrees(turns.finished)})`}>
-          {sectors.slice(1).map((sector) => (
+        <g transform={`rotate(${degrees(turns[outer.key])})`}>
+          {arrangement === 'status' && sectors.slice(1).map((sector) => (
             <line
               key={sector.name}
               className="orrery-boundary"
-              x1={Math.cos(sector.start) * (outer + TICK_FROM)}
-              y1={Math.sin(sector.start) * (outer + TICK_FROM)}
-              x2={Math.cos(sector.start) * (outer + TICK_TO)}
-              y2={Math.sin(sector.start) * (outer + TICK_TO)}
+              x1={Math.cos(sector.start) * (outer.r + TICK_FROM)}
+              y1={Math.sin(sector.start) * (outer.r + TICK_FROM)}
+              x2={Math.cos(sector.start) * (outer.r + TICK_TO)}
+              y2={Math.sin(sector.start) * (outer.r + TICK_TO)}
             />
           ))}
         </g>
-        {rings.map((ring) => (
-          <text key={ring.status} className="orrery-ring-label" dy={-8} transform={`rotate(${degrees(turns[ring.status])})`}>
-            <textPath href={`#${id}-${ring.status}`} startOffset="50%">
-              {RING_LABELS[ring.status]}
+        {labelled.map((ring) => (
+          <text key={ring.key} className="orrery-ring-label" dy={-8} transform={`rotate(${degrees(turns[ring.key])})`}>
+            <textPath href={`#${id}-${ring.key}`} startOffset="50%">
+              {ring.label}
             </textPath>
           </text>
         ))}
@@ -148,13 +148,14 @@ export function OrreryBackdrop({ data }: NodeProps<BackdropNode>) {
       </div>
 
       {sectors.map((sector) => {
-        const angle = sector.mid + turns.finished
+        const angle = sector.mid + turns[sector.ring]
         const [cos, sin] = [Math.cos(angle), Math.sin(angle)]
-        const reach = labelRadius + Math.abs(cos) * ROOM_LABEL_SIDE_REACH
+        // A sector's name sits outside the rings, pushed further out at the sides; a room ring's sits in its gap.
+        const reach = arrangement === 'status' ? sector.r + Math.abs(cos) * ROOM_LABEL_SIDE_REACH : sector.r
         return (
           <div
             key={sector.name}
-            className="sector-label"
+            className={arrangement === 'status' ? 'sector-label' : 'sector-label on-ring'}
             style={{ left: cos * reach + radius, top: sin * reach + radius, '--cos': cos, '--sin': sin } as CSSProperties}
           >
             <span className="serif">{sector.name}</span>

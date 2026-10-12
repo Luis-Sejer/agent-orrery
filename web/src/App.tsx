@@ -8,6 +8,7 @@ import { Inbox } from './components/Inbox'
 import { Library } from './components/Library'
 import { ReplayBar } from './components/ReplayBar'
 import { SearchPalette } from './components/SearchPalette'
+import { SettingsMenu } from './components/SettingsMenu'
 import { statusOf } from './status'
 import type { Filter, View } from './types'
 import { applyDismissals, useDismissed } from './useDismissed'
@@ -15,15 +16,8 @@ import { useGraph, useNow } from './useGraph'
 import { useNotifications } from './useNotifications'
 import { useReplay } from './useReplay'
 import { HudContext, useTheme } from './useTheme'
-import { useView } from './useView'
+import { useArrangement, useCleanView, useView } from './useView'
 import { useVoice } from './useVoice'
-
-const FILTERS: { value: Filter; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'waiting', label: 'Waiting on you' },
-  { value: 'running', label: 'Running' },
-  { value: 'finished', label: 'Finished' },
-]
 
 const VIEWS: { value: View; label: string }[] = [
   { value: 'orrery', label: 'Orrery' },
@@ -32,8 +26,6 @@ const VIEWS: { value: View; label: string }[] = [
   { value: 'memory', label: 'Memory' },
 ]
 
-const THEME_ICONS = { system: 'system', light: 'sun', dark: 'moon', tycho: 'reticle' } as const
-const THEME_NAMES = { system: 'system', light: 'light', dark: 'dark', tycho: 'T.Y.C.H.O.' }
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform)
 
 function isTyping(target: EventTarget | null): boolean {
@@ -47,10 +39,12 @@ export function App() {
   // While replaying, time stands still at the replay moment, so every status and "ago" matches it.
   const now = replay.view ? replay.view.at : clock
   const { dismissals, dismiss, restoreAll } = useDismissed()
-  const { preference, theme, hud, cycle: cycleTheme, next: nextTheme } = useTheme()
+  const { preference, theme, hud, choose: chooseTheme } = useTheme()
   const graph = useMemo(() => replay.view?.graph ?? applyDismissals(liveGraph, dismissals), [replay.view, liveGraph, dismissals])
   const dismissedCount = graph.nodes.filter((node) => node.dismissed).length
   const { view, setView, toCanvas } = useView()
+  const [arrangement, arrange] = useArrangement()
+  const [clean, setClean] = useCleanView()
   const onCanvas = view === 'graph' || view === 'orrery'
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [focusRequest, setFocusRequest] = useState<{ id: string; at: number } | null>(null)
@@ -126,16 +120,9 @@ export function App() {
     setView(next)
   }
 
-  const notificationLabel = notifications.blocked
-    ? 'Notifications are blocked in your browser settings'
-    : notifications.enabled
-      ? 'Notifications are on; turn them off'
-      : 'Notify me when an agent is waiting on me'
-  const voiceLabel = voice.enabled ? 'Voice is on; turn it off' : 'Say out loud when an agent is waiting on me'
-
   return (
     <HudContext.Provider value={hud}>
-      <div className={`app${selected && onCanvas ? ' with-drawer' : ''}`}>
+      <div className={`app${selected && onCanvas ? ' with-drawer' : ''}${clean === 'on' ? ' clean' : ''}`}>
         <Inbox
           nodes={graph.nodes}
           now={now}
@@ -154,15 +141,6 @@ export function App() {
               <span>Search everything</span>
               <kbd>{IS_MAC ? '⌘K' : 'Ctrl K'}</kbd>
             </button>
-            {onCanvas && (
-              <div className="tabs" role="group" aria-label="Show">
-                {FILTERS.map((option) => (
-                  <button key={option.value} type="button" className={filter === option.value ? 'on' : ''} aria-pressed={filter === option.value} onClick={() => setFilter(option.value)}>
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            )}
             <div className="tabs views" role="group" aria-label="View">
               {VIEWS.map((option) => (
                 <button key={option.value} type="button" className={view === option.value ? 'on' : ''} aria-pressed={view === option.value} onClick={() => switchView(option.value)}>
@@ -170,53 +148,31 @@ export function App() {
                 </button>
               ))}
             </div>
-            <div className="tabs" role="group" aria-label="Replay">
-              <button type="button" className={replay.open ? 'on' : ''} aria-pressed={replay.open} onClick={replay.open ? replay.stop : replay.start}>
-                Replay
-              </button>
-            </div>
-            {notifications.supported && (
-              <button
-                type="button"
-                className={`icon-button${notifications.enabled ? ' on' : ''}`}
-                aria-label={notificationLabel}
-                title={notificationLabel}
-                aria-pressed={notifications.enabled}
-                disabled={notifications.blocked}
-                onClick={notifications.toggle}
-              >
-                <Icon name={notifications.enabled ? 'bell' : 'bellOff'} />
-              </button>
-            )}
-            {voice.supported && (
-              <button
-                type="button"
-                className={`icon-button${voice.enabled ? ' on' : ''}`}
-                aria-label={voiceLabel}
-                title={voiceLabel}
-                aria-pressed={voice.enabled}
-                onClick={voice.toggle}
-              >
-                <Icon name={voice.enabled ? 'speaker' : 'speakerOff'} />
-              </button>
-            )}
-            <button
-              type="button"
-              className="icon-button"
-              aria-label={`Theme: ${THEME_NAMES[preference]}; switch to ${THEME_NAMES[nextTheme]}`}
-              title={`Theme: ${THEME_NAMES[preference]}`}
-              onClick={cycleTheme}
-            >
-              <Icon name={THEME_ICONS[preference]} />
-            </button>
+            <SettingsMenu
+              onCanvas={onCanvas}
+              inOrrery={view === 'orrery'}
+              filter={filter}
+              onFilter={setFilter}
+              arrangement={arrangement}
+              onArrange={arrange}
+              replaying={replay.open}
+              onReplay={replay.open ? replay.stop : replay.start}
+              notifications={notifications}
+              voice={voice}
+              theme={preference}
+              onTheme={chooseTheme}
+              clean={clean === 'on'}
+              onClean={(on) => setClean(on ? 'on' : 'off')}
+            />
           </div>
 
           {onCanvas && (
             <>
               {/* A new canvas when replay starts or ends, so it fits what's shown. */}
-              <ReactFlowProvider key={`${view}-${replay.open ? (replay.view ? 'replay' : 'loading') : 'live'}`}>
+              <ReactFlowProvider key={`${view}-${arrangement}-${replay.open ? (replay.view ? 'replay' : 'loading') : 'live'}`}>
                 <GraphCanvas
                   layout={view === 'orrery' ? 'orrery' : 'grid'}
+                  arrangement={arrangement}
                   graph={graph}
                   theme={theme}
                   now={now}
