@@ -8,6 +8,7 @@ All notable changes to Agent Orrery are documented here. The format is based on
 
 ### Added
 
+- A macOS menu bar companion in `menubar/` that counts the sessions waiting on you and opens the one you pick. It reads the new `/api/waiting` route, and the page now selects an agent from a `#agent=<id>` link.
 - Search everything with ⌘K (Ctrl K elsewhere): agents by name, repo or branch, and plans and memory notes by their text, with the matches highlighted. Pick a result to jump straight to it.
 - Notifications: turn them on with the bell, and your browser tells you when a session starts waiting on you while you're in another tab. Click one to jump to the session.
 - A dark theme that follows your system, and a button to pick light or dark instead.

@@ -228,6 +228,14 @@ export function snapshot(graph, since, waitingSince = since) {
   return { nodes, messages }
 }
 
+// The sessions waiting on you, oldest wait first: what the menu bar companion lists.
+export function waitingSessions({ nodes }) {
+  return nodes
+    .filter((node) => node.kind === 'session' && node.waiting)
+    .map((node) => ({ id: node.id, label: node.label, room: node.room, branch: node.branch, reason: node.waiting.reason, since: node.waiting.since }))
+    .sort((a, b) => a.since - b.since)
+}
+
 export function timeline(graph, id) {
   return graph.nodes.get(id)?.events ?? null
 }
