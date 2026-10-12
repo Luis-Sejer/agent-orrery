@@ -502,6 +502,11 @@ mark {
   background: var(--green);
 }
 
+.connection-replay::before {
+  background: var(--amber);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 25%, transparent);
+}
+
 .inbox h1 {
   margin: 0;
   font-size: 34px;
@@ -1771,6 +1776,15 @@ mark {
   letter-spacing: 0.12em;
 }
 
+/* Mono capitals run wide; the toolbar tightens up so it stays on one line. */
+:root[data-hud] .toolbar :where(.tabs button, .search-button span) {
+  letter-spacing: 0.06em;
+}
+
+:root[data-hud] .toolbar .tabs button {
+  padding-inline: 10px;
+}
+
 :root[data-hud] .orrery-ring-label {
   fill: var(--amber);
   font-size: 10px;
@@ -1966,11 +1980,11 @@ mark {
 .replay-banner {
   margin: 0;
   padding: 6px 12px;
-  border-radius: 6px;
-  background: var(--amber);
-  color: #162925;
+  border-left: 3px solid var(--amber);
+  border-radius: 0 6px 6px 0;
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+  color: var(--ink);
   font-size: 13px;
-  font-weight: 600;
 }
 
 .replay-bar {

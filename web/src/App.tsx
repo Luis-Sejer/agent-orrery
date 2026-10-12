@@ -139,7 +139,7 @@ export function App() {
         <Inbox
           nodes={graph.nodes}
           now={now}
-          connection={connection}
+          connection={replay.open ? 'replay' : connection}
           selectedId={selectedId}
           dismissedCount={dismissedCount}
           onSelect={selectAndFocus}
@@ -213,7 +213,8 @@ export function App() {
 
           {onCanvas && (
             <>
-              <ReactFlowProvider key={view}>
+              {/* A new canvas when replay starts or ends, so it fits what's shown. */}
+              <ReactFlowProvider key={`${view}-${replay.open ? (replay.view ? 'replay' : 'loading') : 'live'}`}>
                 <GraphCanvas
                   layout={view === 'orrery' ? 'orrery' : 'grid'}
                   graph={graph}

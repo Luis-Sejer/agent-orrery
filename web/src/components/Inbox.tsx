@@ -11,7 +11,7 @@ const RUNNING_SHOWN = 8
 interface InboxProps {
   nodes: AgentNode[]
   now: number
-  connection: Connection
+  connection: Connection | 'replay'
   selectedId: string | null
   dismissedCount: number
   onSelect: (id: string) => void
@@ -30,6 +30,8 @@ function waitingLede(count: number): string {
   return `${COUNT_WORDS[count] ?? `${count} agents are`} waiting on you.`
 }
 
+const CONNECTION_LABELS = { connecting: 'Reconnecting', reconnecting: 'Reconnecting', live: 'Live', replay: 'Replay' }
+
 export function Inbox({ nodes, now, connection, selectedId, dismissedCount, onSelect, onDismiss, onRestoreDismissed }: InboxProps) {
   const waiting = nodes
     .filter((node) => statusOf(node, now) === 'waiting')
@@ -45,7 +47,7 @@ export function Inbox({ nodes, now, connection, selectedId, dismissedCount, onSe
     <aside className="inbox">
       <div className="inbox-top">
         <Wordmark />
-        <span className={`connection connection-${connection}`}>{connection === 'live' ? 'Live' : 'Reconnecting'}</span>
+        <span className={`connection connection-${connection}`}>{CONNECTION_LABELS[connection]}</span>
       </div>
       <h1 className="serif">Your turn</h1>
       <p className="lede">{waitingLede(waiting.length)}</p>
