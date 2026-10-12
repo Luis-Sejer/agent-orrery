@@ -135,16 +135,23 @@ function isTypedPrompt(record) {
   return Array.isArray(content) && content.some((block) => block?.type === 'text')
 }
 
+// Records that mean someone did something. Attachments, system notes and the summary that
+// compaction writes are bookkeeping: they mustn't make an idle session look busy.
+function isActivity(record) {
+  if (record.type === 'assistant') return true
+  return record.type === 'user' && !record.isMeta && !record.isCompactSummary
+}
+
 export function applyRecord(graph, nodeId, record) {
   const node = graph.nodes.get(nodeId)
   const at = Date.parse(record.timestamp ?? '') || 0
-  if (at > node.lastAt) node.lastAt = at
+  if (isActivity(record) && at > node.lastAt) node.lastAt = at
   if (record.gitBranch) node.branch = record.gitBranch
   if (record.cwd && !node.home) node.home = graph.resolveRepo(record.cwd) ?? basename(record.cwd)
 
   if (record.type === 'ai-title' && node.kind === 'session') node.label = String(record.aiTitle)
 
-  if (record.type === 'user' && !record.isMeta) {
+  if (record.type === 'user' && isActivity(record)) {
     node.waiting = null
     const origin = record.origin
     if (origin?.kind === 'peer' && origin.from) {

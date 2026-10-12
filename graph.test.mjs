@@ -88,6 +88,23 @@ test('a session waiting on you outlives the normal window; finished agents do no
   assert.equal(snapshot(graph, afterWindow, afterWindow).nodes.length, 0)
 })
 
+test('compacting an idle session keeps it waiting on you and not busy', () => {
+  const graph = createGraph()
+  ensureNode(graph, 's', { kind: 'session', label: 's', sessionId: 's' })
+  applyLines(
+    graph,
+    's',
+    line({ type: 'assistant', timestamp: at(1), message: { stop_reason: 'end_turn', content: [{ type: 'text', text: '…' }] } }) +
+      line({ type: 'system', subtype: 'turn_duration', timestamp: at(2) }) +
+      line({ type: 'system', subtype: 'compact_boundary', timestamp: at(50) }) +
+      line({ type: 'user', isCompactSummary: true, timestamp: at(50), message: { content: 'summary' } }) +
+      line({ type: 'attachment', timestamp: at(50), attachment: { type: 'file' } }),
+  )
+  const node = graph.nodes.get('s')
+  assert.deepEqual(node.waiting, { reason: 'reply', since: Date.parse(at(1)) })
+  assert.equal(node.lastAt, Date.parse(at(1)))
+})
+
 test('a pending question waits until the user answers', () => {
   const graph = createGraph()
   ensureNode(graph, 's', { kind: 'session', label: 's', sessionId: 's' })

@@ -20,6 +20,7 @@ All notable changes to Agent Orrery are documented here. The format is based on
 
 - New lines in transcripts show up as soon as they're written, instead of within a second, and checking costs less with many sessions.
 - Orbs show what shell commands do: reading files with `cat` or `grep` turns an agent's orb blue, and editing with `sed` or a redirect turns it violet.
+- A session compacted while it waited on you no longer jumps to Running; compaction and other bookkeeping don't count as activity.
 - Selecting an agent no longer rearranges the canvas: piles of finished agents stay folded and light up instead.
 - Waiting cards glow on their own rhythm instead of all at once.
 - Renamed to Agent Orrery.
