@@ -6,6 +6,8 @@ import { statusOf } from './status'
 import type { AgentNode, GraphSnapshot } from './types'
 import { applyDismissals } from './useDismissed'
 import { newWaits } from './useNotifications'
+import { NEXT, parsePreference, resolveTheme, type ThemePreference } from './useTheme'
+import { announcement, pickVoice } from './useVoice'
 
 const NOW = Date.parse('2026-10-12T12:00:00Z')
 const MINUTE = 60_000
@@ -158,5 +160,50 @@ describe('rhythm', () => {
     // Ids that differ only at the end still spread across the cycle.
     const phases = ['1', '2', '3', '4', '5'].map((n) => phaseOf(`5e55a000-0000-4000-8000-00000000000${n}`))
     expect(Math.max(...phases) - Math.min(...phases)).toBeGreaterThan(0.3)
+  })
+})
+
+describe('theme', () => {
+  it('cycles system, light, dark, T.Y.C.H.O. and back', () => {
+    const seen: ThemePreference[] = ['system']
+    for (let step = 0; step < 4; step++) seen.push(NEXT[seen.at(-1)!])
+    expect(seen).toEqual(['system', 'light', 'dark', 'tycho', 'system'])
+  })
+
+  it('lays T.Y.C.H.O. over the dark theme, and falls back to system for anything unknown', () => {
+    expect(resolveTheme('tycho', false)).toBe('dark')
+    expect(resolveTheme('system', true)).toBe('dark')
+    expect(resolveTheme('light', true)).toBe('light')
+    expect(parsePreference('tycho')).toBe('tycho')
+    expect(parsePreference('neon')).toBe('system')
+    expect(parsePreference(null)).toBe('system')
+  })
+})
+
+describe('announcement', () => {
+  it('says who is waiting and where, in words a speech engine reads well', () => {
+    const waiting = agent('s', { kind: 'session', label: 'Rate limiter', room: 'storefront-api', waiting: { reason: 'reply', since: NOW } })
+    expect(announcement(waiting)).toBe('Rate limiter is waiting on you in storefront api.')
+    expect(announcement({ ...waiting, waiting: { reason: 'question', since: NOW } })).toBe('Rate limiter asked you a question in storefront api.')
+  })
+})
+
+describe('pickVoice', () => {
+  const voice = (name: string, lang = 'en-GB', fields: Partial<SpeechSynthesisVoice> = {}) =>
+    ({ name, lang, localService: true, default: false, voiceURI: name, ...fields }) as SpeechSynthesisVoice
+  const pick = (voices: SpeechSynthesisVoice[]) => pickVoice(voices)?.name ?? null
+
+  it('prefers Premium, then Enhanced, then Daniel, then any British voice', () => {
+    const voices = [voice('Samantha', 'en-US'), voice('Kate'), voice('Daniel'), voice('Serena (Enhanced)'), voice('Jamie (Premium)')]
+    expect(pick(voices)).toBe('Jamie (Premium)')
+    expect(pick(voices.slice(0, 4))).toBe('Serena (Enhanced)')
+    expect(pick(voices.slice(0, 3))).toBe('Daniel')
+    expect(pick(voices.slice(0, 2))).toBe('Kate')
+  })
+
+  it('falls back to any English voice, then the default, and skips novelty and network voices', () => {
+    expect(pick([voice('Eddy (English (UK))'), voice('Google UK English Male', 'en-GB', { localService: false }), voice('Samantha', 'en-US')])).toBe('Samantha')
+    expect(pick([voice('Zarvox', 'en-US'), voice('Anna', 'de-DE', { default: true })])).toBe('Anna')
+    expect(pick([])).toBeNull()
   })
 })

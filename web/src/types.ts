@@ -70,4 +70,4 @@ export type Status = 'waiting' | 'running' | 'finished'
 
 export type Filter = 'all' | Status
 
-export type View = 'graph' | 'plans' | 'memory'
+export type View = 'graph' | 'orrery' | 'plans' | 'memory'

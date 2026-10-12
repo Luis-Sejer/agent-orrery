@@ -1,9 +1,11 @@
 import { BaseEdge, getBezierPath, Handle, Position, type Edge, type EdgeProps, type NodeProps } from '@xyflow/react'
 
 import type { CardNode, FoldNode, MessageData, RoomNode } from '../layout'
+import type { OrbitNode } from '../radial'
 import { beamStyle } from '../rhythm'
 import { describeStatus, orbStateOf, statusOf } from '../status'
 import { Orb } from './Orb'
+import { OrreryBackdrop } from './OrreryBackdrop'
 
 // Edges attach to these; they are invisible and can't be dragged.
 function Handles() {
@@ -68,6 +70,23 @@ export function AgentCard({ data }: NodeProps<CardNode>) {
   )
 }
 
+// The orrery's compact node: an orb with its name underneath. Edges meet at the orb's centre.
+export function OrbitCard({ data }: NodeProps<OrbitNode>) {
+  const { node, now } = data
+  const status = statusOf(node, now)
+  const className = ['orbit-card', `status-${status}`, data.dimmed && 'dimmed', data.focused && 'focused', data.related && !data.focused && 'related']
+    .filter(Boolean)
+    .join(' ')
+  return (
+    <div className={className} style={beamStyle(node.id)} title={`${node.label}. ${describeStatus(node, now)}`}>
+      <Handle type="target" position={Position.Top} isConnectable={false} />
+      <Handle type="source" position={Position.Top} isConnectable={false} />
+      <Orb state={orbStateOf(node, now)} size={32} ring={node.kind === 'session'} seed={node.id} />
+      <span className={node.kind === 'session' ? 'orbit-label serif' : 'orbit-label'}>{node.label}</span>
+    </div>
+  )
+}
+
 export function FoldCard({ data }: NodeProps<FoldNode>) {
   return (
     <button type="button" className={`card fold nodrag${data.dimmed ? ' dimmed' : ''}${data.related ? ' related' : ''}`} onClick={() => data.onExpand(data.room)}>
@@ -108,5 +127,5 @@ export function MessageEdge(props: EdgeProps<Edge<MessageData, 'message'>>) {
   )
 }
 
-export const nodeTypes = { session: SessionCard, agent: AgentCard, fold: FoldCard, room: RoomBox }
+export const nodeTypes = { session: SessionCard, agent: AgentCard, fold: FoldCard, room: RoomBox, orbit: OrbitCard, backdrop: OrreryBackdrop }
 export const edgeTypes = { message: MessageEdge }

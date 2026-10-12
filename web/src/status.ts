@@ -6,7 +6,7 @@ import type { AgentNode, Status } from './types'
 const STALE_MS = 15 * 60_000
 const ELSEWHERE = 'elsewhere'
 
-export const STATE_COLOURS: Record<OrbState, string> = {
+const STATE_COLOURS: Record<OrbState, string> = {
   working: '#34955f',
   solving: '#34955f',
   shaping: '#34955f',
@@ -16,6 +16,23 @@ export const STATE_COLOURS: Record<OrbState, string> = {
   connecting: '#b9822f',
   listening: '#c0504a',
   breathing: '#97a29f',
+}
+
+// The same meanings, brighter, for the T.Y.C.H.O. HUD's black ground.
+const NEON_COLOURS: Record<OrbState, string> = {
+  working: '#3dffa2',
+  solving: '#3dffa2',
+  shaping: '#3dffa2',
+  weaving: '#3dffa2',
+  searching: '#4fd2ff',
+  composing: '#b78cff',
+  connecting: '#ffb02e',
+  listening: '#ff4d5a',
+  breathing: '#8d8a84',
+}
+
+export function stateColour(state: OrbState, hud: boolean): string {
+  return (hud ? NEON_COLOURS : STATE_COLOURS)[state]
 }
 
 export function statusOf(node: AgentNode, now: number): Status {

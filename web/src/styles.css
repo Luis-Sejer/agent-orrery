@@ -1002,6 +1002,199 @@ mark {
   opacity: 0.15;
 }
 
+/* Orrery: you at the centre, rings by how much each agent needs you, a sector per repository */
+
+/* React Flow sets pointer-events inline; the backdrop lets clicks through to the canvas. */
+.react-flow__node-backdrop {
+  pointer-events: none !important;
+}
+
+.react-flow__minimap-node.mini-backdrop {
+  fill: transparent;
+}
+
+.orrery-backdrop {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.orrery-backdrop svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.orrery-ring {
+  fill: none;
+  stroke: var(--idle);
+  stroke-width: 1.4;
+  stroke-dasharray: 2 6;
+  stroke-linecap: round;
+}
+
+.orrery-ring.ring-waiting {
+  stroke: color-mix(in srgb, var(--waiting) 60%, transparent);
+}
+
+.orrery-ring.ring-running {
+  stroke: var(--rule);
+}
+
+.orrery-boundary {
+  stroke: var(--ghost);
+  stroke-width: 1;
+}
+
+.orrery-ring-label {
+  fill: var(--muted);
+  font: italic 15px var(--serif);
+  letter-spacing: 0.02em;
+  text-anchor: middle;
+}
+
+.orrery-core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: grid;
+  justify-items: center;
+  /* Centred on the orb; the caption hangs below it. */
+  transform: translate(-50%, -160px);
+}
+
+/* The constellation's ink: the theme's, or red while anything waits on you. */
+.core-orb {
+  --core: var(--ink);
+  width: 320px;
+  height: 320px;
+}
+
+.core-orb.waiting {
+  --core: var(--waiting);
+}
+
+.core-caption {
+  font: italic 19px/1.2 var(--serif);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.core-caption.why {
+  color: var(--waiting);
+  font-weight: 400;
+}
+
+.sector-label {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  /* Anchored on the side facing the centre, so names never reach back over the rings. */
+  transform: translate(calc((var(--cos) - 1) * 50%), calc((var(--sin) - 1) * 50%));
+}
+
+.sector-label .serif {
+  font-size: 26px;
+  line-height: 1;
+  color: var(--muted);
+}
+
+.sector-label .room-fold {
+  margin: 0;
+  pointer-events: auto;
+}
+
+.orbit-card {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: opacity 300ms var(--ease);
+}
+
+.orbit-card .orb {
+  align-self: center;
+  transition: transform 200ms var(--ease), box-shadow 200ms var(--ease);
+}
+
+.orbit-card:hover .orb {
+  transform: scale(1.08);
+}
+
+.orbit-card .react-flow__handle-top {
+  top: 50%;
+}
+
+.react-flow__node.orrery-node .fold .react-flow__handle {
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* The name sits outside the orb, on the side away from the centre (--cos, --sin set per frame). */
+.orbit-label {
+  position: absolute;
+  left: calc(50% + var(--cos, 0) * 30px);
+  top: calc(50% + var(--sin, 1) * 30px);
+  transform: translate(calc((var(--cos, 0) - 1) * 50%), calc((var(--sin, 1) - 1) * 50%));
+  max-width: 24ch;
+  padding: 0 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orbit-label.serif {
+  font-size: 16.5px;
+  line-height: 1.25;
+}
+
+.orbit-card.status-finished .orbit-label {
+  color: var(--muted);
+}
+
+.orbit-card.focused .orb {
+  box-shadow: 0 0 0 2px var(--green), var(--shadow-lifted);
+}
+
+.orbit-card.focused .orbit-label {
+  background: var(--ink);
+  color: var(--on-ink);
+}
+
+.orbit-card.related .orb {
+  box-shadow: 0 0 0 1px var(--rule), var(--shadow-hover);
+}
+
+/* The orrery's take on the border beam: a halo that breathes on the agent's own rhythm. */
+.orbit-card.status-waiting .orb::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px var(--waiting), 0 0 16px color-mix(in srgb, var(--waiting) 55%, transparent);
+  animation: halo var(--beam-duration, 3.4s) ease-in-out var(--beam-delay, 0s) infinite;
+  pointer-events: none;
+}
+
+@keyframes halo {
+  50% {
+    opacity: 0.35;
+    transform: scale(1.1);
+  }
+}
+
 /* Drawer */
 
 .drawer {
@@ -1431,6 +1624,279 @@ mark {
   color: var(--muted);
 }
 
+/* T.Y.C.H.O. ("Tracks Your Claude Helpers' Orbits"): a holographic HUD laid over the dark theme.
+   Amber ink and hot orange on black, cyan as a second voice, thin frames with corner brackets. */
+
+:root[data-hud] {
+  --surface: #050403;
+  --surface-low: #0a0805;
+  --surface-container: #241a0e;
+  --surface-card: #0e0a06;
+  --ink: #ffdcab;
+  --muted: #d0a26a;
+  --green: #ff9a2e;
+  --green-deep: #ffbe6b;
+  --waiting: #ff5a64;
+  --amber: #ffb02e;
+  --cyan: #5ee7ff;
+  --rule: rgba(255, 154, 46, 0.5);
+  --ghost: rgba(255, 176, 46, 0.16);
+  --frame: rgba(255, 154, 46, 0.22);
+  --bracket: rgba(255, 186, 92, 0.9);
+  --glow: rgba(255, 130, 20, 0.6);
+  --shadow: 0 0 0 1px var(--frame), 0 0 22px rgba(255, 120, 20, 0.07);
+  --shadow-hover: 0 0 0 1px rgba(255, 154, 46, 0.5), 0 0 26px rgba(255, 120, 20, 0.2);
+  --shadow-lifted: 0 0 0 1px rgba(255, 154, 46, 0.6), 0 0 36px rgba(255, 120, 20, 0.28);
+  --hover: rgba(255, 176, 46, 0.07);
+  --room: rgba(255, 176, 46, 0.03);
+  --room-name: rgba(255, 176, 46, 0.16);
+  --line: #7a5426;
+  --idle: #4f3d27;
+  --dot: rgba(255, 176, 46, 0.12);
+  --on-ink: #050403;
+  --focus-ring: rgba(255, 154, 46, 0.3);
+  --green-wash: rgba(255, 154, 46, 0.2);
+  --drawer-shadow: -1px 0 0 var(--frame), -16px 0 40px rgba(255, 110, 10, 0.06);
+  --minimap-mask: rgba(5, 4, 3, 0.72);
+  --backdrop: rgba(0, 0, 0, 0.65);
+  --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+  --brackets:
+    linear-gradient(var(--bracket) 0 0) top left / 10px 1.5px no-repeat,
+    linear-gradient(var(--bracket) 0 0) top left / 1.5px 10px no-repeat,
+    linear-gradient(var(--bracket) 0 0) top right / 10px 1.5px no-repeat,
+    linear-gradient(var(--bracket) 0 0) top right / 1.5px 10px no-repeat,
+    linear-gradient(var(--bracket) 0 0) bottom left / 10px 1.5px no-repeat,
+    linear-gradient(var(--bracket) 0 0) bottom left / 1.5px 10px no-repeat,
+    linear-gradient(var(--bracket) 0 0) bottom right / 10px 1.5px no-repeat,
+    linear-gradient(var(--bracket) 0 0) bottom right / 1.5px 10px no-repeat;
+}
+
+:root[data-hud] body {
+  background: radial-gradient(ellipse 80% 70% at 60% 45%, #140d05, var(--surface) 70%) fixed;
+}
+
+/* Scanlines, faint enough to read through. */
+:root[data-hud] body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: repeating-linear-gradient(to bottom, rgba(255, 176, 70, 0.035) 0 1px, transparent 1px 3px);
+  pointer-events: none;
+}
+
+/* Frames with corner brackets. */
+:root[data-hud] :where(.turn, .drawer, .tabs, .search-button, .icon-button, .card, .reader, .palette) {
+  border-radius: 2px;
+  background: var(--brackets), var(--surface-card);
+}
+
+:root[data-hud] .card.fold {
+  background: var(--brackets), var(--surface-low);
+}
+
+:root[data-hud] .room {
+  border-radius: 4px;
+  background: var(--brackets), var(--room);
+  box-shadow: inset 0 0 0 1px rgba(255, 154, 46, 0.1);
+}
+
+:root[data-hud] .inbox {
+  background: linear-gradient(to right, transparent calc(100% - 1px), var(--frame)), var(--surface-low);
+}
+
+/* Headings and small labels speak HUD: monospace, upper case, tracked, glowing. */
+:root[data-hud] :where(.inbox h1, .inbox h2, .drawer h3, .drawer h4, .room-name, .sector-label .serif, .wordmark .serif, .note-header h1) {
+  font-family: var(--mono);
+  font-style: normal;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--amber);
+  text-shadow: 0 0 12px var(--glow);
+}
+
+:root[data-hud] .inbox h1 {
+  font-size: 22px;
+  letter-spacing: 0.22em;
+}
+
+:root[data-hud] :where(.inbox h2, .drawer h4) {
+  font-size: 13px;
+  letter-spacing: 0.2em;
+}
+
+:root[data-hud] .drawer h3 {
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+:root[data-hud] .wordmark .serif {
+  font-size: 12px;
+  letter-spacing: 0.1em;
+}
+
+:root[data-hud] .wordmark-by {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: none;
+}
+
+:root[data-hud] .room-name {
+  font-size: 40px;
+  color: var(--room-name);
+  text-shadow: none;
+}
+
+:root[data-hud] .sector-label .serif {
+  font-size: 18px;
+}
+
+/* Titles stay in the text face; serif display type doesn't belong on a HUD. */
+:root[data-hud] :where(.card-title.serif, .turn strong.serif, .orbit-label.serif) {
+  font-family: var(--sans);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+:root[data-hud] .card.session .card-title,
+:root[data-hud] .turn strong {
+  font-size: 15px;
+}
+
+:root[data-hud] :where(.card-line, .turn .where, .turn .why, .inbox .lede, .connection, .tabs button, kbd, .branch, .chip, .facts dt, .timeline time, .palette-group, .room-summary, .room-fold, .search-button span, .core-caption, .orrery-ring-label, .button, .card.fold) {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-style: normal;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+:root[data-hud] .orrery-ring-label {
+  fill: var(--amber);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+}
+
+:root[data-hud] .core-orb:not(.waiting) {
+  --core: var(--amber);
+}
+
+:root[data-hud] .core-orb {
+  filter: drop-shadow(0 0 6px var(--glow));
+}
+
+:root[data-hud] .core-caption {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--amber);
+  text-shadow: 0 0 10px var(--glow);
+}
+
+:root[data-hud] .core-caption.why {
+  color: var(--waiting);
+  text-shadow: 0 0 10px rgba(255, 70, 80, 0.6);
+}
+
+:root[data-hud] .tabs button.on {
+  background: var(--green-wash);
+  color: var(--amber);
+  box-shadow: inset 0 0 0 1px rgba(255, 154, 46, 0.55);
+  text-shadow: 0 0 8px var(--glow);
+}
+
+:root[data-hud] .icon-button.on {
+  color: var(--amber);
+  filter: drop-shadow(0 0 4px var(--glow));
+}
+
+:root[data-hud] .connection-live::before {
+  background: var(--cyan);
+  box-shadow: 0 0 8px var(--cyan);
+}
+
+:root[data-hud] .button.primary {
+  background: var(--green-wash);
+  color: var(--amber);
+  box-shadow: inset 0 0 0 1px var(--green), 0 0 14px rgba(255, 130, 20, 0.3);
+  text-shadow: 0 0 8px var(--glow);
+}
+
+:root[data-hud] .react-flow {
+  --xy-background-color: transparent;
+}
+
+:root[data-hud] .react-flow__minimap-node.mini-running {
+  fill: #3dffa2;
+}
+
+/* Orbs and lit lines glow. */
+:root[data-hud] .orb canvas {
+  filter: drop-shadow(0 0 3px var(--state));
+}
+
+:root[data-hud] :is(.react-flow__edge.lit path, .message-path) {
+  filter: drop-shadow(0 0 3px var(--glow));
+}
+
+:root[data-hud] .orbit-label {
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  box-shadow: inset 0 0 0 1px var(--frame);
+  font-size: 11.5px;
+}
+
+/* The orrery's rings become solid, glowing tracks, and a dial turns around you. */
+:root[data-hud] .orrery-ring {
+  stroke: rgba(255, 154, 46, 0.5);
+  stroke-width: 1;
+  stroke-dasharray: none;
+  filter: drop-shadow(0 0 5px var(--glow));
+}
+
+:root[data-hud] .orrery-ring.ring-waiting {
+  stroke: rgba(255, 90, 100, 0.7);
+  filter: drop-shadow(0 0 6px rgba(255, 60, 70, 0.7));
+}
+
+:root[data-hud] .orrery-ring.ring-finished {
+  stroke: rgba(255, 154, 46, 0.25);
+}
+
+:root[data-hud] .orrery-boundary {
+  stroke: rgba(94, 231, 255, 0.18);
+  stroke-dasharray: 2 4;
+}
+
+.hud-dial circle {
+  fill: none;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.hud-ticks {
+  stroke: var(--amber);
+  stroke-width: 7;
+  stroke-dasharray: 1 5.4;
+  opacity: 0.6;
+  animation: spin 80s linear infinite;
+}
+
+.hud-segments {
+  stroke: var(--green);
+  stroke-width: 3;
+  stroke-dasharray: 64 12 10 12 4 22;
+  filter: drop-shadow(0 0 4px var(--glow));
+  animation: spin 26s linear infinite reverse;
+}
+
+.hud-arc {
+  stroke: var(--cyan);
+  stroke-width: 1.2;
+  stroke-dasharray: 180 36 40 36 12 36;
+  opacity: 0.7;
+  animation: spin 44s linear infinite;
+}
+
 @media (max-width: 900px) {
   .app,
   .app.with-drawer {
@@ -1452,5 +1918,8 @@ mark {
   *::after {
     animation: none !important;
     transition: none !important;
+  }
+  :root[data-hud] body::after {
+    display: none;
   }
 }

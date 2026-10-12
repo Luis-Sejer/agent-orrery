@@ -12,7 +12,9 @@ import type { Filter, View } from './types'
 import { applyDismissals, useDismissed } from './useDismissed'
 import { useGraph, useNow } from './useGraph'
 import { useNotifications } from './useNotifications'
-import { useTheme } from './useTheme'
+import { HudContext, useTheme } from './useTheme'
+import { useView } from './useView'
+import { useVoice } from './useVoice'
 
 const FILTERS: { value: Filter; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -23,12 +25,13 @@ const FILTERS: { value: Filter; label: string }[] = [
 
 const VIEWS: { value: View; label: string }[] = [
   { value: 'graph', label: 'Agents' },
+  { value: 'orrery', label: 'Orrery' },
   { value: 'plans', label: 'Plans' },
   { value: 'memory', label: 'Memory' },
 ]
 
-const THEME_ICONS = { system: 'system', light: 'sun', dark: 'moon' } as const
-const THEME_NAMES = { system: 'system', light: 'light', dark: 'dark' }
+const THEME_ICONS = { system: 'system', light: 'sun', dark: 'moon', tycho: 'reticle' } as const
+const THEME_NAMES = { system: 'system', light: 'light', dark: 'dark', tycho: 'T.Y.C.H.O.' }
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform)
 
 function isTyping(target: EventTarget | null): boolean {
@@ -39,10 +42,11 @@ export function App() {
   const { graph: liveGraph, connection, loaded } = useGraph()
   const now = useNow()
   const { dismissals, dismiss, restoreAll } = useDismissed()
-  const { preference, theme, cycle: cycleTheme, next: nextTheme } = useTheme()
+  const { preference, theme, hud, cycle: cycleTheme, next: nextTheme } = useTheme()
   const graph = useMemo(() => applyDismissals(liveGraph, dismissals), [liveGraph, dismissals])
   const dismissedCount = graph.nodes.filter((node) => node.dismissed).length
-  const [view, setView] = useState<View>('graph')
+  const { view, setView, toCanvas } = useView()
+  const onCanvas = view === 'graph' || view === 'orrery'
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [focusRequest, setFocusRequest] = useState<{ id: string; at: number } | null>(null)
   const [filter, setFilter] = useState<Filter>('all')
@@ -58,14 +62,15 @@ export function App() {
     document.title = waitingCount > 0 ? `(${waitingCount}) Agent Orrery` : 'Agent Orrery'
   }, [waitingCount])
 
-  // Selecting from a list or a notification also moves the canvas to the agent.
+  // Selecting from a list or a notification also moves the canvas to the agent, on the canvas you used last.
   const selectAndFocus = useCallback((id: string) => {
-    setView('graph')
+    toCanvas()
     setSelectedId(id)
     setFocusRequest({ id, at: Date.now() })
   }, [])
 
   const notifications = useNotifications({ nodes: graph.nodes, now, loaded, onOpen: selectAndFocus })
+  const voice = useVoice({ nodes: graph.nodes, now, loaded, hud })
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -107,113 +112,129 @@ export function App() {
     : notifications.enabled
       ? 'Notifications are on; turn them off'
       : 'Notify me when an agent is waiting on me'
+  const voiceLabel = voice.enabled ? 'Voice is on; turn it off' : 'Say out loud when an agent is waiting on me'
 
   return (
-    <div className={`app${selected && view === 'graph' ? ' with-drawer' : ''}`}>
-      <Inbox
-        nodes={graph.nodes}
-        now={now}
-        connection={connection}
-        selectedId={selectedId}
-        dismissedCount={dismissedCount}
-        onSelect={selectAndFocus}
-        onDismiss={dismiss}
-        onRestoreDismissed={restoreAll}
-      />
+    <HudContext.Provider value={hud}>
+      <div className={`app${selected && onCanvas ? ' with-drawer' : ''}`}>
+        <Inbox
+          nodes={graph.nodes}
+          now={now}
+          connection={connection}
+          selectedId={selectedId}
+          dismissedCount={dismissedCount}
+          onSelect={selectAndFocus}
+          onDismiss={dismiss}
+          onRestoreDismissed={restoreAll}
+        />
 
-      <main className="stage">
-        <div className="toolbar">
-          <button type="button" className="search-button" onClick={() => setSearching(true)}>
-            <Icon name="search" />
-            <span>Search everything</span>
-            <kbd>{IS_MAC ? '⌘K' : 'Ctrl K'}</kbd>
-          </button>
-          {view === 'graph' && (
-            <div className="tabs" role="group" aria-label="Show">
-              {FILTERS.map((option) => (
-                <button key={option.value} type="button" className={filter === option.value ? 'on' : ''} aria-pressed={filter === option.value} onClick={() => setFilter(option.value)}>
+        <main className="stage">
+          <div className="toolbar">
+            <button type="button" className="search-button" onClick={() => setSearching(true)}>
+              <Icon name="search" />
+              <span>Search everything</span>
+              <kbd>{IS_MAC ? '⌘K' : 'Ctrl K'}</kbd>
+            </button>
+            {onCanvas && (
+              <div className="tabs" role="group" aria-label="Show">
+                {FILTERS.map((option) => (
+                  <button key={option.value} type="button" className={filter === option.value ? 'on' : ''} aria-pressed={filter === option.value} onClick={() => setFilter(option.value)}>
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="tabs views" role="group" aria-label="View">
+              {VIEWS.map((option) => (
+                <button key={option.value} type="button" className={view === option.value ? 'on' : ''} aria-pressed={view === option.value} onClick={() => switchView(option.value)}>
                   {option.label}
                 </button>
               ))}
             </div>
-          )}
-          <div className="tabs views" role="group" aria-label="View">
-            {VIEWS.map((option) => (
-              <button key={option.value} type="button" className={view === option.value ? 'on' : ''} aria-pressed={view === option.value} onClick={() => switchView(option.value)}>
-                {option.label}
+            {notifications.supported && (
+              <button
+                type="button"
+                className={`icon-button${notifications.enabled ? ' on' : ''}`}
+                aria-label={notificationLabel}
+                title={notificationLabel}
+                aria-pressed={notifications.enabled}
+                disabled={notifications.blocked}
+                onClick={notifications.toggle}
+              >
+                <Icon name={notifications.enabled ? 'bell' : 'bellOff'} />
               </button>
-            ))}
-          </div>
-          {notifications.supported && (
+            )}
+            {voice.supported && (
+              <button
+                type="button"
+                className={`icon-button${voice.enabled ? ' on' : ''}`}
+                aria-label={voiceLabel}
+                title={voiceLabel}
+                aria-pressed={voice.enabled}
+                onClick={voice.toggle}
+              >
+                <Icon name={voice.enabled ? 'speaker' : 'speakerOff'} />
+              </button>
+            )}
             <button
               type="button"
-              className={`icon-button${notifications.enabled ? ' on' : ''}`}
-              aria-label={notificationLabel}
-              title={notificationLabel}
-              aria-pressed={notifications.enabled}
-              disabled={notifications.blocked}
-              onClick={notifications.toggle}
+              className="icon-button"
+              aria-label={`Theme: ${THEME_NAMES[preference]}; switch to ${THEME_NAMES[nextTheme]}`}
+              title={`Theme: ${THEME_NAMES[preference]}`}
+              onClick={cycleTheme}
             >
-              <Icon name={notifications.enabled ? 'bell' : 'bellOff'} />
+              <Icon name={THEME_ICONS[preference]} />
             </button>
+          </div>
+
+          {onCanvas && (
+            <>
+              <ReactFlowProvider key={view}>
+                <GraphCanvas
+                  layout={view === 'orrery' ? 'orrery' : 'grid'}
+                  graph={graph}
+                  theme={theme}
+                  now={now}
+                  selectedId={selectedId}
+                  expandedRooms={expandedRooms}
+                  filter={filter}
+                  onExpand={expandRoom}
+                  onCollapse={collapseRoom}
+                  focusRequest={focusRequest}
+                  onSelect={setSelectedId}
+                />
+              </ReactFlowProvider>
+              {loaded && graph.nodes.length === 0 && (
+                <p className="canvas-empty">No Claude Code activity in the last few hours. Start a session and it appears here.</p>
+              )}
+            </>
           )}
-          <button
-            type="button"
-            className="icon-button"
-            aria-label={`Theme: ${THEME_NAMES[preference]}. Switch to ${THEME_NAMES[nextTheme]}`}
-            title={`Theme: ${THEME_NAMES[preference]}`}
-            onClick={cycleTheme}
-          >
-            <Icon name={THEME_ICONS[preference]} />
-          </button>
-        </div>
+          {!onCanvas && <Library key={view} kind={view} nodes={graph.nodes} now={now} openRequest={openRequest} onSelectNode={selectAndFocus} />}
+        </main>
 
-        {view === 'graph' && (
-          <>
-            <ReactFlowProvider>
-              <GraphCanvas
-                graph={graph}
-                theme={theme}
-                now={now}
-                selectedId={selectedId}
-                expandedRooms={expandedRooms}
-                filter={filter}
-                onExpand={expandRoom}
-                onCollapse={collapseRoom}
-                focusRequest={focusRequest}
-                onSelect={setSelectedId}
-              />
-            </ReactFlowProvider>
-            {loaded && graph.nodes.length === 0 && (
-              <p className="canvas-empty">No Claude Code activity in the last few hours. Start a session and it appears here.</p>
-            )}
-          </>
+        {selected && onCanvas && (
+          <Drawer
+            node={selected}
+            parent={selected.parentId ? (nodesById.get(selected.parentId) ?? null) : null}
+            children={graph.nodes.filter((node) => node.parentId === selected.id)}
+            now={now}
+            onClose={() => setSelectedId(null)}
+            onSelect={selectAndFocus}
+            onOpenPlan={openPlan}
+            onDismiss={dismiss}
+          />
         )}
-        {view !== 'graph' && <Library key={view} kind={view} nodes={graph.nodes} now={now} openRequest={openRequest} onSelectNode={selectAndFocus} />}
-      </main>
 
-      {selected && view === 'graph' && (
-        <Drawer
-          node={selected}
-          parent={selected.parentId ? (nodesById.get(selected.parentId) ?? null) : null}
-          children={graph.nodes.filter((node) => node.parentId === selected.id)}
+        <SearchPalette
+          open={searching}
+          nodes={graph.nodes}
           now={now}
-          onClose={() => setSelectedId(null)}
-          onSelect={selectAndFocus}
+          onClose={() => setSearching(false)}
+          onSelectNode={selectAndFocus}
           onOpenPlan={openPlan}
-          onDismiss={dismiss}
+          onOpenNote={openNote}
         />
-      )}
-
-      <SearchPalette
-        open={searching}
-        nodes={graph.nodes}
-        now={now}
-        onClose={() => setSearching(false)}
-        onSelectNode={selectAndFocus}
-        onOpenPlan={openPlan}
-        onOpenNote={openNote}
-      />
-    </div>
+      </div>
+    </HudContext.Provider>
   )
 }
