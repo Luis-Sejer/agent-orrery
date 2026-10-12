@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>Agent Orrery</title>
+  <defs>
+    <linearGradient id="ground" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e7eeea"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#34955f" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#34955f" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="core" cx="0.36" cy="0.32" r="0.75">
+      <stop offset="0" stop-color="#46675e"/>
+      <stop offset="0.55" stop-color="#162925"/>
+      <stop offset="1" stop-color="#0b1613"/>
+    </radialGradient>
+    <radialGradient id="moon" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#7fd0a2"/>
+      <stop offset="0.5" stop-color="#34955f"/>
+      <stop offset="1" stop-color="#236b45"/>
+    </radialGradient>
+    <mask id="cut" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <rect width="1024" height="1024" fill="#fff"/>
+      <circle cx="717" cy="307" r="68" fill="#000"/>
+    </mask>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#ground)"/>
+  <rect x="100.5" y="100.5" width="823" height="823" rx="184.5" fill="none" stroke="#162925" stroke-opacity="0.08"/>
+  <circle cx="512" cy="512" r="300" fill="url(#glow)"/>
+  <g fill="none" stroke="#34955f" stroke-width="19" stroke-linecap="round" mask="url(#cut)">
+    <circle cx="512" cy="512" r="290" pathLength="40" stroke-dasharray="0.95 1.05" transform="rotate(-84 512 512)"/>
+    <circle cx="512" cy="512" r="196" pathLength="28" stroke-dasharray="0.95 1.05" stroke-opacity="0.55" transform="rotate(-80 512 512)"/>
+  </g>
+  <circle cx="512" cy="512" r="104" fill="url(#core)"/>
+  <circle cx="717" cy="307" r="46" fill="url(#moon)"/>
+</svg>

@@ -14,10 +14,54 @@
   --shadow: 0 12px 32px rgba(25, 28, 29, 0.06);
   --shadow-hover: 0 16px 40px rgba(25, 28, 29, 0.1);
   --shadow-lifted: 0 20px 48px rgba(25, 28, 29, 0.14);
+  --hover: rgba(22, 41, 37, 0.04);
+  --room: rgba(22, 41, 37, 0.035);
+  --room-name: rgba(22, 41, 37, 0.13);
+  --line: #9fb3ad;
+  --idle: #c4cbc9;
+  --dot: rgba(22, 41, 37, 0.14);
+  --on-ink: #ffffff;
+  --focus-ring: rgba(52, 149, 95, 0.15);
+  --green-wash: rgba(52, 149, 95, 0.14);
+  --drawer-shadow: -12px 0 32px rgba(25, 28, 29, 0.05);
+  --minimap-mask: rgba(248, 249, 250, 0.7);
+  --backdrop: rgba(22, 41, 37, 0.25);
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
   --serif: 'Instrument Serif', 'Times New Roman', Times, serif;
   --sans: Inter, system-ui, -apple-system, sans-serif;
   color-scheme: light;
+}
+
+/* Dark: green-black grounds, the same greens lifted for contrast. Set on <html> by useTheme. */
+:root[data-theme='dark'] {
+  --surface: #0f1715;
+  --surface-low: #131d1b;
+  --surface-container: #22302c;
+  --surface-card: #18221f;
+  --ink: #e4ebe8;
+  --muted: #9aaaa5;
+  --green: #4caf78;
+  --green-deep: #2f8a57;
+  --waiting: #e0766e;
+  --amber: #d6a04f;
+  --rule: rgba(76, 175, 120, 0.4);
+  --ghost: rgba(255, 255, 255, 0.12);
+  --shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  --shadow-hover: 0 16px 40px rgba(0, 0, 0, 0.45);
+  --shadow-lifted: 0 20px 48px rgba(0, 0, 0, 0.55);
+  --hover: rgba(228, 235, 232, 0.05);
+  --room: rgba(228, 235, 232, 0.035);
+  --room-name: rgba(228, 235, 232, 0.12);
+  --line: #4b5f59;
+  --idle: #4d5c58;
+  --dot: rgba(228, 235, 232, 0.12);
+  --on-ink: #0f1715;
+  --focus-ring: rgba(76, 175, 120, 0.25);
+  --green-wash: rgba(76, 175, 120, 0.16);
+  --drawer-shadow: -12px 0 32px rgba(0, 0, 0, 0.3);
+  --minimap-mask: rgba(15, 23, 21, 0.7);
+  --backdrop: rgba(5, 10, 9, 0.55);
+  color-scheme: dark;
 }
 
 * {
@@ -141,27 +185,77 @@ button {
   pointer-events: auto;
 }
 
-.search {
-  flex: 1 1 160px;
-  max-width: 280px;
-}
-
-.search input {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid transparent;
+.search-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 1 260px;
+  min-width: 0;
+  padding: 7px 8px 7px 11px;
+  border: 0;
   border-radius: 8px;
   background: var(--surface-card);
   box-shadow: var(--shadow);
-  color: var(--ink);
-  font: inherit;
-  transition: border-color 150ms var(--ease);
+  color: var(--muted);
+  cursor: pointer;
 }
 
-.search input:focus {
-  outline: none;
-  border-color: var(--green);
-  box-shadow: 0 0 0 4px rgba(52, 149, 95, 0.15);
+.search-button span {
+  flex: 1;
+  overflow: hidden;
+  text-align: left;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.search-button:hover {
+  color: var(--ink);
+}
+
+kbd {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--surface-container);
+  color: var(--muted);
+  font: 500 11px/1.6 var(--sans);
+}
+
+.icon {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.icon-button {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: var(--surface-card);
+  box-shadow: var(--shadow);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  color: var(--ink);
+}
+
+.icon-button.on {
+  color: var(--green);
+}
+
+.icon-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .tabs {
@@ -191,11 +285,128 @@ button {
 
 .tabs button.on {
   background: var(--ink);
-  color: #fff;
+  color: var(--on-ink);
 }
 
 .tabs.views {
   margin-left: auto;
+}
+
+/* Search everything */
+
+.palette {
+  width: min(640px, calc(100vw - 32px));
+  max-height: min(560px, 76vh);
+  margin: 12vh auto auto;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border: 0;
+  border-radius: 12px;
+  background: var(--surface-card);
+  color: var(--ink);
+  box-shadow: var(--shadow-lifted);
+  overflow: hidden;
+}
+
+.palette:not([open]) {
+  display: none;
+}
+
+.palette::backdrop {
+  background: var(--backdrop);
+  backdrop-filter: blur(3px);
+}
+
+.palette-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--ghost);
+  color: var(--muted);
+}
+
+.palette-field input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: 400 16px/1.4 var(--sans);
+  outline: none;
+}
+
+.palette-results {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.palette-hint {
+  padding: 14px 12px;
+  color: var(--muted);
+}
+
+.palette-group {
+  display: block;
+  padding: 10px 10px 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.palette-results button {
+  width: 100%;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.palette-results button.active {
+  background: var(--hover);
+  box-shadow: inset 2px 0 0 var(--green);
+}
+
+.palette-results .orb {
+  margin-top: 1px;
+}
+
+.palette-text {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.palette-text strong {
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.palette-text span {
+  color: var(--muted);
+  font-size: 12.5px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+mark {
+  padding: 0 1px;
+  border-radius: 2px;
+  background: var(--green-wash);
+  color: var(--ink);
 }
 
 .canvas-empty {
@@ -428,7 +639,7 @@ button {
 }
 
 .running button:hover {
-  background: rgba(22, 41, 37, 0.04);
+  background: var(--hover);
 }
 
 .running b {
@@ -482,10 +693,35 @@ button {
 
 .react-flow {
   --xy-background-color: var(--surface);
-  --xy-edge-stroke: #9fb3ad;
+  --xy-edge-stroke: var(--line);
   --xy-minimap-background-color: var(--surface-card);
   --xy-controls-button-background-color: var(--surface-card);
   --xy-controls-button-border-color: var(--surface-low);
+  --xy-controls-button-color: var(--ink);
+  --xy-controls-button-background-color-hover: var(--surface-low);
+  --xy-background-pattern-color: var(--dot);
+  --xy-minimap-mask-background-color: var(--minimap-mask);
+  --xy-attribution-background-color: transparent;
+}
+
+.react-flow__attribution a {
+  color: var(--muted);
+}
+
+.react-flow__minimap-node {
+  fill: var(--idle);
+}
+
+.react-flow__minimap-node.mini-room {
+  fill: var(--room);
+}
+
+.react-flow__minimap-node.mini-waiting {
+  fill: var(--waiting);
+}
+
+.react-flow__minimap-node.mini-running {
+  fill: var(--green);
 }
 
 .react-flow__handle {
@@ -509,7 +745,7 @@ button {
   width: 100%;
   height: 100%;
   border-radius: 16px;
-  background: rgba(22, 41, 37, 0.035);
+  background: var(--room);
   overflow: hidden;
   transition: opacity 300ms var(--ease);
 }
@@ -522,6 +758,22 @@ button {
   font-size: 12px;
 }
 
+.room-fold {
+  margin-left: 10px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 3px;
+  background: var(--surface-container);
+  color: var(--ink);
+  font-size: 12px;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.room-fold:hover {
+  background: var(--green-wash);
+}
+
 .room-name {
   position: absolute;
   left: 20px;
@@ -529,7 +781,7 @@ button {
   font-size: 52px;
   line-height: 1;
   letter-spacing: -0.03em;
-  color: rgba(22, 41, 37, 0.13);
+  color: var(--room-name);
   white-space: nowrap;
 }
 
@@ -632,11 +884,55 @@ button {
   color: var(--muted);
 }
 
+.card.fold.related {
+  box-shadow: 0 0 0 1px var(--rule), var(--shadow-hover);
+  color: var(--ink);
+}
+
+.subagents {
+  list-style: none;
+  margin: 0 0 24px;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.subagents button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.subagents button:hover {
+  background: var(--hover);
+}
+
+.subagents strong {
+  display: block;
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.subagents span span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .fold-dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #c4cbc9;
+  background: var(--idle);
 }
 
 /* Border beam: runs around anything waiting on you */
@@ -655,7 +951,7 @@ button {
   border-radius: inherit;
   background: conic-gradient(from var(--beam-angle), transparent 0 72%, var(--waiting) 90%, transparent 100%);
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-  animation: beam 3.4s linear infinite;
+  animation: beam var(--beam-duration, 3.4s) linear var(--beam-delay, 0s) infinite;
   pointer-events: none;
 }
 
@@ -668,7 +964,7 @@ button {
 /* Edges */
 
 .react-flow__edge.spawn path {
-  stroke: #9fb3ad;
+  stroke: var(--line);
   stroke-width: 1.25;
   stroke-dasharray: 4 5;
 }
@@ -712,7 +1008,7 @@ button {
   position: relative;
   padding: 24px 22px;
   background: var(--surface-card);
-  box-shadow: -12px 0 32px rgba(25, 28, 29, 0.05);
+  box-shadow: var(--drawer-shadow);
   overflow-y: auto;
 }
 
@@ -796,7 +1092,7 @@ button {
 }
 
 .chip-link:hover {
-  background: rgba(52, 149, 95, 0.14);
+  background: var(--green-wash);
 }
 
 .actions {
@@ -962,7 +1258,7 @@ button {
 .library-controls input:focus {
   outline: none;
   border-color: var(--green);
-  box-shadow: 0 0 0 4px rgba(52, 149, 95, 0.15);
+  box-shadow: 0 0 0 4px var(--focus-ring);
 }
 
 .library-list ol {
@@ -986,7 +1282,7 @@ button {
 }
 
 .library-list button:hover {
-  background: rgba(22, 41, 37, 0.04);
+  background: var(--hover);
 }
 
 .library-list button.selected {
@@ -1112,6 +1408,20 @@ button {
   padding: 6px 10px;
   border-bottom: 1px solid var(--ghost);
   text-align: left;
+}
+
+.markdown table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.markdown th {
+  font-weight: 600;
+}
+
+.markdown input[type='checkbox'] {
+  margin: 0 6px 0 0;
 }
 
 .markdown blockquote {

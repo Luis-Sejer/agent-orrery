@@ -1,6 +1,7 @@
 import { ago, orbStateOf, statusOf, verbFor } from '../status'
 import type { Connection } from '../useGraph'
 import type { AgentNode } from '../types'
+import { beamStyle } from '../rhythm'
 import { Orb } from './Orb'
 import { Wordmark } from './Wordmark'
 
@@ -47,8 +48,8 @@ export function Inbox({ nodes, now, connection, selectedId, dismissedCount, onSe
       <ol className="turns">
         {waiting.map((node) => (
           <li key={node.id} className="turn-item">
-            <button type="button" className={`turn beam${node.id === selectedId ? ' selected' : ''}`} onClick={() => onSelect(node.id)}>
-              <Orb state="listening" size={20} />
+            <button type="button" className={`turn beam${node.id === selectedId ? ' selected' : ''}`} style={beamStyle(node.id)} onClick={() => onSelect(node.id)}>
+              <Orb state="listening" size={20} seed={node.id} />
               <strong className="serif">{node.label}</strong>
               <span className="where">
                 {node.room}
@@ -82,7 +83,7 @@ export function Inbox({ nodes, now, connection, selectedId, dismissedCount, onSe
         {running.slice(0, RUNNING_SHOWN).map((node) => (
           <li key={node.id}>
             <button type="button" onClick={() => onSelect(node.id)}>
-              <Orb state={orbStateOf(node, now)} size={20} />
+              <Orb state={orbStateOf(node, now)} size={20} seed={node.id} />
               <span>
                 <b>{node.label}</b> {verbFor(node.activity).toLowerCase()} in {node.room}
               </span>

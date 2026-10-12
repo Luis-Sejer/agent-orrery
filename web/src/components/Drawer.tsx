@@ -6,11 +6,13 @@ import type { AgentNode, TimelineEvent } from '../types'
 import { Orb } from './Orb'
 
 const TIMELINE_REFRESH_MS = 3_000
+const STATUS_RANK = { waiting: 0, running: 1, finished: 2 }
 const COPIED_FEEDBACK_MS = 1_800
 
 interface DrawerProps {
   node: AgentNode
   parent: AgentNode | null
+  children: AgentNode[]
   now: number
   onClose: () => void
   onSelect: (id: string) => void
@@ -56,7 +58,7 @@ function clockTime(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
 }
 
-export function Drawer({ node, parent, now, onClose, onSelect, onOpenPlan, onDismiss }: DrawerProps) {
+export function Drawer({ node, parent, children, now, onClose, onSelect, onOpenPlan, onDismiss }: DrawerProps) {
   const events = useTimeline(node.id)
   const [copied, setCopied] = useState(false)
   const sessionId = node.kind === 'session' ? node.id : node.sessionId
@@ -153,6 +155,29 @@ export function Drawer({ node, parent, now, onClose, onSelect, onOpenPlan, onDis
           </div>
           <code className="command">{resumeCommand}</code>
         </div>
+      )}
+
+      {children.length > 0 && (
+        <>
+          <h4 className="serif">Subagents</h4>
+          <ol className="subagents">
+            {[...children]
+              .sort((a, b) => STATUS_RANK[statusOf(a, now)] - STATUS_RANK[statusOf(b, now)] || b.lastAt - a.lastAt)
+              .map((child) => (
+                <li key={child.id}>
+                  <button type="button" onClick={() => onSelect(child.id)}>
+                    <Orb state={orbStateOf(child, now)} size={20} seed={child.id} />
+                    <span>
+                      <strong>{child.label}</strong>
+                      <span>
+                        {[child.agentType, child.room].filter(Boolean).join(', ')}. {describeStatus(child, now)}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+          </ol>
+        </>
       )}
 
       <h4 className="serif">What it has done</h4>

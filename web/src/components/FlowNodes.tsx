@@ -1,6 +1,7 @@
 import { BaseEdge, getBezierPath, Handle, Position, type Edge, type EdgeProps, type NodeProps } from '@xyflow/react'
 
 import type { CardNode, FoldNode, MessageData, RoomNode } from '../layout'
+import { beamStyle } from '../rhythm'
 import { describeStatus, orbStateOf, statusOf } from '../status'
 import { Orb } from './Orb'
 
@@ -33,9 +34,9 @@ export function SessionCard({ data }: NodeProps<CardNode>) {
   const { node, now, alsoIn } = data
   const waiting = statusOf(node, now) === 'waiting'
   return (
-    <div className={cardClass('session', data)}>
+    <div className={cardClass('session', data)} style={beamStyle(node.id)}>
       <Handles />
-      <Orb state={orbStateOf(node, now)} size={32} ring />
+      <Orb state={orbStateOf(node, now)} size={32} ring seed={node.id} />
       <div className="card-text">
         <strong className="card-title serif" title={node.label}>
           {node.label}
@@ -55,7 +56,7 @@ export function AgentCard({ data }: NodeProps<CardNode>) {
   return (
     <div className={cardClass('agent', data)}>
       <Handles />
-      <Orb state={orbStateOf(node, now)} size={32} />
+      <Orb state={orbStateOf(node, now)} size={32} seed={node.id} />
       <div className="card-text">
         <strong className="card-title" title={node.label}>
           {node.label}
@@ -69,7 +70,7 @@ export function AgentCard({ data }: NodeProps<CardNode>) {
 
 export function FoldCard({ data }: NodeProps<FoldNode>) {
   return (
-    <button type="button" className={`card fold nodrag${data.dimmed ? ' dimmed' : ''}`} onClick={() => data.onExpand(data.room)}>
+    <button type="button" className={`card fold nodrag${data.dimmed ? ' dimmed' : ''}${data.related ? ' related' : ''}`} onClick={() => data.onExpand(data.room)}>
       <Handles />
       <span className="fold-dot" aria-hidden="true" />
       {data.count} finished, show
@@ -80,7 +81,14 @@ export function FoldCard({ data }: NodeProps<FoldNode>) {
 export function RoomBox({ data }: NodeProps<RoomNode>) {
   return (
     <div className={`room${data.dimmed ? ' dimmed' : ''}`}>
-      <span className="room-summary">{data.summary}</span>
+      <span className="room-summary">
+        {data.summary}
+        {data.foldable && (
+          <button type="button" className="room-fold nodrag" onClick={() => data.onCollapse(data.name)}>
+            Hide finished
+          </button>
+        )}
+      </span>
       <span className="room-name serif">{data.name}</span>
     </div>
   )

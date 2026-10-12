@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import { ThinkingOrb, type OrbSize, type OrbState } from 'thinking-orbs'
 
+import { orbSpeed } from '../rhythm'
 import { STATE_COLOURS } from '../status'
 
 // The small presets' dots get lost on a white card; heavier dots keep the state readable.
@@ -11,9 +12,11 @@ interface OrbProps {
   size: OrbSize
   // Dashed orbit rings, which mark a session as opposed to a subagent.
   ring?: boolean
+  // Gives the orb its own speed, so orbs don't animate in step.
+  seed?: string
 }
 
-export function Orb({ state, size, ring = false }: OrbProps) {
+export function Orb({ state, size, ring = false, seed }: OrbProps) {
   const colour = STATE_COLOURS[state]
   const style = { '--state': colour } as CSSProperties
   return (
@@ -27,9 +30,10 @@ export function Orb({ state, size, ring = false }: OrbProps) {
       <ThinkingOrb
         state={state}
         size={size}
-        theme="light"
+        theme="auto"
         color={colour}
         dotSize={size === 64 ? 1.2 : SMALL_DOT_SIZE}
+        speed={seed ? orbSpeed(seed) : 1}
         paused={state === 'breathing'}
       />
     </span>

@@ -10,7 +10,7 @@ export default defineConfig({
   build: { outDir: 'dist', emptyOutDir: true, assetsInlineLimit: 0, chunkSizeWarningLimit: 800 },
   test: { include: ['src/**/*.test.ts'] },
   server: {
-    // The agent-graph server rejects foreign Host headers, so the proxy must rewrite it.
+    // The agent-orrery server rejects foreign Host headers, so the proxy must rewrite it.
     proxy: {
       '/events': { target: SERVER, changeOrigin: true },
       '/api': { target: SERVER, changeOrigin: true },

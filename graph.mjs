@@ -32,6 +32,23 @@ const ACTIVITY_BY_TOOL = {
   AskUserQuestion: 'listening',
 }
 
+// Agents often read and edit through the shell, so a command is classified by what it does.
+// Only the resulting state is kept; the command itself is never stored.
+const SHELL_READERS = /^(cat|head|tail|less|grep|rg|ag|find|fd|ls|tree|wc|stat|file|du|jq|awk|which|sed -n|git (log|show|diff|status|blame|grep|branch|ls-files)|gh (pr|issue|run|api|repo) (view|list|diff|checks))\b/
+const SHELL_WRITERS = /(^|[;&|]\s*)(sed -i|perl -pi|tee|cp|mv|mkdir|rm|touch|patch|git (add|commit|mv|rm|apply|checkout -b))\b|(^|[^0-9&>])>>?\s*(?!&|\/dev\/null)[\w~/.$"']/
+const SHELL_PREFIX = /^(cd\s+\S+|export\s+\S+|source\s+\S+)\s*(&&|;)\s*/
+
+export function shellActivity(command) {
+  if (typeof command !== 'string') return 'working'
+  let rest = command.trim()
+  while (SHELL_PREFIX.test(rest)) rest = rest.replace(SHELL_PREFIX, '')
+  if (SHELL_WRITERS.test(rest)) return 'composing'
+  if (SHELL_READERS.test(rest)) return 'searching'
+  return 'working'
+}
+
+const SHELL_EVENT_TEXT = { composing: 'Changed files in the shell', searching: 'Read files in the shell', working: 'Ran a command' }
+
 const fileName = (input) => basename(String(input?.file_path ?? input?.notebook_path ?? 'a file'))
 
 const DESCRIBE_TOOL = {
@@ -40,7 +57,7 @@ const DESCRIBE_TOOL = {
   MultiEdit: (input) => `Edited ${fileName(input)}`,
   Write: (input) => `Wrote ${fileName(input)}`,
   NotebookEdit: (input) => `Edited ${fileName(input)}`,
-  Bash: () => 'Ran a command',
+  Bash: (input) => SHELL_EVENT_TEXT[shellActivity(input?.command)],
   Grep: () => 'Searched the code',
   Glob: () => 'Looked for files',
   WebSearch: () => 'Searched the web',
@@ -93,7 +110,7 @@ function addMessage(graph, from, to, at) {
 function recordToolUse(graph, node, block, record, at) {
   const name = String(block.name)
   node.lastTool = name
-  node.activity = ACTIVITY_BY_TOOL[name] ?? 'working'
+  node.activity = name === 'Bash' ? shellActivity(block.input?.command) : (ACTIVITY_BY_TOOL[name] ?? 'working')
   graph.toolUseOwner.set(block.id, node.id)
 
   let repo = null

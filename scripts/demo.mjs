@@ -1,9 +1,9 @@
-// Generates a made-up Claude Code home folder and serves agent-graph on it, so you can try
+// Generates a made-up Claude Code home folder and serves agent-orrery on it, so you can try
 // the dashboard (and take screenshots) without showing anyone your real sessions.
 // The data goes through the real transcript parser, and a ticker keeps the agents busy.
 //
 //   pnpm demo            # http://127.0.0.1:4780
-//   AGENT_GRAPH_PORT=4790 pnpm demo
+//   AGENT_ORRERY_PORT=4790 pnpm demo
 
 import { spawn } from 'node:child_process'
 import { appendFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
@@ -11,8 +11,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const PORT = process.env.AGENT_GRAPH_PORT ?? '4780'
-const ROOT = join(tmpdir(), 'agent-graph-demo')
+const PORT = process.env.AGENT_ORRERY_PORT ?? '4780'
+// One folder per port, so two demos (say, screenshots and a recording) can run at once.
+const ROOT = join(tmpdir(), `agent-orrery-demo-${PORT}`)
 const CLAUDE_DIR = join(ROOT, 'claude')
 const CODE_DIR = join(ROOT, 'code')
 const TICK_MS = 2_500
@@ -162,7 +163,7 @@ function writeSessions() {
   logs.tool(1, STEPS.grep('mobile-app'))
   flaky.transcript.tool(0.3, STEPS.bash('mobile-app'))
   running.push(
-    { transcript: flaky.transcript, repo: 'mobile-app', files: ['test/login.test.ts', 'src/auth/session.ts'] },
+    { transcript: flaky.transcript, repo: 'mobile-app', files: ['test/login.test.ts', 'src/auth/session.ts'], waitsOnYou: true },
     { transcript: logs, repo: 'mobile-app', files: ['ci/logs/run-4812.txt'] },
   )
 
@@ -250,10 +251,28 @@ function writeLibrary(sessions) {
 }
 
 const TICK_STEPS = ['read', 'edit', 'grep', 'bash', 'write']
+const WAIT_EVERY_TICKS = 12
+let ticks = 0
+let flakyWaiting = false
+
+// Every so often the flaky-test session finishes and waits on you, then you "reply" and it
+// carries on, so the demo shows a session joining and leaving Your turn.
+function toggleFlakyWait() {
+  const flaky = running.find((agent) => agent.waitsOnYou)
+  if (flakyWaiting) flaky.transcript.prompt(0)
+  else flaky.transcript.endTurn(0)
+  flakyWaiting = !flakyWaiting
+}
 
 // Keeps the running agents busy so the orbs change and messages travel.
 function tick() {
-  const agent = running[Math.floor(Math.random() * running.length)]
+  ticks += 1
+  if (ticks % WAIT_EVERY_TICKS === 0) {
+    toggleFlakyWait()
+    return
+  }
+  const busy = running.filter((agent) => !(flakyWaiting && agent.waitsOnYou))
+  const agent = busy[Math.floor(Math.random() * busy.length)]
   const file = agent.files[Math.floor(Math.random() * agent.files.length)]
   if (agent.lead && Math.random() < 0.3) {
     agent.transcript.tool(0, ['SendMessage', { to: agent.lead, message: '…' }])
@@ -270,7 +289,7 @@ writeLibrary(sessions)
 
 const server = spawn(process.execPath, [SERVER], {
   stdio: 'inherit',
-  env: { ...process.env, AGENT_GRAPH_PORT: PORT, AGENT_GRAPH_CLAUDE_DIR: CLAUDE_DIR },
+  env: { ...process.env, AGENT_ORRERY_PORT: PORT, AGENT_ORRERY_CLAUDE_DIR: CLAUDE_DIR },
 })
 const ticker = setInterval(tick, TICK_MS)
 const stop = () => {

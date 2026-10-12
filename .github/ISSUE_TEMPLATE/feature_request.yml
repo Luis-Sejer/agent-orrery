@@ -1,12 +1,12 @@
 name: Feature request
-description: Suggest an idea for agent-graph
+description: Suggest an idea for Agent Orrery
 labels: [enhancement]
 body:
   - type: textarea
     id: problem
     attributes:
       label: What would you like to do?
-      description: Describe the problem, or the moment where agent-graph could help more.
+      description: Describe the problem, or the moment where Agent Orrery could help more.
     validations:
       required: true
   - type: textarea

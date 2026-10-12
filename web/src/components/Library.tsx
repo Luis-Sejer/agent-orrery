@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Markdown, { type Components } from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 import { ago } from '../status'
 import { getJson } from '../useGraph'
@@ -16,9 +17,13 @@ interface LibraryProps {
   kind: 'plans' | 'memory'
   nodes: AgentNode[]
   now: number
-  openPlan: string | null
+  // A one-off request to open a plan (its name) or a memory note (project/name).
+  openRequest: { key: string; at: number } | null
   onSelectNode: (id: string) => void
 }
+
+// Tables, task lists and strikethrough, as GitHub renders them; plans use tables a lot.
+const REMARK_PLUGINS = [remarkGfm]
 
 const SIBLING_NOTE = /^[\w.-]+\.md$/
 
@@ -95,7 +100,7 @@ function noteItems(project: MemoryProject | undefined): Item[] {
   }))
 }
 
-export function Library({ kind, nodes, now, openPlan, onSelectNode }: LibraryProps) {
+export function Library({ kind, nodes, now, openRequest, onSelectNode }: LibraryProps) {
   const [plans, setPlans] = useState<PlanSummary[]>([])
   const [memory, setMemory] = useState<MemoryProject[]>([])
   const [project, setProject] = useState<string | null>(null)
@@ -115,12 +120,24 @@ export function Library({ kind, nodes, now, openPlan, onSelectNode }: LibraryPro
     return needle ? all.filter((item) => `${item.title} ${item.detail ?? ''}`.toLowerCase().includes(needle)) : all
   }, [kind, plans, currentProject, query, now])
 
-  // Open something straight away: the plan asked for, or the first item in the list.
+  const [pendingKey, setPendingKey] = useState<string | null>(null)
+
+  // A note lives in a project, so opening one switches to its project first.
   useEffect(() => {
-    const wanted = kind === 'plans' && openPlan ? items.find((item) => item.key === openPlan) : null
-    if (wanted && wanted.key !== selected?.key) setSelected(wanted)
-    else if (!selected && items.length > 0) setSelected(items[0])
-  }, [kind, openPlan, items, selected])
+    if (!openRequest) return
+    setPendingKey(openRequest.key)
+    setQuery('')
+    if (kind === 'memory') setProject(openRequest.key.split('/')[0])
+  }, [kind, openRequest])
+
+  // Open the requested item once the list has it; otherwise start on the first item.
+  useEffect(() => {
+    const wanted = pendingKey ? items.find((item) => item.key === pendingKey) : null
+    if (wanted) {
+      setSelected(wanted)
+      setPendingKey(null)
+    } else if (!selected && !pendingKey && items.length > 0) setSelected(items[0])
+  }, [pendingKey, items, selected])
 
   // Read through a ref so the Markdown components stay the same and the reader isn't
   // re-rendered (losing any text selection) every time the clock ticks.
@@ -213,7 +230,7 @@ export function Library({ kind, nodes, now, openPlan, onSelectNode }: LibraryPro
               </header>
             )}
             <div className="markdown">
-              <Markdown skipHtml disallowedElements={['img']} components={components}>
+              <Markdown skipHtml disallowedElements={['img']} remarkPlugins={REMARK_PLUGINS} components={components}>
                 {note.body}
               </Markdown>
             </div>

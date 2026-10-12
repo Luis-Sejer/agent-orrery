@@ -1,16 +1,16 @@
 {
-  "name": "agent-graph",
+  "name": "agent-orrery",
   "version": "0.1.0",
   "private": true,
   "description": "A live map of your Claude Code agents, and what is waiting on you",
   "license": "MIT",
   "author": "Luis Sejer Oliver",
-  "homepage": "https://github.com/Luis-Sejer/agent-graph",
+  "homepage": "https://github.com/Luis-Sejer/agent-orrery",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Luis-Sejer/agent-graph.git"
+    "url": "git+https://github.com/Luis-Sejer/agent-orrery.git"
   },
-  "bugs": "https://github.com/Luis-Sejer/agent-graph/issues",
+  "bugs": "https://github.com/Luis-Sejer/agent-orrery/issues",
   "keywords": [
     "claude-code",
     "agents",
@@ -21,7 +21,7 @@
   "type": "module",
   "packageManager": "pnpm@12.8.2",
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "scripts": {
     "start": "node server.mjs",
@@ -42,6 +42,7 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-markdown": "10.1.0",
+    "remark-gfm": "4.0.1",
     "thinking-orbs": "0.3.2",
     "typescript": "7.0.2",
     "vite": "8.3.2",

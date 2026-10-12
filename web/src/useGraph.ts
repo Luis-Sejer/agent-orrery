@@ -7,19 +7,23 @@ const CLOCK_MS = 5_000
 
 export type Connection = 'connecting' | 'live' | 'reconnecting'
 
-export function useGraph(): { graph: GraphSnapshot; connection: Connection } {
+export function useGraph(): { graph: GraphSnapshot; connection: Connection; loaded: boolean } {
   const [graph, setGraph] = useState<GraphSnapshot>(EMPTY)
+  const [loaded, setLoaded] = useState(false)
   const [connection, setConnection] = useState<Connection>('connecting')
 
   useEffect(() => {
     const source = new EventSource('/events')
     source.addEventListener('open', () => setConnection('live'))
     source.addEventListener('error', () => setConnection('reconnecting'))
-    source.addEventListener('message', (event) => setGraph(JSON.parse(event.data) as GraphSnapshot))
+    source.addEventListener('message', (event) => {
+      setGraph(JSON.parse(event.data) as GraphSnapshot)
+      setLoaded(true)
+    })
     return () => source.close()
   }, [])
 
-  return { graph, connection }
+  return { graph, connection, loaded }
 }
 
 // Relative times ("3 min ago") need a clock that ticks even when no data arrives.

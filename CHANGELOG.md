@@ -1,10 +1,28 @@
 # Changelog
 
-All notable changes to agent-graph are documented here. The format is based on
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and agent-graph follows
+All notable changes to Agent Orrery are documented here. The format is based on
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and Agent Orrery follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Added
+
+- Search everything with ⌘K (Ctrl K elsewhere): agents by name, repo or branch, and plans and memory notes by their text, with the matches highlighted. Pick a result to jump straight to it.
+- Notifications: turn them on with the bell, and your browser tells you when a session starts waiting on you while you're in another tab. Click one to jump to the session.
+- A dark theme that follows your system, and a button to pick light or dark instead.
+- Hide finished: a room you've opened can fold its finished agents back into a pile.
+- The drawer lists a session's subagents, so you can jump to any of them, even when they're folded away.
+- Tables, task lists and strikethrough in plans and memory notes.
+- A website, app icon, logos, social images and a launch video, all made from the demo.
+
+### Changed
+
+- New lines in transcripts show up as soon as they're written, instead of within a second, and checking costs less with many sessions.
+- Orbs show what shell commands do: reading files with `cat` or `grep` turns an agent's orb blue, and editing with `sed` or a redirect turns it violet.
+- Selecting an agent no longer rearranges the canvas: piles of finished agents stay folded and light up instead.
+- Waiting cards glow on their own rhythm instead of all at once.
+- Renamed to Agent Orrery.
 
 ## [0.1.0] - 2026-10-12
 

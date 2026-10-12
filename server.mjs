@@ -3,6 +3,7 @@
 // Read-only and loopback-only: no hooks, no runtime dependencies, nothing written to disk.
 
 import { createServer } from 'node:http'
+import { watch } from 'node:fs'
 import { open, readdir, readFile, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { extname, join, relative } from 'node:path'
@@ -12,17 +13,21 @@ import { applyLines, createGraph, ensureNode, snapshot, timeline } from './graph
 import { createLibrary } from './library.mjs'
 import { createRepoResolver } from './repos.mjs'
 
-const PORT = Number(process.env.AGENT_GRAPH_PORT ?? 4777)
+const PORT = Number(process.env.AGENT_ORRERY_PORT ?? 4777)
 // Inside Docker the server must listen on all interfaces; compose publishes it on 127.0.0.1 only.
-const BIND_HOST = process.env.AGENT_GRAPH_BIND ?? '127.0.0.1'
+const BIND_HOST = process.env.AGENT_ORRERY_BIND ?? '127.0.0.1'
 const HOUR_MS = 3_600_000
-const WINDOW_MS = Number(process.env.AGENT_GRAPH_WINDOW_HOURS ?? 6) * HOUR_MS
-const WAITING_WINDOW_MS = Number(process.env.AGENT_GRAPH_WAITING_HOURS ?? 24) * HOUR_MS
-const CLAUDE_DIR = process.env.AGENT_GRAPH_CLAUDE_DIR ?? join(homedir(), '.claude')
+const WINDOW_MS = Number(process.env.AGENT_ORRERY_WINDOW_HOURS ?? 6) * HOUR_MS
+const WAITING_WINDOW_MS = Number(process.env.AGENT_ORRERY_WAITING_HOURS ?? 24) * HOUR_MS
+const CLAUDE_DIR = process.env.AGENT_ORRERY_CLAUDE_DIR ?? join(homedir(), '.claude')
 const PROJECTS_DIR = join(CLAUDE_DIR, 'projects')
 const WEB_DIR = fileURLToPath(new URL('./web/dist/', import.meta.url))
-const READ_INTERVAL_MS = 1_000
-const DISCOVER_EVERY_TICKS = 10
+// File events trigger a read straight away; the slower check catches events that get lost,
+// which happens with Docker's file sharing.
+const EVENT_DEBOUNCE_MS = 150
+const FALLBACK_INTERVAL_MS = 5_000
+const POLL_INTERVAL_MS = 1_000
+const DISCOVER_EVERY_MS = 30_000
 
 const library = createLibrary({ claudeDir: CLAUDE_DIR })
 const graph = createGraph({ resolveRepo: createRepoResolver(), plansDir: library.plansDir })
@@ -99,8 +104,8 @@ async function readAppended(path, entry) {
 const clients = new Set()
 let lastPayload = ''
 
-async function tick(count) {
-  if (count % DISCOVER_EVERY_TICKS === 0) {
+async function tick(discover) {
+  if (discover) {
     await discoverSessions()
     await discoverSubagents()
   }
@@ -112,11 +117,57 @@ async function tick(count) {
   for (const response of clients) response.write(`data: ${payload}\n\n`)
 }
 
-async function watch() {
-  // ponytail: polls every second; switch to fs.watch if transcript counts make it slow.
-  for (let count = 0; ; count++) {
-    await tick(count).catch((error) => console.error('agent-graph: read failed', error))
-    await new Promise((resolve) => setTimeout(resolve, READ_INTERVAL_MS))
+// Runs one tick at a time; a request during a tick runs another straight after it.
+function createScheduler() {
+  let running = false
+  let again = false
+  let discoverNext = true
+  let lastDiscovery = 0
+  async function run() {
+    if (running) {
+      again = true
+      return
+    }
+    running = true
+    do {
+      again = false
+      const discover = discoverNext || Date.now() - lastDiscovery >= DISCOVER_EVERY_MS
+      discoverNext = false
+      if (discover) lastDiscovery = Date.now()
+      await tick(discover).catch((error) => console.error('agent-orrery: read failed', error))
+    } while (again)
+    running = false
+  }
+  let timer = null
+  return {
+    soon({ discover = false } = {}) {
+      discoverNext ||= discover
+      clearTimeout(timer)
+      timer = setTimeout(run, EVENT_DEBOUNCE_MS)
+    },
+    now: run,
+  }
+}
+
+function startWatching(scheduler) {
+  const poll = () => setInterval(scheduler.now, POLL_INTERVAL_MS)
+  try {
+    const watcher = watch(PROJECTS_DIR, { recursive: true }, (_event, name) => {
+      if (!name || !name.endsWith('.jsonl')) return
+      // A transcript we don't track yet means a new session or subagent.
+      scheduler.soon({ discover: !tracked.has(join(PROJECTS_DIR, name)) })
+    })
+    const fallback = setInterval(scheduler.now, FALLBACK_INTERVAL_MS)
+    watcher.on('error', (error) => {
+      console.warn('agent-orrery: file events stopped, polling instead', error.message)
+      watcher.close()
+      clearInterval(fallback)
+      poll()
+    })
+    return 'file events'
+  } catch {
+    poll()
+    return 'polling'
   }
 }
 
@@ -173,13 +224,14 @@ const API_ROUTES = {
   '/api/plan': (query) => library.readPlan(query.get('name') ?? ''),
   '/api/memory': () => library.listMemory(),
   '/api/memory/note': (query) => library.readMemory(query.get('project') ?? '', query.get('name') ?? ''),
+  '/api/search': (query) => library.search(query.get('q') ?? ''),
 }
 
 function createHandler(webFiles) {
   return async function handle(request, response) {
     if (!isTrustedRequest(request.headers) || request.method !== 'GET') {
       const { host, origin } = request.headers
-      console.warn(`agent-graph: refused ${request.method} host=${host} origin=${origin} site=${request.headers['sec-fetch-site']}`)
+      console.warn(`agent-orrery: refused ${request.method} host=${host} origin=${origin} site=${request.headers['sec-fetch-site']}`)
       response.writeHead(403, SECURITY_HEADERS).end()
       return
     }
@@ -208,10 +260,12 @@ function createHandler(webFiles) {
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const webFiles = await listWebFiles(WEB_DIR)
-  if (!webFiles.has('/index.html')) console.warn('agent-graph: no built page in web/dist; run `pnpm build` first')
+  if (!webFiles.has('/index.html')) console.warn('agent-orrery: no built page in web/dist; run `pnpm build` first')
   const handle = createHandler(webFiles)
   createServer((request, response) => {
     handle(request, response).catch(() => response.writeHead(500, SECURITY_HEADERS).end())
-  }).listen(PORT, BIND_HOST, () => console.log(`agent-graph: http://127.0.0.1:${PORT}`))
-  watch()
+  }).listen(PORT, BIND_HOST, () => console.log(`agent-orrery: http://127.0.0.1:${PORT}`))
+  const scheduler = createScheduler()
+  scheduler.now()
+  console.log(`agent-orrery: following transcripts with ${startWatching(scheduler)}`)
 }

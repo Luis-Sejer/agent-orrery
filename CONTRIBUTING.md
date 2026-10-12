@@ -1,22 +1,22 @@
-# Contributing to agent-graph
+# Contributing to Agent Orrery
 
-Thanks for helping make agent-graph better. Bug reports, ideas and pull requests are all welcome.
+Thanks for helping make Agent Orrery better. Bug reports, ideas and pull requests are all welcome.
 
 By taking part you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Reporting bugs and suggesting features
 
-Open an [issue](https://github.com/Luis-Sejer/agent-graph/issues/new/choose) and pick the template that fits. For bugs, include how you run agent-graph (Docker or from source), your Claude Code version (`claude --version`) and the steps that show the problem. Never paste transcript contents: they can hold your code and secrets.
+Open an [issue](https://github.com/Luis-Sejer/agent-orrery/issues/new/choose) and pick the template that fits. For bugs, include how you run Agent Orrery (Docker or from source), your Claude Code version (`claude --version`) and the steps that show the problem. Never paste transcript contents: they can hold your code and secrets.
 
 Found a security issue? Please follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
 
 ## Development setup
 
-You need Node 22 or later and pnpm (`corepack enable`).
+You need Node 24 or later and pnpm (`corepack enable`).
 
 ```sh
-git clone https://github.com/Luis-Sejer/agent-graph.git
-cd agent-graph
+git clone https://github.com/Luis-Sejer/agent-orrery.git
+cd agent-orrery
 pnpm install
 pnpm demo          # build and run on made-up sessions, http://127.0.0.1:4780
 ```
@@ -33,6 +33,8 @@ To work on the page with hot reload, run `pnpm start` (or `pnpm demo`) in one te
 | `library.mjs` | Lists and reads plans and memory notes |
 | `web/src/` | The page: React, React Flow and Thinking Orbs |
 | `web/src/layout.ts` | Rooms, folding and focus: what goes where on the canvas |
+| `web/src/components/SearchPalette.tsx` | Search everything (⌘K) |
+| `web/src/useNotifications.ts`, `useTheme.ts`, `useDismissed.ts` | Notifications, light and dark, and dismissed sessions |
 | `scripts/demo.mjs` | Made-up sessions for trying it out and for screenshots |
 | `scripts/screenshots.mjs` | Takes the README screenshots from the demo |
 

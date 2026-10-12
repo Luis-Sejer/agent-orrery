@@ -55,8 +55,14 @@ async function connect() {
 const clickView = (name) => `[...document.querySelectorAll('.views button')].find((b) => b.textContent === '${name}').click()`
 const clickNode = (label) => `[...document.querySelectorAll('.react-flow__node')].find((n) => n.textContent.includes('${label}')).click()`
 
+const OPEN_SEARCH = `window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))`
+const TYPE_SEARCH = (text) =>
+  `(() => { const input = document.querySelector('.palette input'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, '${text}'); input.dispatchEvent(new Event('input', { bubbles: true })) })()`
+
 const SHOTS = [
   { name: 'overview', steps: [] },
+  { name: 'dark', steps: [], dark: true },
+  { name: 'search', steps: [OPEN_SEARCH, TYPE_SEARCH('checkout')] },
   { name: 'focus', steps: [clickNode('Checkout redesign')] },
   { name: 'plans', steps: [clickView('Plans')] },
   { name: 'memory', steps: [clickView('Memory'), `[...document.querySelectorAll('.library-list button')][2].click()`] },
@@ -65,8 +71,8 @@ const SHOTS = [
 const chromePath = CHROME_CANDIDATES.find((path) => existsSync(path))
 if (!chromePath) throw new Error('Google Chrome not found; set CHROME_PATH')
 
-const demo = spawn(process.execPath, [DEMO], { stdio: 'ignore', env: { ...process.env, AGENT_GRAPH_PORT: DEMO_PORT } })
-const profile = mkdtempSync(join(tmpdir(), 'agent-graph-chrome-'))
+const demo = spawn(process.execPath, [DEMO], { stdio: 'ignore', env: { ...process.env, AGENT_ORRERY_PORT: DEMO_PORT } })
+const profile = mkdtempSync(join(tmpdir(), 'agent-orrery-chrome-'))
 const chrome = spawn(chromePath, ['--headless=new', '--hide-scrollbars', `--remote-debugging-port=${DEBUG_PORT}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' })
 
 try {
@@ -77,6 +83,7 @@ try {
   mkdirSync(OUT_DIR, { recursive: true })
 
   for (const shot of SHOTS) {
+    await page.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: shot.dark ? 'dark' : 'light' }] })
     await page.send('Page.navigate', { url: `http://127.0.0.1:${DEMO_PORT}/` })
     await waitFor(async () => (await page.evaluate("document.querySelectorAll('.card').length")) > 5, 'the graph')
     // Let the first data arrive, the canvas fit, and the orbs draw a few frames.

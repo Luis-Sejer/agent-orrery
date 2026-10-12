@@ -1,4 +1,4 @@
-// The agent-graph mark: an orb on two dashed orbits, beside the name.
+// The agent-orrery mark: an orb on two dashed orbits, beside the name.
 export function Wordmark() {
   return (
     <span className="wordmark">
@@ -9,7 +9,7 @@ export function Wordmark() {
         <circle className="wordmark-moon" cx="26.25" cy="5.75" r="2.25" />
       </svg>
       <span className="wordmark-name">
-        <span className="serif">agent-graph</span>
+        <span className="serif">Agent Orrery</span>
         <span className="wordmark-by">by sejer</span>
       </span>
     </span>

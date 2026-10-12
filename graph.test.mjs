@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 
-import { applyLines, createGraph, ensureNode, snapshot, timeline } from './graph.mjs'
-import { createLibrary } from './library.mjs'
+import { applyLines, createGraph, ensureNode, shellActivity, snapshot, timeline } from './graph.mjs'
+import { createLibrary, snippetAround } from './library.mjs'
 import { createRepoResolver, pathsInToolInput } from './repos.mjs'
 import { isTrustedRequest } from './server.mjs'
 
@@ -104,7 +104,7 @@ test('finds paths in tool inputs and maps worktrees to their repo', () => {
   assert.deepEqual(pathsInToolInput({ file_path: 'src/a.ts' }, '/code/storefront-api', '/home'), ['/code/storefront-api/src/a.ts'])
   assert.deepEqual(pathsInToolInput({ command: 'cd ~/code/storefront-web && ls /code/design-system' }, null, '/home'), ['/home/code/storefront-web', '/code/design-system'])
 
-  const root = mkdtempSync(join(tmpdir(), 'agent-graph-'))
+  const root = mkdtempSync(join(tmpdir(), 'agent-orrery-'))
   mkdirSync(join(root, 'storefront-web', '.git'), { recursive: true })
   mkdirSync(join(root, 'storefront-web', '.claude', 'worktrees', 'feat-x', 'src'), { recursive: true })
   const resolve = createRepoResolver(root)
@@ -113,7 +113,7 @@ test('finds paths in tool inputs and maps worktrees to their repo', () => {
 })
 
 test('the library only reads files it listed itself', async () => {
-  const claudeDir = mkdtempSync(join(tmpdir(), 'agent-graph-claude-'))
+  const claudeDir = mkdtempSync(join(tmpdir(), 'agent-orrery-claude-'))
   mkdirSync(join(claudeDir, 'plans'))
   mkdirSync(join(claudeDir, 'projects', 'p', 'memory'), { recursive: true })
   writeFileSync(join(claudeDir, 'plans', 'checkout.md'), '# Checkout plan\n')
@@ -128,6 +128,19 @@ test('the library only reads files it listed itself', async () => {
   assert.equal((await library.listMemory())[0].notes[0].description, 'why "this"')
   assert.equal(await library.readMemory('..', 'secret.md'), null)
   assert.equal(await library.readMemory('p', '../../secret.md'), null)
+
+  const found = await library.search('checkout')
+  assert.deepEqual(found.plans.map((plan) => plan.name), ['checkout.md'])
+  assert.deepEqual((await library.search('body')).notes.map((note) => note.name), ['note.md'])
+  assert.deepEqual(await library.search('s'), { plans: [], notes: [] })
+  assert.deepEqual((await library.search('secret')).plans, [])
+})
+
+test('a snippet shows the text around the match', () => {
+  const text = `${'a '.repeat(60)}the needle is here ${'b '.repeat(80)}`
+  const snippet = snippetAround(text, 'needle')
+  assert.ok(snippet.startsWith('…') && snippet.endsWith('…') && snippet.includes('the needle is here'))
+  assert.equal(snippetAround('# Plan\n\n## Steps\n\n1. Use **the** `needle`', 'needle'), 'Plan Steps Use the needle')
 })
 
 test('rejects rebinding hosts and cross-site requests', () => {
@@ -140,4 +153,16 @@ test('rejects rebinding hosts and cross-site requests', () => {
   assert.ok(!isTrustedRequest({ host: '127.0.0.1:4777', 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'iframe' }))
   const linkFromElsewhere = { host: '127.0.0.1:4777', 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' }
   assert.ok(isTrustedRequest(linkFromElsewhere))
+})
+
+test('classifies shell commands by what they do, without keeping them', () => {
+  assert.equal(shellActivity('cat src/a.ts'), 'searching')
+  assert.equal(shellActivity('cd ~/code/api && grep -rn todo src | head'), 'searching')
+  assert.equal(shellActivity('git log --oneline -5 2>/dev/null'), 'searching')
+  assert.equal(shellActivity("sed -i '' 's/a/b/' file.ts"), 'composing')
+  assert.equal(shellActivity('cat > notes.md <<EOF'), 'composing')
+  assert.equal(shellActivity('cd api && git commit -m "x"'), 'composing')
+  assert.equal(shellActivity('pnpm test 2>&1 | tail -5'), 'working')
+  assert.equal(shellActivity('docker compose up -d --build'), 'working')
+  assert.equal(shellActivity(undefined), 'working')
 })

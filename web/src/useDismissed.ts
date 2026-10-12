@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 
 import type { AgentNode, GraphSnapshot } from './types'
 
-const STORAGE_KEY = 'agent-graph:dismissed'
+const STORAGE_KEY = 'agent-orrery:dismissed'
 const FORGET_AFTER_MS = 7 * 24 * 3_600_000
 
 // Session id → its last activity when you dismissed it. Anything newer brings it back.

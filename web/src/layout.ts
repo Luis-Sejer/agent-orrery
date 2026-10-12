@@ -28,8 +28,9 @@ const Z_FOCUSED = 40
 
 // React Flow requires node data to be assignable to Record<string, unknown>, which interfaces are not.
 export type CardData = { node: AgentNode; now: number; dimmed: boolean; focused: boolean; related: boolean; alsoIn: string[] }
-export type FoldData = { room: string; count: number; dimmed: boolean; onExpand: (room: string) => void }
-export type RoomData = { name: string; summary: string; dimmed: boolean }
+export type FoldData = { room: string; count: number; dimmed: boolean; related: boolean; onExpand: (room: string) => void }
+// foldable: the room is open and has enough finished agents to fold back into a pile.
+export type RoomData = { name: string; summary: string; dimmed: boolean; foldable: boolean; onCollapse: (room: string) => void }
 export type MessageData = { recent: boolean; count: number }
 
 export type CardNode = Node<CardData, 'session' | 'agent'>
@@ -42,8 +43,8 @@ export interface FlowOptions {
   selectedId: string | null
   expandedRooms: ReadonlySet<string>
   filter: Filter
-  search: string
   onExpand: (room: string) => void
+  onCollapse: (room: string) => void
 }
 
 interface Room {
@@ -51,6 +52,8 @@ interface Room {
   sessions: AgentNode[]
   agents: AgentNode[]
   folded: AgentNode[]
+  // Open on request, with enough finished agents that it could fold again.
+  foldable: boolean
 }
 
 interface Placement {
@@ -81,11 +84,8 @@ export function relatedTo(graph: GraphSnapshot, selectedId: string | null): Set<
   return related
 }
 
-function matches(node: AgentNode, filter: Filter, search: string, now: number): boolean {
-  if (filter !== 'all' && statusOf(node, now) !== filter) return false
-  if (!search) return true
-  const haystack = [node.label, node.branch, node.room, node.agentType, ...node.repos].join(' ').toLowerCase()
-  return haystack.includes(search.toLowerCase())
+function matches(node: AgentNode, filter: Filter, now: number): boolean {
+  return filter === 'all' || statusOf(node, now) === filter
 }
 
 // Sorted by something that rarely changes, so cards don't shuffle on every update.
@@ -94,10 +94,10 @@ function stableOrder(nodes: AgentNode[], now: number): AgentNode[] {
   return [...nodes].sort((a, b) => rank(a) - rank(b) || a.label.localeCompare(b.label))
 }
 
-function groupIntoRooms(graph: GraphSnapshot, options: FlowOptions, related: Set<string>): Room[] {
+function groupIntoRooms(graph: GraphSnapshot, options: FlowOptions): Room[] {
   const rooms = new Map<string, Room>()
   const roomFor = (name: string) => {
-    if (!rooms.has(name)) rooms.set(name, { name, sessions: [], agents: [], folded: [] })
+    if (!rooms.has(name)) rooms.set(name, { name, sessions: [], agents: [], folded: [], foldable: false })
     return rooms.get(name)!
   }
   for (const node of graph.nodes) {
@@ -108,11 +108,16 @@ function groupIntoRooms(graph: GraphSnapshot, options: FlowOptions, related: Set
   for (const room of rooms.values()) {
     room.sessions = stableOrder(room.sessions, options.now)
     room.agents = stableOrder(room.agents, options.now)
-    const foldable = room.agents.filter((node) => statusOf(node, options.now) === 'finished' && !related.has(node.id))
-    if (!options.expandedRooms.has(room.name) && foldable.length >= FOLD_FROM) {
-      room.folded = foldable
-      room.agents = room.agents.filter((node) => !foldable.includes(node))
+    // Selecting must never reflow the canvas, so a pile stays folded when its agents are merely
+    // related to the selection. Only the selected agent itself comes out of the pile.
+    const foldable = room.agents.filter((node) => statusOf(node, options.now) === 'finished' && node.id !== options.selectedId)
+    if (foldable.length < FOLD_FROM) continue
+    if (options.expandedRooms.has(room.name)) {
+      room.foldable = true
+      continue
     }
+    room.folded = foldable
+    room.agents = room.agents.filter((node) => !foldable.includes(node))
   }
   // Rooms with sessions come first; within that, alphabetical, so rooms keep their place.
   return [...rooms.values()].sort(
@@ -165,13 +170,13 @@ function reposBySession(graph: GraphSnapshot): Map<string, Set<string>> {
 export function buildFlow(graph: GraphSnapshot, options: FlowOptions): { nodes: FlowNode[]; edges: Edge[] } {
   const { now, selectedId } = options
   const related = relatedTo(graph, selectedId)
-  const rooms = groupIntoRooms(graph, options, related)
+  const rooms = groupIntoRooms(graph, options)
   const sessionRepos = reposBySession(graph)
   const nodes: FlowNode[] = []
   const foldedInto = new Map<string, string>()
 
   const isDimmed = (node: AgentNode) =>
-    (selectedId !== null && !related.has(node.id)) || !matches(node, options.filter, options.search, now)
+    (selectedId !== null && !related.has(node.id)) || !matches(node, options.filter, now)
 
   let x = 0
   let y = 0
@@ -193,7 +198,7 @@ export function buildFlow(graph: GraphSnapshot, options: FlowOptions): { nodes: 
       style: { width, height },
       zIndex: Z_ROOM,
       selectable: false,
-      data: { name: room.name, summary: summarise(room, now), dimmed: members.every(isDimmed) },
+      data: { name: room.name, summary: summarise(room, now), dimmed: members.every(isDimmed), foldable: room.foldable, onCollapse: options.onCollapse },
     })
     const byId = new Map(members.map((node) => [node.id, node]))
     for (const placement of placements) {
@@ -206,7 +211,13 @@ export function buildFlow(graph: GraphSnapshot, options: FlowOptions): { nodes: 
           position,
           ...FOLD_SIZE,
           zIndex: Z_CARD,
-          data: { room: room.name, count: room.folded.length, dimmed: selectedId !== null, onExpand: options.onExpand },
+          data: {
+            room: room.name,
+            count: room.folded.length,
+            dimmed: selectedId !== null && !room.folded.some((node) => related.has(node.id)),
+            related: room.folded.some((node) => related.has(node.id)),
+            onExpand: options.onExpand,
+          },
         })
         continue
       }

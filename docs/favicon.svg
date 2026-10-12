@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <style>.o{stroke:#34955f}.c{fill:#162925}.m{fill:#34955f}@media (prefers-color-scheme:dark){.o{stroke:#4caf78}.c{fill:#e4ebe8}.m{fill:#4caf78}}</style>
+  <mask id="cut" maskUnits="userSpaceOnUse" x="0" y="0" width="32" height="32"><rect width="32" height="32" fill="#fff"/><circle cx="26.25" cy="5.75" r="3.6" fill="#000"/></mask>
+  <g class="o" fill="none" stroke-width="1.6" stroke-linecap="round" mask="url(#cut)">
+    <circle cx="16" cy="16" r="14.5" pathLength="40" stroke-dasharray="0.67 1.33" transform="rotate(-84 16 16)"/>
+    <circle cx="16" cy="16" r="10" pathLength="28" stroke-dasharray="0.67 1.33" stroke-opacity="0.6" transform="rotate(-80 16 16)"/>
+  </g>
+  <circle class="c" cx="16" cy="16" r="5.5"/>
+  <circle class="m" cx="26.25" cy="5.75" r="2.5"/>
+</svg>

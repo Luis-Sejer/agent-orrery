@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in agent-graph doesn't work as expected
+description: Something in Agent Orrery doesn't work as expected
 labels: [bug]
 body:
   - type: markdown
@@ -25,7 +25,7 @@ body:
   - type: dropdown
     id: how-run
     attributes:
-      label: How do you run agent-graph?
+      label: How do you run Agent Orrery?
       options:
         - Docker
         - From source (pnpm start)
@@ -49,4 +49,4 @@ body:
     id: extra
     attributes:
       label: Screenshots, logs or anything else
-      description: "`docker logs agent-graph` helps for Docker problems. Check screenshots don't show anything private."
+      description: "`docker logs agent-orrery` helps for Docker problems. Check screenshots don't show anything private."

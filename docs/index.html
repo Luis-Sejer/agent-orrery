@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agent Orrery: a live map of your Claude Code agents</title>
+  <meta name="description" content="See every Claude Code session and subagent, the repo each one is working in, who started whom, and which sessions need your reply. Open source, read-only, and local to your machine.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f8f9fa" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f1715" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="assets/icon.png" type="image/png" sizes="1024x1024">
+  <link rel="apple-touch-icon" href="assets/icon.png">
+  <link rel="canonical" href="https://luis-sejer.github.io/agent-orrery/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Agent Orrery">
+  <meta property="og:title" content="Agent Orrery: a live map of your Claude Code agents">
+  <meta property="og:description" content="Every session and subagent, the repo each one works in, and which sessions are waiting on you. Open source and local to your machine.">
+  <meta property="og:url" content="https://luis-sejer.github.io/agent-orrery/">
+  <meta property="og:image" content="https://luis-sejer.github.io/agent-orrery/assets/social/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Agent Orrery by sejer. A live map of your Claude Code agents, and what's waiting on you.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Agent Orrery: a live map of your Claude Code agents">
+  <meta name="twitter:description" content="Every session and subagent, the repo each one works in, and which sessions are waiting on you.">
+  <meta name="twitter:image" content="https://luis-sejer.github.io/agent-orrery/assets/social/og.png">
+  <meta name="twitter:image:alt" content="Agent Orrery by sejer. A live map of your Claude Code agents, and what's waiting on you.">
+  <link rel="preload" href="fonts/instrument-serif-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="site.css">
+  <script src="orrery.js" defer></script>
+  <script src="site.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="masthead">
+    <a class="wordmark" href="#top" aria-label="Agent Orrery, back to top">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><use href="#mark"/></svg>
+      <span class="wordmark__name">Agent Orrery</span>
+      <span class="wordmark__by">by sejer</span>
+    </a>
+    <nav aria-label="Sections">
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="#privacy">Privacy</a>
+      <a href="#install">Install</a>
+      <a class="masthead__github" href="https://github.com/Luis-Sejer/agent-orrery">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="top" aria-labelledby="title">
+      <svg class="hero__orrery" id="orrery" aria-hidden="true"></svg>
+      <div class="hero__copy">
+        <h1 id="title" class="hero__name">Agent Orrery <span class="hero__by">by sejer</span></h1>
+        <p class="hero__pitch">A live map of your Claude Code agents, and what’s waiting on you.</p>
+        <p class="hero__detail">See every session and subagent, the repo each one is working in, who started whom, and which sessions need your reply.</p>
+        <div class="hero__actions">
+          <a class="button" href="https://github.com/Luis-Sejer/agent-orrery">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+            View on GitHub
+          </a>
+          <a class="button button--quiet" href="#install">Install</a>
+        </div>
+        <div class="prompt">
+          <p class="prompt__label" id="prompt-label">Install with your agent. Paste this into Claude Code:</p>
+          <div class="prompt__box">
+            <p class="prompt__text" id="prompt-text">Install Agent Orrery for me: clone https://github.com/Luis-Sejer/agent-orrery and follow its INSTALL.md.</p>
+            <button class="copy" type="button" data-copy-from="prompt-text" aria-describedby="prompt-label">Copy</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="demo" id="demo" aria-label="Agent Orrery running on demo data">
+      <figure class="window">
+        <div class="window__bar" aria-hidden="true">
+          <span class="window__address"><span class="window__live"></span>127.0.0.1:4777</span>
+        </div>
+        <picture>
+          <source srcset="assets/hero-dark.webp" type="image/webp" media="(prefers-color-scheme: dark)">
+          <source srcset="assets/hero.webp" type="image/webp">
+          <img class="window__shot" src="assets/hero.png" width="1440" height="900" fetchpriority="high"
+            alt="Agent Orrery on demo data. Five repositories, from storefront-web to infra, each hold their agents as orbs. Three sessions wait in the Your turn list on the left. Selecting the Checkout redesign session lights up its subagents and messages, and opens a drawer with its timeline.">
+        </picture>
+      </figure>
+      <p class="demo__caption">Made-up sessions, the same ones <code>pnpm demo</code> gives you. <a href="assets/agent-orrery-launch.mp4">Watch the launch video</a>, 25 seconds with sound.</p>
+    </section>
+
+    <section class="section features" id="features" aria-labelledby="features-title">
+      <div class="section__head">
+        <h2 id="features-title">Know which agent needs you, and what the rest are doing.</h2>
+        <p class="lead">Run a few Claude Code sessions with subagents and it gets hard to keep track. Which one asked you a question an hour ago? Which agent is editing the web app for a session you started in the API? Did that subagent finish?</p>
+      </div>
+
+      <div class="feature-list">
+        <article class="feature">
+          <h3>Your turn</h3>
+          <p>Every session that finished or asked you something, oldest first, with how long it has waited. The tab title shows the count. Dismiss one until it does something new.</p>
+        </article>
+        <article class="feature">
+          <h3>Rooms per repository</h3>
+          <p>Each agent sits in the repo its work touches, not the folder its session started in. A session started in storefront-api whose subagents edit storefront-web reaches across into that room.</p>
+        </article>
+        <article class="feature">
+          <h3>Focus</h3>
+          <p>Click an agent to light up its parent, its subagents and everyone it messaged, and dim the rest. A drawer shows what it has done, step by step, and a command to resume the session.</p>
+        </article>
+        <article class="feature">
+          <h3>Search everything</h3>
+          <p>Press <kbd>⌘</kbd> <kbd>K</kbd> to find agents by name, repo or branch, and plans and memory notes by what they say.</p>
+        </article>
+        <article class="feature">
+          <h3>Notifications</h3>
+          <p>Turn them on and your browser tells you when a session starts waiting on you while you’re in another tab.</p>
+        </article>
+        <article class="feature">
+          <h3>Plans and memory</h3>
+          <p>Read the plans and memory notes Claude has saved, by project. Plans link back to the sessions that wrote them.</p>
+        </article>
+      </div>
+
+      <div class="key" aria-labelledby="key-title">
+        <div class="key__intro">
+          <h3 id="key-title">Every orb says what its agent is doing now.</h3>
+          <p>Messages between agents travel along the lines as they’re sent.</p>
+        </div>
+        <ul class="key__list">
+          <li style="--orb: var(--reading)"><span class="orb" aria-hidden="true"></span><b>Reading</b><span>Opening and searching code, <code>cat</code> and <code>grep</code> included</span></li>
+          <li style="--orb: var(--writing)"><span class="orb" aria-hidden="true"></span><b>Writing code</b><span>Editing files, including edits made in the shell</span></li>
+          <li style="--orb: var(--running)"><span class="orb" aria-hidden="true"></span><b>Running a command</b><span>Tests, builds and scripts, or thinking</span></li>
+          <li style="--orb: var(--talking)"><span class="orb" aria-hidden="true"></span><b>Talking to agents</b><span>Starting a subagent or messaging another agent</span></li>
+          <li style="--orb: var(--waiting)"><span class="orb orb--waiting" aria-hidden="true"></span><b>Waiting on you</b><span>Finished its turn, or asked you a question</span></li>
+          <li style="--orb: var(--finished)"><span class="orb" aria-hidden="true"></span><b>Finished</b><span>Done, with nothing new since</span></li>
+        </ul>
+      </div>
+
+      <div class="gallery">
+        <figure>
+          <img src="screenshots/focus.webp" width="1440" height="900" loading="lazy" decoding="async"
+            alt="The Checkout redesign session selected. Its subagents and the agents it messaged stay lit while the rest dims, and a drawer lists what it has done with a resume command.">
+          <figcaption>Click an agent to see everything connected to it.</figcaption>
+        </figure>
+        <figure>
+          <img src="screenshots/search.webp" width="1440" height="900" loading="lazy" decoding="async"
+            alt="The search window open over the dashboard, listing agents, plans and memory notes that match checkout, with the matches highlighted.">
+          <figcaption>Search agents, plans and memory with <kbd>⌘</kbd> <kbd>K</kbd>.</figcaption>
+        </figure>
+        <figure>
+          <img src="screenshots/memory.webp" width="1440" height="900" loading="lazy" decoding="async"
+            alt="The Memory view: the memory notes Claude saved for storefront-web, with the note Prices are integers in cents open.">
+          <figcaption>Memory notes, by project.</figcaption>
+        </figure>
+        <figure>
+          <img src="screenshots/dark.webp" width="1440" height="900" loading="lazy" decoding="async"
+            alt="The dashboard in the dark theme: green-black grounds with the same rooms, orbs and lines.">
+          <figcaption>Dark, when your system is.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section how" id="how" aria-labelledby="how-title">
+      <div class="section__head">
+        <h2 id="how-title">It reads what Claude Code already writes.</h2>
+        <p class="lead">There’s nothing to set up in Claude: no hooks, no plugins, no MCP servers. Agent Orrery follows the transcript files and draws what it finds.</p>
+      </div>
+      <ol class="steps">
+        <li>
+          <h3>Claude Code keeps a transcript</h3>
+          <p>Every session is saved to <code>~/.claude/projects/&lt;project&gt;/&lt;session&gt;.jsonl</code>, with each subagent in a file beside it.</p>
+        </li>
+        <li>
+          <h3>Agent Orrery reads the new lines</h3>
+          <p>As soon as a file changes, it picks up what was added and keeps the metadata: titles, tool names, file paths and times.</p>
+        </li>
+        <li>
+          <h3>It works out the graph</h3>
+          <p>Rooms come from the nearest git repository above each file an agent touched. Orb colours come from its last tool, and messages from <code>SendMessage</code> calls and their replies.</p>
+        </li>
+        <li>
+          <h3>Your browser draws it</h3>
+          <p>The page on <code>127.0.0.1</code> updates live. A session is waiting on you when its last reply ended its turn, or it asked a question you haven’t answered.</p>
+        </li>
+      </ol>
+    </section>
+
+    <section class="section privacy" id="privacy" aria-labelledby="privacy-title">
+      <div class="section__head">
+        <h2 id="privacy-title">Your transcripts stay on your machine.</h2>
+        <p class="lead">They hold your code, your prompts and sometimes secrets, so Agent Orrery is built to keep them in.</p>
+      </div>
+      <div class="ledger">
+        <div class="ledger__col">
+          <h3>What reaches the page</h3>
+          <ul>
+            <li>Session titles</li>
+            <li>Repository and branch names</li>
+            <li>Agent types and tool names</li>
+            <li>File names</li>
+            <li>Times</li>
+          </ul>
+        </div>
+        <div class="ledger__col ledger__col--never">
+          <h3>What never does</h3>
+          <ul>
+            <li>Your messages and Claude’s replies</li>
+            <li>Commands</li>
+            <li>Tool output</li>
+          </ul>
+        </div>
+      </div>
+      <dl class="guarantees">
+        <div><dt>Only on this machine</dt><dd>The server binds to <code>127.0.0.1</code>, and Docker publishes it there only.</dd></div>
+        <div><dt>Read-only</dt><dd>It never writes to your files, and the server accepts only <code>GET</code> requests.</dd></div>
+        <div><dt>No hooks</dt><dd>Nothing is added to Claude Code, so it can’t slow it down or change what it does.</dd></div>
+        <div><dt>Closed to other websites</dt><dd>Requests for another hostname are refused, which blocks DNS rebinding. So are data requests from other sites.</dd></div>
+        <div><dt>No scripts from content</dt><dd>Plans and notes render as Markdown without raw HTML or images, under a strict Content Security Policy.</dd></div>
+        <div><dt>A small supply chain</dt><dd>The server has no dependencies. The container runs as you, with a read-only filesystem and no Linux capabilities.</dd></div>
+      </dl>
+    </section>
+
+    <section class="section install" id="install" aria-labelledby="install-title">
+      <div class="section__head">
+        <h2 id="install-title">Install it in a few minutes.</h2>
+        <p class="lead">It runs in Docker, or straight from source with Node 24. Then open <code>http://127.0.0.1:4777</code>.</p>
+      </div>
+      <div class="tabs" data-tabs>
+        <div class="tabs__list" role="tablist" aria-label="Ways to install">
+          <button role="tab" id="tab-agent" aria-controls="panel-agent" aria-selected="true" type="button">With your agent</button>
+          <button role="tab" id="tab-docker" aria-controls="panel-docker" aria-selected="false" tabindex="-1" type="button">Docker</button>
+          <button role="tab" id="tab-source" aria-controls="panel-source" aria-selected="false" tabindex="-1" type="button">From source</button>
+          <button role="tab" id="tab-demo" aria-controls="panel-demo" aria-selected="false" tabindex="-1" type="button">Just looking</button>
+        </div>
+        <div class="tabs__panel" role="tabpanel" id="panel-agent" aria-labelledby="tab-agent" tabindex="0">
+          <p>Ask Claude Code, or any coding agent:</p>
+          <div class="code">
+            <pre id="code-agent" class="wrap">Install Agent Orrery for me: clone https://github.com/Luis-Sejer/agent-orrery and follow its INSTALL.md.</pre>
+            <button class="copy" type="button" data-copy-from="code-agent" aria-label="Copy the install prompt">Copy</button>
+          </div>
+          <p class="note"><a href="https://github.com/Luis-Sejer/agent-orrery/blob/main/INSTALL.md">INSTALL.md</a> walks the agent through checking Docker, writing settings for your machine, starting the container and checking it works. It never touches your Claude settings.</p>
+        </div>
+        <div class="tabs__panel" role="tabpanel" id="panel-docker" aria-labelledby="tab-docker" tabindex="0">
+          <p>Needs Docker Desktop, or Docker on Linux.</p>
+          <div class="code">
+            <pre id="code-docker">git clone https://github.com/Luis-Sejer/agent-orrery.git
+cd agent-orrery
+printf 'AGENT_ORRERY_UID=%s\nAGENT_ORRERY_GID=%s\n' "$(id -u)" "$(id -g)" &gt; .env
+docker compose up -d --build</pre>
+            <button class="copy" type="button" data-copy-from="code-docker" aria-label="Copy the Docker commands">Copy</button>
+          </div>
+          <p class="note">The container comes back after a crash and whenever Docker starts. To have it after a reboot, turn on <b>Start Docker Desktop when you sign in</b> in Docker Desktop’s settings.</p>
+        </div>
+        <div class="tabs__panel" role="tabpanel" id="panel-source" aria-labelledby="tab-source" tabindex="0">
+          <p>Needs Node 24 and pnpm (<code>corepack enable</code>).</p>
+          <div class="code">
+            <pre id="code-source">git clone https://github.com/Luis-Sejer/agent-orrery.git
+cd agent-orrery
+pnpm install
+pnpm build
+pnpm start</pre>
+            <button class="copy" type="button" data-copy-from="code-source" aria-label="Copy the commands to run from source">Copy</button>
+          </div>
+        </div>
+        <div class="tabs__panel" role="tabpanel" id="panel-demo" aria-labelledby="tab-demo" tabindex="0">
+          <p>Made-up sessions in five made-up repositories, with agents that keep working while you watch. Nothing of yours is read.</p>
+          <div class="code">
+            <pre id="code-demo">git clone https://github.com/Luis-Sejer/agent-orrery.git
+cd agent-orrery
+pnpm install
+pnpm demo</pre>
+            <button class="copy" type="button" data-copy-from="code-demo" aria-label="Copy the demo commands">Copy</button>
+          </div>
+          <p class="note">Then open <code>http://127.0.0.1:4780</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section faq" id="faq" aria-labelledby="faq-title">
+      <h2 id="faq-title">Questions</h2>
+      <div class="faq__list">
+        <details>
+          <summary>Does it slow Claude Code down?</summary>
+          <p>No. It reads files Claude Code writes anyway, and adds no hooks.</p>
+        </details>
+        <details>
+          <summary>Does it work with several machines?</summary>
+          <p>No. It reads the Claude Code files on the machine it runs on.</p>
+        </details>
+        <details>
+          <summary>Why is an agent in the wrong room?</summary>
+          <p>The room is the repository its tools touched most. An agent that only ran shell commands, without paths, stays with its session. In Docker, repositories outside <code>AGENT_ORRERY_CODE_DIR</code> can’t be seen.</p>
+        </details>
+        <details>
+          <summary>Does it work on Linux?</summary>
+          <p>Yes. Set <code>AGENT_ORRERY_UID</code>, <code>AGENT_ORRERY_GID</code> and <code>AGENT_ORRERY_CODE_DIR</code> to match your machine.</p>
+        </details>
+        <details>
+          <summary>What’s an orrery?</summary>
+          <p>A clockwork model of the planets, each on its orbit around the sun. Agent Orrery does the same for your agents and the repositories they work in.</p>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="footer__brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><use href="#mark"/></svg>
+      <p><span class="footer__name">Agent Orrery</span> <i>by sejer</i></p>
+    </div>
+    <p class="footer__meta">Open source under the <a href="https://github.com/Luis-Sejer/agent-orrery/blob/main/LICENSE">MIT licence</a>. Not affiliated with Anthropic.</p>
+    <p class="footer__links"><a href="https://github.com/Luis-Sejer/agent-orrery">GitHub</a> <a href="https://github.com/Luis-Sejer/agent-orrery/blob/main/SECURITY.md">Security</a> <a href="https://github.com/Luis-Sejer/agent-orrery/tree/main/docs/assets/brand">Brand assets</a></p>
+  </footer>
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <mask id="mark-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="32" height="32"><rect width="32" height="32" fill="#fff"/><circle cx="26.25" cy="5.75" r="3.6" fill="#000"/></mask>
+      <g id="mark">
+        <g class="mark__orbits" fill="none" stroke-width="1.5" stroke-linecap="round" mask="url(#mark-cut)">
+          <circle cx="16" cy="16" r="14.5" pathLength="40" stroke-dasharray="0.67 1.33" transform="rotate(-84 16 16)"/>
+          <circle cx="16" cy="16" r="10" pathLength="28" stroke-dasharray="0.67 1.33" stroke-opacity="0.6" transform="rotate(-80 16 16)"/>
+        </g>
+        <circle class="mark__core" cx="16" cy="16" r="5.25"/>
+        <circle class="mark__moon" cx="26.25" cy="5.75" r="2.4"/>
+      </g>
+    </defs>
+  </svg>
+</body>
+</html>

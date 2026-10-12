@@ -8,21 +8,22 @@ import { edgeTypes, nodeTypes } from './FlowNodes'
 
 const FOCUS_ZOOM = 0.95
 const FOCUS_DURATION_MS = 600
-const MINIMAP_COLOURS = { waiting: '#c0504a', running: '#34955f', finished: '#c4cbc9' }
 
 interface GraphCanvasProps extends FlowOptions {
   graph: GraphSnapshot
+  theme: 'light' | 'dark'
   focusRequest: { id: string; at: number } | null
   onSelect: (id: string | null) => void
 }
 
-function minimapColour(node: FlowNode, now: number): string {
-  if (node.type === 'room') return 'rgba(22, 41, 37, 0.06)'
-  if (node.type === 'fold') return MINIMAP_COLOURS.finished
-  return MINIMAP_COLOURS[statusOf(node.data.node, now)]
+// Colours live in the stylesheet, so the minimap follows the theme.
+function minimapClass(node: FlowNode, now: number): string {
+  if (node.type === 'room') return 'mini-room'
+  if (node.type === 'fold') return 'mini-finished'
+  return `mini-${statusOf(node.data.node, now)}`
 }
 
-export function GraphCanvas({ graph, focusRequest, onSelect, ...options }: GraphCanvasProps) {
+export function GraphCanvas({ graph, theme, focusRequest, onSelect, ...options }: GraphCanvasProps) {
   const { fitView, setCenter } = useReactFlow()
   const { nodes, edges } = useMemo(() => buildFlow(graph, options), [graph, options])
   const hasFitted = useRef(false)
@@ -51,6 +52,7 @@ export function GraphCanvas({ graph, focusRequest, onSelect, ...options }: Graph
       edges={edges}
       nodeTypes={nodeTypes}
       edgeTypes={edgeTypes}
+      colorMode={theme}
       onNodeClick={(_, node) => node.type !== 'room' && node.type !== 'fold' && onSelect(node.id)}
       onPaneClick={() => onSelect(null)}
       nodesDraggable={false}
@@ -59,8 +61,8 @@ export function GraphCanvas({ graph, focusRequest, onSelect, ...options }: Graph
       minZoom={0.15}
       maxZoom={1.6}
     >
-      <Background variant={BackgroundVariant.Dots} gap={24} size={1.2} color="rgba(22, 41, 37, 0.14)" />
-      <MiniMap pannable zoomable nodeColor={(node) => minimapColour(node as FlowNode, options.now)} maskColor="rgba(248, 249, 250, 0.7)" />
+      <Background variant={BackgroundVariant.Dots} gap={24} size={1.2} />
+      <MiniMap pannable zoomable nodeClassName={(node) => minimapClass(node as FlowNode, options.now)} />
       <Controls showInteractive={false} />
     </ReactFlow>
   )

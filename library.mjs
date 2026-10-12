@@ -9,6 +9,28 @@ const MARKDOWN_FILE = /^[\w.-]+\.md$/
 const CWD_IN_TRANSCRIPT = /"cwd":"([^"]+)"/
 const TRANSCRIPT_HEAD_BYTES = 64 * 1024
 const MEMORY_INDEX = 'MEMORY.md'
+const MIN_QUERY = 2
+const MAX_RESULTS = 20
+const SNIPPET_BEFORE = 50
+const SNIPPET_AFTER = 110
+
+function withoutFrontmatter(content) {
+  return content.replace(/^---\n[\s\S]*?\n---\n?/, '')
+}
+
+// A line of text around the first match, so a result shows why it matched.
+const MARKDOWN_LINE_MARKERS = /^\s{0,3}(#{1,6}|>|[-*+]|\d+\.)\s+/gm
+const MARKDOWN_INLINE_MARKERS = /[*_`|]/g
+
+export function snippetAround(content, needle) {
+  const plain = content.replace(MARKDOWN_LINE_MARKERS, '').replace(MARKDOWN_INLINE_MARKERS, '')
+  const flat = plain.replace(/\s+/g, ' ').trim()
+  const at = flat.toLowerCase().indexOf(needle)
+  if (at === -1) return flat.slice(0, SNIPPET_BEFORE + SNIPPET_AFTER)
+  const start = Math.max(0, at - SNIPPET_BEFORE)
+  const end = Math.min(flat.length, at + needle.length + SNIPPET_AFTER)
+  return `${start > 0 ? '…' : ''}${flat.slice(start, end)}${end < flat.length ? '…' : ''}`
+}
 
 async function listMarkdown(directory) {
   const names = await readdir(directory).catch(() => [])
@@ -112,5 +134,27 @@ export function createLibrary({ claudeDir }) {
     return { project, name, content }
   }
 
-  return { plansDir, listPlans, readPlan, listMemory, readMemory }
+  async function search(query) {
+    const needle = query.trim().toLowerCase()
+    if (needle.length < MIN_QUERY) return { plans: [], notes: [] }
+    const plans = []
+    for (const plan of await listPlans()) {
+      const content = await readFile(join(plansDir, plan.name), 'utf8').catch(() => '')
+      if (!`${plan.title}\n${content}`.toLowerCase().includes(needle)) continue
+      plans.push({ name: plan.name, title: plan.title, snippet: snippetAround(content, needle) })
+      if (plans.length === MAX_RESULTS) break
+    }
+    const notes = []
+    for (const project of await listMemory()) {
+      for (const note of project.notes) {
+        const content = await readFile(join(projectsDir, project.project, 'memory', note.name), 'utf8').catch(() => '')
+        if (!`${note.title}\n${content}`.toLowerCase().includes(needle)) continue
+        notes.push({ project: project.project, label: project.label, name: note.name, title: note.title, snippet: snippetAround(withoutFrontmatter(content), needle) })
+        if (notes.length === MAX_RESULTS) break
+      }
+    }
+    return { plans, notes }
+  }
+
+  return { plansDir, listPlans, readPlan, listMemory, readMemory, search }
 }

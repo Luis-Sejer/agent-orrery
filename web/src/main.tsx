@@ -9,6 +9,9 @@ import '@xyflow/react/dist/style.css'
 import './styles.css'
 
 import { App } from './App'
+import { applyStoredTheme } from './useTheme'
+
+applyStoredTheme()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

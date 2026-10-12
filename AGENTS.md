@@ -1,4 +1,4 @@
-# Working on agent-graph
+# Working on Agent Orrery
 
 Read this before changing code. To install it rather than change it, follow `INSTALL.md`.
 
@@ -6,7 +6,7 @@ Read this before changing code. To install it rather than change it, follow `INS
 
 A read-only, local dashboard of Claude Code sessions. It has two halves:
 
-- **Server** (`server.mjs`, `graph.mjs`, `repos.mjs`, `library.mjs`): plain Node, no runtime dependencies. It tails the transcripts in `~/.claude/projects/` every second and pushes a graph to the page over server-sent events. It also serves plans (`~/.claude/plans`) and memory notes (`~/.claude/projects/*/memory`) read-only.
+- **Server** (`server.mjs`, `graph.mjs`, `repos.mjs`, `library.mjs`): plain Node, no runtime dependencies. It follows the transcripts in `~/.claude/projects/` with file events (plus a check every 5 seconds, because events through Docker's file sharing can go missing) and pushes a graph to the page over server-sent events. It also serves plans (`~/.claude/plans`) and memory notes (`~/.claude/projects/*/memory`) read-only.
 - **Page** (`web/`): React, React Flow and `thinking-orbs`, built by Vite into `web/dist`. The server serves only files listed from `web/dist` at start-up.
 
 ## Commands
@@ -44,7 +44,9 @@ Transcripts hold people's code, prompts and secrets, and local dashboards are a 
 - A transcript's `cwd` is always where the session started, even for subagents working elsewhere. An agent's **room** is the repository its tool paths touch most (`repos.mjs` walks up to the nearest `.git`, mapping worktrees to their repo). A session's room is where it started.
 - **Waiting on you** means the last assistant message ended its turn (`stop_reason: end_turn`) or called `AskUserQuestion`. A later non-meta user record clears it.
 - **Messages** between agents come from `SendMessage` tool calls (outgoing) and user records with `origin.kind === 'peer'` (incoming).
-- **Dismissals** live in the browser's localStorage only, keyed to the session's last activity.
+- **Orb states** come from the last tool an agent used (`ACTIVITY_BY_TOOL` in `graph.mjs`). Shell commands are classified by `shellActivity`: readers turn blue, writers violet, everything else green. Only the state is kept.
+- **Search** (`/api/search`) scans plan and memory-note text on the server and returns short snippets; agents are matched in the browser.
+- **Dismissals, theme and the notifications switch** live in the browser's localStorage only. Notifications come from the open tab, never a service worker, and only for waits that start after the page loaded.
 
 ## Style
 
