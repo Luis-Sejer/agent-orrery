@@ -1,0 +1,217 @@
+// Serves a live graph of local Claude Code sessions, built by tailing their transcripts,
+// plus read-only views of the plans and memory notes Claude keeps.
+// Read-only and loopback-only: no hooks, no runtime dependencies, nothing written to disk.
+
+import { createServer } from 'node:http'
+import { open, readdir, readFile, stat } from 'node:fs/promises'
+import { homedir } from 'node:os'
+import { extname, join, relative } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+
+import { applyLines, createGraph, ensureNode, snapshot, timeline } from './graph.mjs'
+import { createLibrary } from './library.mjs'
+import { createRepoResolver } from './repos.mjs'
+
+const PORT = Number(process.env.AGENT_GRAPH_PORT ?? 4777)
+// Inside Docker the server must listen on all interfaces; compose publishes it on 127.0.0.1 only.
+const BIND_HOST = process.env.AGENT_GRAPH_BIND ?? '127.0.0.1'
+const HOUR_MS = 3_600_000
+const WINDOW_MS = Number(process.env.AGENT_GRAPH_WINDOW_HOURS ?? 6) * HOUR_MS
+const WAITING_WINDOW_MS = Number(process.env.AGENT_GRAPH_WAITING_HOURS ?? 24) * HOUR_MS
+const CLAUDE_DIR = process.env.AGENT_GRAPH_CLAUDE_DIR ?? join(homedir(), '.claude')
+const PROJECTS_DIR = join(CLAUDE_DIR, 'projects')
+const WEB_DIR = fileURLToPath(new URL('./web/dist/', import.meta.url))
+const READ_INTERVAL_MS = 1_000
+const DISCOVER_EVERY_TICKS = 10
+
+const library = createLibrary({ claudeDir: CLAUDE_DIR })
+const graph = createGraph({ resolveRepo: createRepoResolver(), plansDir: library.plansDir })
+const tracked = new Map()
+const sessionDirs = new Map()
+
+async function listDir(path) {
+  return readdir(path).catch(() => [])
+}
+
+function track(path, nodeId) {
+  if (!tracked.has(path)) tracked.set(path, { nodeId, offset: 0, rest: Buffer.alloc(0) })
+}
+
+async function discoverSessions() {
+  const cutoff = Date.now() - Math.max(WINDOW_MS, WAITING_WINDOW_MS)
+  for (const project of await listDir(PROJECTS_DIR)) {
+    const projectDir = join(PROJECTS_DIR, project)
+    for (const name of await listDir(projectDir)) {
+      const path = join(projectDir, name)
+      if (!name.endsWith('.jsonl') || tracked.has(path)) continue
+      const info = await stat(path).catch(() => null)
+      if (!info || info.mtimeMs < cutoff) continue
+      const sessionId = name.slice(0, -'.jsonl'.length)
+      ensureNode(graph, sessionId, { kind: 'session', label: sessionId.slice(0, 8), sessionId })
+      sessionDirs.set(sessionId, join(projectDir, sessionId))
+      track(path, sessionId)
+    }
+  }
+}
+
+async function discoverSubagents() {
+  for (const [sessionId, sessionDir] of sessionDirs) {
+    const subagentDir = join(sessionDir, 'subagents')
+    for (const name of await listDir(subagentDir)) {
+      const path = join(subagentDir, name)
+      if (!name.startsWith('agent-') || !name.endsWith('.jsonl') || tracked.has(path)) continue
+      const agentId = name.slice('agent-'.length, -'.jsonl'.length)
+      const meta = await readFile(join(subagentDir, `agent-${agentId}.meta.json`), 'utf8')
+        .then(JSON.parse)
+        .catch(() => ({}))
+      ensureNode(graph, agentId, {
+        kind: 'subagent',
+        label: String(meta.description ?? agentId),
+        agentType: meta.agentType ?? null,
+        model: meta.model ?? null,
+        spawnToolUseId: meta.toolUseId ?? null,
+        sessionId,
+      })
+      track(path, agentId)
+    }
+  }
+}
+
+async function readAppended(path, entry) {
+  const info = await stat(path).catch(() => null)
+  if (!info || info.size === entry.offset) return
+  if (info.size < entry.offset) entry.offset = 0
+  const handle = await open(path, 'r')
+  try {
+    const chunk = Buffer.alloc(info.size - entry.offset)
+    await handle.read(chunk, 0, chunk.length, entry.offset)
+    entry.offset = info.size
+    // Keep the unfinished last line as bytes, so a UTF-8 character split across reads stays intact.
+    const data = Buffer.concat([entry.rest, chunk])
+    const end = data.lastIndexOf(0x0a) + 1
+    entry.rest = data.subarray(end)
+    applyLines(graph, entry.nodeId, data.subarray(0, end).toString('utf8'))
+  } finally {
+    await handle.close()
+  }
+}
+
+const clients = new Set()
+let lastPayload = ''
+
+async function tick(count) {
+  if (count % DISCOVER_EVERY_TICKS === 0) {
+    await discoverSessions()
+    await discoverSubagents()
+  }
+  for (const [path, entry] of tracked) await readAppended(path, entry)
+  const now = Date.now()
+  const payload = JSON.stringify(snapshot(graph, now - WINDOW_MS, now - WAITING_WINDOW_MS))
+  if (payload === lastPayload) return
+  lastPayload = payload
+  for (const response of clients) response.write(`data: ${payload}\n\n`)
+}
+
+async function watch() {
+  // ponytail: polls every second; switch to fs.watch if transcript counts make it slow.
+  for (let count = 0; ; count++) {
+    await tick(count).catch((error) => console.error('agent-graph: read failed', error))
+    await new Promise((resolve) => setTimeout(resolve, READ_INTERVAL_MS))
+  }
+}
+
+const ALLOWED_HOSTS = new Set([`127.0.0.1:${PORT}`, `localhost:${PORT}`, `[::1]:${PORT}`])
+const ALLOWED_ORIGINS = new Set([...ALLOWED_HOSTS].map((host) => `http://${host}`))
+const SECURITY_HEADERS = {
+  'Content-Security-Policy':
+    "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'no-referrer',
+  'Cache-Control': 'no-store',
+}
+const CONTENT_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
+  '.png': 'image/png',
+}
+
+// Rejects DNS rebinding (foreign Host) and cross-site requests (foreign Origin or Sec-Fetch-Site).
+// Opening the page itself from a link elsewhere is fine: the other site can't read a top-level page.
+export function isTrustedRequest(headers) {
+  if (!ALLOWED_HOSTS.has(headers.host)) return false
+  if (headers.origin !== undefined && !ALLOWED_ORIGINS.has(headers.origin)) return false
+  const site = headers['sec-fetch-site']
+  if (site === undefined || site === 'same-origin' || site === 'none') return true
+  return headers['sec-fetch-mode'] === 'navigate' && headers['sec-fetch-dest'] === 'document'
+}
+
+// The built page is served from a fixed list made at start-up, so a URL can never name another file.
+async function listWebFiles(directory, files = new Map()) {
+  for (const entry of await readdir(directory, { withFileTypes: true }).catch(() => [])) {
+    const path = join(directory, entry.name)
+    if (entry.isDirectory()) await listWebFiles(path, files)
+    else if (CONTENT_TYPES[extname(entry.name)]) files.set(`/${relative(WEB_DIR, path)}`, path)
+  }
+  return files
+}
+
+function sendJson(response, body) {
+  if (body === null) {
+    response.writeHead(404, SECURITY_HEADERS).end()
+    return
+  }
+  response.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': 'application/json' }).end(JSON.stringify(body))
+}
+
+const API_ROUTES = {
+  '/api/timeline': (query) => timeline(graph, query.get('id') ?? ''),
+  '/api/plans': () => library.listPlans(),
+  '/api/plan': (query) => library.readPlan(query.get('name') ?? ''),
+  '/api/memory': () => library.listMemory(),
+  '/api/memory/note': (query) => library.readMemory(query.get('project') ?? '', query.get('name') ?? ''),
+}
+
+function createHandler(webFiles) {
+  return async function handle(request, response) {
+    if (!isTrustedRequest(request.headers) || request.method !== 'GET') {
+      const { host, origin } = request.headers
+      console.warn(`agent-graph: refused ${request.method} host=${host} origin=${origin} site=${request.headers['sec-fetch-site']}`)
+      response.writeHead(403, SECURITY_HEADERS).end()
+      return
+    }
+    const url = new URL(request.url, 'http://localhost')
+    if (url.pathname === '/events') {
+      response.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': 'text/event-stream' })
+      response.write(`data: ${lastPayload || '{"nodes":[],"messages":[]}'}\n\n`)
+      clients.add(response)
+      request.on('close', () => clients.delete(response))
+      return
+    }
+    const route = API_ROUTES[url.pathname]
+    if (route) {
+      sendJson(response, await route(url.searchParams))
+      return
+    }
+    const file = webFiles.get(url.pathname === '/' ? '/index.html' : url.pathname)
+    if (!file) {
+      response.writeHead(404, SECURITY_HEADERS).end()
+      return
+    }
+    const body = await readFile(file)
+    response.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': CONTENT_TYPES[extname(file)] }).end(body)
+  }
+}
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const webFiles = await listWebFiles(WEB_DIR)
+  if (!webFiles.has('/index.html')) console.warn('agent-graph: no built page in web/dist; run `pnpm build` first')
+  const handle = createHandler(webFiles)
+  createServer((request, response) => {
+    handle(request, response).catch(() => response.writeHead(500, SECURITY_HEADERS).end())
+  }).listen(PORT, BIND_HOST, () => console.log(`agent-graph: http://127.0.0.1:${PORT}`))
+  watch()
+}

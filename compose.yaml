@@ -1,0 +1,29 @@
+services:
+  agent-graph:
+    build: .
+    image: agent-graph:local
+    container_name: agent-graph
+    # Comes back after a crash and whenever Docker Desktop starts, so the page is always there.
+    restart: unless-stopped
+    # Published on this machine only; nothing on the network can reach it.
+    # The same port inside and out: the server only answers requests addressed to its own port.
+    ports:
+      - 127.0.0.1:${AGENT_GRAPH_PORT:-4777}:${AGENT_GRAPH_PORT:-4777}
+    # Your session files are readable only by you, so the server runs as your user (501 on most Macs).
+    user: ${AGENT_GRAPH_UID:-501}:${AGENT_GRAPH_GID:-20}
+    environment:
+      # Same home path as the host, so paths in transcripts resolve inside the container.
+      HOME: ${HOME}
+      AGENT_GRAPH_PORT: ${AGENT_GRAPH_PORT:-4777}
+      AGENT_GRAPH_WINDOW_HOURS: ${AGENT_GRAPH_WINDOW_HOURS:-6}
+      AGENT_GRAPH_WAITING_HOURS: ${AGENT_GRAPH_WAITING_HOURS:-24}
+    volumes:
+      - ${HOME}/.claude/projects:${HOME}/.claude/projects:ro
+      - ${HOME}/.claude/plans:${HOME}/.claude/plans:ro
+      # Only read to tell which folders are git repositories.
+      - ${AGENT_GRAPH_CODE_DIR:-${HOME}/Documents/GitHub}:${AGENT_GRAPH_CODE_DIR:-${HOME}/Documents/GitHub}:ro
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true

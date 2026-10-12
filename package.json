@@ -1,0 +1,50 @@
+{
+  "name": "agent-graph",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A live map of your Claude Code agents, and what is waiting on you",
+  "license": "MIT",
+  "author": "Luis Sejer Oliver",
+  "homepage": "https://github.com/Luis-Sejer/agent-graph",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Luis-Sejer/agent-graph.git"
+  },
+  "bugs": "https://github.com/Luis-Sejer/agent-graph/issues",
+  "keywords": [
+    "claude-code",
+    "agents",
+    "dashboard",
+    "visualizer",
+    "subagents"
+  ],
+  "type": "module",
+  "packageManager": "pnpm@12.8.2",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "vite --config web/vite.config.ts",
+    "build": "vite build --config web/vite.config.ts",
+    "typecheck": "tsc --noEmit -p web",
+    "test": "node --test \"*.test.mjs\" && vitest run --config web/vite.config.ts",
+    "demo": "pnpm build && node scripts/demo.mjs",
+    "screenshots": "pnpm build && node scripts/screenshots.mjs"
+  },
+  "devDependencies": {
+    "@fontsource/instrument-serif": "5.3.0",
+    "@fontsource/inter": "5.3.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "@xyflow/react": "12.12.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-markdown": "10.1.0",
+    "thinking-orbs": "0.3.2",
+    "typescript": "7.0.2",
+    "vite": "8.3.2",
+    "vitest": "5.0.3"
+  }
+}

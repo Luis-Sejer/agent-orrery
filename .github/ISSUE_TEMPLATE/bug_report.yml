@@ -1,0 +1,52 @@
+name: Bug report
+description: Something in agent-graph doesn't work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Please don't paste transcript contents. They can hold your code, prompts and secrets.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start a Claude Code session with a subagent
+        2. Open http://127.0.0.1:4777
+        3. …
+    validations:
+      required: true
+  - type: dropdown
+    id: how-run
+    attributes:
+      label: How do you run agent-graph?
+      options:
+        - Docker
+        - From source (pnpm start)
+        - The demo (pnpm demo)
+    validations:
+      required: true
+  - type: input
+    id: claude-version
+    attributes:
+      label: Claude Code version
+      description: The output of `claude --version`.
+      placeholder: "2.1.296"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and browser
+      placeholder: "macOS 27, Chrome 150"
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots, logs or anything else
+      description: "`docker logs agent-graph` helps for Docker problems. Check screenshots don't show anything private."
