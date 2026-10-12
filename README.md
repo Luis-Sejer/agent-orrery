@@ -37,9 +37,9 @@ Agent Orrery answers that at a glance. It reads the transcripts Claude Code alre
 ## Features
 
 - **Your turn.** Every session that finished or asked you something, oldest first, with how long it has waited. The tab title shows the count. Dismiss one until it does something new.
+- **The orrery.** The page opens on your agents in rings around you: whatever waits on you sits closest, running agents next, finished ones on the outside, with a sector for each repository. The rings turn slowly, inner ones faster, and steady themselves while you point at an agent. Agents, one tab over, lays the same agents out as a grid of rooms. The page remembers which view you were on.
 - **Rooms per repository.** Each agent sits in the repo its work touches, not the folder its session started in. A session started in the API whose subagents edit the web app reaches across into the web app's room.
 - **Live state.** Each agent's orb shows what it's doing now: reading, writing code, running a command, talking to other agents, or waiting on you. Messages between agents travel along the lines as they're sent.
-- **The orrery.** The same agents in rings around you: whatever waits on you sits closest, running agents next, finished ones on the outside, with a sector for each repository. The rings turn slowly, inner ones faster, and steady themselves while you point at an agent. The page remembers which view you were on.
 - **Focus.** Click an agent to light up its parent, its subagents and everyone it messaged, and dim the rest. A drawer shows what it has done, step by step, and a command to resume the session.
 - **Search everything.** Press <kbd>⌘</kbd> <kbd>K</kbd> to find agents by name, repo or branch, and plans and memory notes by what they say.
 - **Notifications.** Turn them on and your browser tells you when a session starts waiting on you while you're in another tab.

@@ -6,13 +6,15 @@ const VIEW_KEY = 'agent-orrery:view'
 const CANVAS_KEY = 'agent-orrery:canvas'
 const VIEWS: readonly View[] = ['graph', 'orrery', 'plans', 'memory']
 const CANVASES: readonly View[] = ['graph', 'orrery']
+// The Orrery is where a first visit lands; Agents is the denser view for reading names and branches.
+const DEFAULT_VIEW: View = 'orrery'
 
 function stored(key: string, allowed: readonly View[]): View {
   try {
     const value = localStorage.getItem(key)
-    return allowed.find((view) => view === value) ?? 'graph'
+    return allowed.find((view) => view === value) ?? DEFAULT_VIEW
   } catch {
-    return 'graph'
+    return DEFAULT_VIEW
   }
 }
 

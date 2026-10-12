@@ -26,8 +26,8 @@ const FILTERS: { value: Filter; label: string }[] = [
 ]
 
 const VIEWS: { value: View; label: string }[] = [
-  { value: 'graph', label: 'Agents' },
   { value: 'orrery', label: 'Orrery' },
+  { value: 'graph', label: 'Agents' },
   { value: 'plans', label: 'Plans' },
   { value: 'memory', label: 'Memory' },
 ]
