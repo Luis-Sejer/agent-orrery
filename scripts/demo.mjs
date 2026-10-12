@@ -37,9 +37,34 @@ const STEPS = {
   bash: (repo) => ['Bash', { command: `cd ${repoPath(repo)} && npm test` }],
 }
 
+const OPUS = 'claude-opus-5-5'
+const SONNET = 'claude-sonnet-5-5'
+const between = (low, high) => Math.round(low + Math.random() * (high - low))
+
+// What Claude Code records for one API message: its id, model and token counts.
+function messageMeta(model) {
+  const write5m = between(1_000, 4_000)
+  const write1h = between(1_000, 4_000)
+  return {
+    id: nextId('msg_'),
+    model,
+    usage: {
+      input_tokens: between(3, 40),
+      output_tokens: between(200, 1_500),
+      cache_read_input_tokens: between(20_000, 120_000),
+      cache_creation_input_tokens: write5m + write1h,
+      cache_creation: { ephemeral_5m_input_tokens: write5m, ephemeral_1h_input_tokens: write1h },
+      speed: 'standard',
+    },
+  }
+}
+
 class Transcript {
-  constructor(path, { cwd, branch, session }) {
+  constructor(path, { cwd, branch, session, model = SONNET, alsoUses = null }) {
     this.path = path
+    this.model = model
+    this.alsoUses = alsoUses
+    this.calls = 0
     this.base = { cwd, gitBranch: branch, sessionId: session }
     writeFileSync(path, '')
   }
@@ -56,19 +81,31 @@ class Transcript {
     this.add({ type: 'user', timestamp: ago(minutesAgo), origin: { kind: 'human' }, message: { content: '…' } })
   }
 
+  // A session that hands some work to a cheaper model shows more than one model.
+  nextModel() {
+    this.calls += 1
+    return this.alsoUses && this.calls % 3 === 0 ? this.alsoUses : this.model
+  }
+
   tool(minutesAgo, [name, input], id = nextId('toolu_')) {
-    this.add({ type: 'assistant', timestamp: ago(minutesAgo), message: { stop_reason: 'tool_use', content: [{ type: 'tool_use', id, name, input }] } })
+    this.openTool(minutesAgo, [name, input], id)
     this.add({ type: 'user', timestamp: ago(minutesAgo), message: { content: [{ type: 'tool_result', tool_use_id: id }] } })
+    return id
+  }
+
+  // A call with no result yet, like a permission prompt or a long test run.
+  openTool(minutesAgo, [name, input], id = nextId('toolu_')) {
+    this.add({ type: 'assistant', timestamp: ago(minutesAgo), message: { ...messageMeta(this.nextModel()), stop_reason: 'tool_use', content: [{ type: 'tool_use', id, name, input }] } })
     return id
   }
 
   // A question stays open: no tool result follows it.
   question(minutesAgo) {
-    this.add({ type: 'assistant', timestamp: ago(minutesAgo), message: { stop_reason: 'tool_use', content: [{ type: 'tool_use', id: nextId('toolu_'), name: 'AskUserQuestion', input: {} }] } })
+    this.add({ type: 'assistant', timestamp: ago(minutesAgo), message: { ...messageMeta(this.model), stop_reason: 'tool_use', content: [{ type: 'tool_use', id: nextId('toolu_'), name: 'AskUserQuestion', input: {} }] } })
   }
 
   endTurn(minutesAgo) {
-    this.add({ type: 'assistant', timestamp: ago(minutesAgo), message: { stop_reason: 'end_turn', content: [{ type: 'text', text: '…' }] } })
+    this.add({ type: 'assistant', timestamp: ago(minutesAgo), message: { ...messageMeta(this.model), stop_reason: 'end_turn', content: [{ type: 'text', text: '…' }] } })
   }
 
   messageFrom(minutesAgo, from, name) {
@@ -78,11 +115,11 @@ class Transcript {
 
 const running = []
 
-function createSession({ n, title, repo, branch }) {
+function createSession({ n, title, repo, branch, alsoUses = null }) {
   const id = sessionId(n)
   const projectDir = join(CLAUDE_DIR, 'projects', repoPath(repo).replaceAll('/', '-'))
   mkdirSync(join(projectDir, id, 'subagents'), { recursive: true })
-  const transcript = new Transcript(join(projectDir, `${id}.jsonl`), { cwd: repoPath(repo), branch, session: id })
+  const transcript = new Transcript(join(projectDir, `${id}.jsonl`), { cwd: repoPath(repo), branch, session: id, model: OPUS, alsoUses })
   transcript.title(title)
 
   function subagent({ minutesAgo, description, agentType, model = 'sonnet' }) {
@@ -104,7 +141,7 @@ function writeRepos() {
 
 function writeSessions() {
   // 1. A big session in the web app, mid-flight, with helpers in three repos.
-  const checkout = createSession({ n: 1, title: 'Checkout redesign', repo: 'storefront-web', branch: 'feat/checkout-redesign' })
+  const checkout = createSession({ n: 1, title: 'Checkout redesign', repo: 'storefront-web', branch: 'feat/checkout-redesign', alsoUses: SONNET })
   checkout.transcript.prompt(95)
   checkout.transcript.tool(93, ['Write', { file_path: join(CLAUDE_DIR, 'plans', 'checkout-redesign.md'), content: '…' }])
   const exploreNames = ['Map the cart state', 'Find price formatting', 'List the checkout routes', 'Audit form validation']
@@ -169,9 +206,28 @@ function writeSessions() {
 
   // 5. Finished a while ago, still waiting on you.
   const drift = createSession({ n: 5, title: 'Terraform drift check', repo: 'infra', branch: 'chore/drift' })
-  drift.transcript.prompt(160)
+  drift.transcript.prompt(165)
   drift.transcript.tool(150, STEPS.bash('infra'))
   drift.transcript.endTurn(140)
+
+  // 6. Quiet: a shell call left open for eight minutes, as when Claude waits for your approval.
+  const migration = createSession({ n: 6, title: 'Backfill order totals', repo: 'storefront-api', branch: 'fix/order-totals' })
+  migration.transcript.prompt(30)
+  migration.transcript.tool(24, STEPS.read('storefront-api', 'src/orders/totals.ts'))
+  migration.transcript.tool(16, STEPS.edit('storefront-api', 'src/orders/totals.ts'))
+  migration.transcript.openTool(8, STEPS.bash('storefront-api'))
+
+  // 7. Earlier today: asked a question, was answered, finished, then went on with a follow-up.
+  const onboarding = createSession({ n: 7, title: 'Onboarding emails', repo: 'mobile-app', branch: 'feat/onboarding-emails' })
+  onboarding.transcript.prompt(178)
+  onboarding.transcript.tool(175, STEPS.read('mobile-app', 'src/emails/welcome.ts'))
+  onboarding.transcript.question(172)
+  onboarding.transcript.prompt(165)
+  onboarding.transcript.tool(160, STEPS.edit('mobile-app', 'src/emails/welcome.ts'))
+  onboarding.transcript.endTurn(150)
+  onboarding.transcript.prompt(120)
+  onboarding.transcript.tool(112, STEPS.write('mobile-app', 'src/emails/reminder.ts'))
+  onboarding.transcript.tool(100, STEPS.bash('mobile-app'))
 
   return [checkout, limiter, deps]
 }

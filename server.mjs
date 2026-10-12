@@ -9,7 +9,7 @@ import { homedir } from 'node:os'
 import { extname, join, relative } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-import { applyLines, createGraph, ensureNode, snapshot, timeline } from './graph.mjs'
+import { applyLines, createGraph, ensureNode, replay, snapshot, timeline } from './graph.mjs'
 import { createLibrary } from './library.mjs'
 import { createRepoResolver } from './repos.mjs'
 
@@ -220,6 +220,11 @@ function sendJson(response, body) {
 
 const API_ROUTES = {
   '/api/timeline': (query) => timeline(graph, query.get('id') ?? ''),
+  '/api/replay': (query) => {
+    const at = Number(query.get('at'))
+    return Number.isFinite(at) && query.get('at') ? replay(graph, at, WINDOW_MS, WAITING_WINDOW_MS) : null
+  },
+  '/api/window': () => ({ windowMs: WINDOW_MS }),
   '/api/plans': () => library.listPlans(),
   '/api/plan': (query) => library.readPlan(query.get('name') ?? ''),
   '/api/memory': () => library.listMemory(),

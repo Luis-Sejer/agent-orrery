@@ -2,7 +2,7 @@ import { BaseEdge, getBezierPath, Handle, Position, type Edge, type EdgeProps, t
 
 import type { CardNode, FoldNode, MessageData, RoomNode } from '../layout'
 import { beamStyle } from '../rhythm'
-import { describeStatus, orbStateOf, statusOf } from '../status'
+import { describeStatus, isQuiet, orbStateOf, statusOf } from '../status'
 import { Orb } from './Orb'
 
 // Edges attach to these; they are invisible and can't be dragged.
@@ -22,6 +22,7 @@ function cardClass(kind: string, data: CardNode['data']): string {
     kind,
     `status-${status}`,
     status === 'waiting' && 'beam',
+    isQuiet(data.node, data.now) && 'quiet',
     data.dimmed && 'dimmed',
     data.focused && 'focused',
     data.related && !data.focused && 'related',

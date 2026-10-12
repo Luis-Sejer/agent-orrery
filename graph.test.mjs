@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 
-import { applyLines, createGraph, ensureNode, shellActivity, snapshot, timeline } from './graph.mjs'
+import { applyLines, createGraph, ensureNode, replay, shellActivity, snapshot, timeline } from './graph.mjs'
 import { createLibrary, snippetAround } from './library.mjs'
 import { createRepoResolver, pathsInToolInput } from './repos.mjs'
 import { isTrustedRequest } from './server.mjs'
@@ -71,7 +71,7 @@ test('places agents in the repo they work in, links spawns, messages and plans, 
   assert.equal(agent.room, 'storefront-web')
   assert.equal(agent.parentId, 'session-1')
   assert.equal(agent.activity, 'composing')
-  assert.deepEqual(view.messages, [{ from: 'agent-a', to: 'session-1', count: 1, lastAt: Date.parse(at(5)) }])
+  assert.deepEqual(view.messages, [{ from: 'agent-a', to: 'session-1', count: 1, lastAt: Date.parse(at(5)), firstAt: Date.parse(at(5)) }])
   assert.deepEqual(
     timeline(graph, 'agent-a').map((event) => [event.text, event.repo]),
     [['Edited en-GB.json', 'storefront-web']],
@@ -182,4 +182,98 @@ test('classifies shell commands by what they do, without keeping them', () => {
   assert.equal(shellActivity('pnpm test 2>&1 | tail -5'), 'working')
   assert.equal(shellActivity('docker compose up -d --build'), 'working')
   assert.equal(shellActivity(undefined), 'working')
+})
+
+const assistant = (second, message) => line({ type: 'assistant', timestamp: at(second), message })
+const usage = (input, output) => ({ input_tokens: input, output_tokens: output, cache_read_input_tokens: 100, cache_creation_input_tokens: 30, cache_creation: { ephemeral_5m_input_tokens: 10, ephemeral_1h_input_tokens: 20 } })
+
+test('counts the usage of one API message once, per model, and keeps no content', () => {
+  const graph = createGraph()
+  ensureNode(graph, 's', { kind: 'session', label: 's', sessionId: 's' })
+  const split = { id: 'msg_1', model: 'claude-opus-5-5', usage: usage(5, 7), content: [{ type: 'text', text: 'SECRET' }] }
+  applyLines(graph, 's', assistant(1, split) + assistant(2, { ...split, content: [toolUse('t', 'Read', {})] }))
+  applyLines(graph, 's', assistant(3, { id: 'msg_2', model: 'claude-sonnet-5-5', usage: usage(1, 2), content: [] }))
+  const view = snapshot(graph, 0).nodes[0]
+  assert.deepEqual(view.usage['claude-opus-5-5'], { input: 5, output: 7, cacheRead: 100, cacheWrite5m: 10, cacheWrite1h: 20 })
+  assert.equal(view.usage['claude-sonnet-5-5'].output, 2)
+  assert.ok(!JSON.stringify(view).includes('SECRET'))
+})
+
+test('a tool call stays pending until its result arrives', () => {
+  const graph = createGraph()
+  ensureNode(graph, 's', { kind: 'session', label: 's', sessionId: 's' })
+  const result = (second, id) => line({ type: 'user', timestamp: at(second), message: { content: [{ type: 'tool_result', tool_use_id: id }] } })
+  applyLines(graph, 's', assistant(1, { content: [toolUse('a', 'Bash', { command: 'SECRET' })] }) + assistant(2, { content: [toolUse('b', 'Read', {})] }))
+  assert.deepEqual(snapshot(graph, 0).nodes[0].pendingTool, { name: 'Bash', since: Date.parse(at(1)) })
+  applyLines(graph, 's', result(3, 'a'))
+  assert.deepEqual(snapshot(graph, 0).nodes[0].pendingTool, { name: 'Read', since: Date.parse(at(2)) })
+  applyLines(graph, 's', result(4, 'b'))
+  assert.equal(snapshot(graph, 0).nodes[0].pendingTool, null)
+  assert.ok(!JSON.stringify(snapshot(graph, 0)).includes('SECRET'))
+})
+
+test('a new prompt or a spawn does not leave a tool pending', () => {
+  const graph = createGraph()
+  ensureNode(graph, 's', { kind: 'session', label: 's', sessionId: 's' })
+  applyLines(graph, 's', assistant(1, { content: [toolUse('a', 'Bash', {}), toolUse('spawn', 'Agent', {})] }))
+  assert.equal(snapshot(graph, 0).nodes[0].pendingTool.name, 'Bash')
+  applyLines(graph, 's', line({ type: 'user', timestamp: at(5), origin: { kind: 'human' }, message: { content: 'go' } }))
+  assert.equal(snapshot(graph, 0).nodes[0].pendingTool, null)
+})
+
+test('replay shows the graph as it was, with the live visibility rules', () => {
+  const graph = createGraph()
+  ensureNode(graph, 's', { kind: 'session', label: 's', sessionId: 's' })
+  ensureNode(graph, 'late', { kind: 'session', label: 'late', sessionId: 'late' })
+  applyLines(graph, 's', assistant(10, { content: [toolUse('a', 'Read', {})] }) + assistant(20, { content: [toolUse('b', 'Edit', {})] }) + assistant(30, { stop_reason: 'end_turn', content: [] }))
+  applyLines(graph, 'late', assistant(40, { content: [toolUse('c', 'Bash', {})] }))
+  const second = (n) => Date.parse(at(n))
+  const windowMs = 15_000
+
+  assert.deepEqual(replay(graph, second(5), windowMs).nodes, [])
+  const early = replay(graph, second(22), windowMs).nodes
+  assert.deepEqual(early.map((node) => [node.id, node.activity, node.lastTool, node.waiting, node.lastAt]), [['s', 'composing', 'Edit', null, second(20)]])
+  const done = replay(graph, second(35), windowMs, windowMs).nodes[0]
+  assert.deepEqual(done.waiting, { reason: 'reply', since: second(30) })
+  assert.deepEqual(replay(graph, second(46), windowMs).nodes.map((node) => node.id), ['late'])
+})
+
+test('history records state changes only, and edges remember when they began', () => {
+  const graph = createGraph()
+  ensureNode(graph, 's', { kind: 'session', label: 's', sessionId: 's' })
+  applyLines(graph, 's', assistant(1, { content: [toolUse('a', 'Read', {})] }) + assistant(2, { content: [toolUse('b', 'Read', {})] }) + assistant(3, { content: [toolUse('c', 'Edit', {})] }))
+  const history = graph.nodes.get('s').history
+  assert.equal(history.length, 2)
+  assert.equal(history[0][4], Date.parse(at(2)))
+  assert.equal(graph.nodes.get('s').firstAt, Date.parse(at(1)))
+})
+
+test('tags usage with fast mode and long prompts, which change the price', () => {
+  const graph = createGraph()
+  ensureNode(graph, 's', { kind: 'session', sessionId: 's' })
+  const record = (id, usage) => JSON.stringify({ type: 'assistant', timestamp: '2026-01-01T00:00:00Z', message: { id, model: 'claude-haiku-5-5', usage, content: [] } })
+  applyLines(graph, 's', [
+    record('m1', { input_tokens: 10, output_tokens: 1, speed: 'fast' }),
+    record('m2', { input_tokens: 10, output_tokens: 1, cache_read_input_tokens: 100_000 }),
+    record('m3', { input_tokens: 10, output_tokens: 1 }),
+  ].join('\n'))
+  const { usage } = snapshot(graph, 0).nodes[0]
+  assert.deepEqual(Object.keys(usage).sort(), ['claude-haiku-5-5', 'claude-haiku-5-5 fast', 'claude-haiku-5-5 long'])
+})
+
+test('a subagent that hands back its report is finished, until someone messages it again', () => {
+  const graph = createGraph()
+  ensureNode(graph, 'sub', { kind: 'subagent', sessionId: 's' })
+  const at = (second) => `2026-01-01T00:00:${String(second).padStart(2, '0')}Z`
+  const toolUse = (second, name) => ({ type: 'assistant', timestamp: at(second), message: { content: [{ type: 'tool_use', id: `t${second}`, name, input: {} }] } })
+  const toolResult = (second) => ({ type: 'user', timestamp: at(second), message: { content: [{ type: 'tool_result', tool_use_id: `t${second - 1}`, content: 'SECRET' }] } })
+  const lines = (...records) => records.map((record) => JSON.stringify(record)).join('\n')
+  applyLines(graph, 'sub', lines(toolUse(1, 'Read'), toolResult(2), toolUse(3, 'SubagentHandback'), toolResult(4), { type: 'attachment', timestamp: at(5) }))
+  const handedBack = snapshot(graph, 0).nodes[0]
+  assert.equal(handedBack.waiting?.reason, 'reply')
+  assert.equal(handedBack.pendingTool, null)
+  assert.ok(!JSON.stringify(snapshot(graph, 0)).includes('SECRET'))
+
+  applyLines(graph, 'sub', lines({ type: 'user', timestamp: at(6), message: { content: 'One more thing' } }))
+  assert.equal(snapshot(graph, 0).nodes[0].waiting, null)
 })

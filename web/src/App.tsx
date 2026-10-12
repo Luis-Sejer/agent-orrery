@@ -6,12 +6,14 @@ import { GraphCanvas } from './components/GraphCanvas'
 import { Icon } from './components/Icon'
 import { Inbox } from './components/Inbox'
 import { Library } from './components/Library'
+import { ReplayBar } from './components/ReplayBar'
 import { SearchPalette } from './components/SearchPalette'
 import { statusOf } from './status'
 import type { Filter, View } from './types'
 import { applyDismissals, useDismissed } from './useDismissed'
 import { useGraph, useNow } from './useGraph'
 import { useNotifications } from './useNotifications'
+import { useReplay } from './useReplay'
 import { useTheme } from './useTheme'
 
 const FILTERS: { value: Filter; label: string }[] = [
@@ -37,10 +39,13 @@ function isTyping(target: EventTarget | null): boolean {
 
 export function App() {
   const { graph: liveGraph, connection, loaded } = useGraph()
-  const now = useNow()
+  const clock = useNow()
+  const replay = useReplay()
+  // While replaying, time stands still at the replay moment, so every status and "ago" matches it.
+  const now = replay.view ? replay.view.at : clock
   const { dismissals, dismiss, restoreAll } = useDismissed()
   const { preference, theme, cycle: cycleTheme, next: nextTheme } = useTheme()
-  const graph = useMemo(() => applyDismissals(liveGraph, dismissals), [liveGraph, dismissals])
+  const graph = useMemo(() => replay.view?.graph ?? applyDismissals(liveGraph, dismissals), [replay.view, liveGraph, dismissals])
   const dismissedCount = graph.nodes.filter((node) => node.dismissed).length
   const [view, setView] = useState<View>('graph')
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -65,7 +70,7 @@ export function App() {
     setFocusRequest({ id, at: Date.now() })
   }, [])
 
-  const notifications = useNotifications({ nodes: graph.nodes, now, loaded, onOpen: selectAndFocus })
+  const notifications = useNotifications({ nodes: graph.nodes, now, loaded: loaded && !replay.open, onOpen: selectAndFocus })
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -144,6 +149,11 @@ export function App() {
               </button>
             ))}
           </div>
+          <div className="tabs" role="group" aria-label="Replay">
+            <button type="button" className={replay.open ? 'on' : ''} aria-pressed={replay.open} onClick={replay.open ? replay.stop : replay.start}>
+              Replay
+            </button>
+          </div>
           {notifications.supported && (
             <button
               type="button"
@@ -188,6 +198,9 @@ export function App() {
               <p className="canvas-empty">No Claude Code activity in the last few hours. Start a session and it appears here.</p>
             )}
           </>
+        )}
+        {replay.open && (
+          <ReplayBar at={replay.at} now={clock} windowMs={replay.windowMs} playing={replay.playing} onSeek={replay.seek} onTogglePlay={replay.togglePlay} onLive={replay.stop} />
         )}
         {view !== 'graph' && <Library key={view} kind={view} nodes={graph.nodes} now={now} openRequest={openRequest} onSelectNode={selectAndFocus} />}
       </main>

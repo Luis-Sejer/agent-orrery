@@ -7,6 +7,22 @@ export interface Waiting {
   since: number
 }
 
+export interface PendingTool {
+  name: string
+  since: number
+}
+
+// Token counts for one model, as Claude Code records them.
+export interface TokenUsage {
+  input: number
+  output: number
+  cacheRead: number
+  cacheWrite5m: number
+  cacheWrite1h: number
+}
+
+export type ModelUsage = Record<string, TokenUsage>
+
 export interface AgentNode {
   id: string
   kind: NodeKind
@@ -19,6 +35,9 @@ export interface AgentNode {
   lastTool: string | null
   lastAt: number
   waiting: Waiting | null
+  // The oldest tool call that has started and has no result yet.
+  pendingTool: PendingTool | null
+  usage: ModelUsage
   agentType: string | null
   model: string | null
   sessionId: string | null

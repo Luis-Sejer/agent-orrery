@@ -1454,3 +1454,89 @@ mark {
     transition: none !important;
   }
 }
+
+/* Quiet agents, cost, replay */
+
+.card.quiet {
+  box-shadow: var(--shadow), inset 3px 0 0 var(--amber);
+}
+
+.quiet-heading {
+  margin: 14px 0 6px;
+  color: var(--amber);
+  font: 600 11.5px/1 var(--sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.quiet-list b {
+  font-weight: 600;
+}
+
+.spend-note {
+  margin: 18px 0 0;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.facts .models {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.replay {
+  flex: none;
+  display: grid;
+  gap: 8px;
+  padding: 8px 20px 14px;
+  background: var(--surface);
+}
+
+.replay-banner {
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: var(--amber);
+  color: #162925;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.replay-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.replay-bar input[type='range'] {
+  flex: 1 1 120px;
+  min-width: 0;
+  accent-color: var(--green);
+}
+
+.replay-time {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.replay-bar .button {
+  flex: none;
+  padding: 7px 12px;
+}
+
+@media (max-width: 600px) {
+  .replay {
+    padding: 8px 16px 12px;
+  }
+  .replay-bar {
+    flex-wrap: wrap;
+  }
+  .replay-bar input[type='range'] {
+    order: 3;
+    flex-basis: 100%;
+  }
+}

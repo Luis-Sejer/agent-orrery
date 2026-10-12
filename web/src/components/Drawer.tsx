@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 
+import { describeSpend, mergeUsage, modelOf } from '../pricing'
 import { STATE_COLOURS, ago, describeStatus, orbStateOf, statusOf } from '../status'
 import { getJson } from '../useGraph'
 import type { AgentNode, TimelineEvent } from '../types'
@@ -54,6 +55,8 @@ function collapseRuns(events: TimelineEvent[]): TimelineRow[] {
   return rows
 }
 
+const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
+
 function clockTime(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
 }
@@ -70,6 +73,10 @@ export function Drawer({ node, parent, children, now, onClose, onSelect, onOpenP
     setCopied(true)
     setTimeout(() => setCopied(false), COPIED_FEEDBACK_MS)
   }
+
+  const ownSpend = describeSpend(node.usage)
+  const totalSpend = children.length > 0 ? describeSpend(mergeUsage([node.usage, ...children.map((child) => child.usage)])) : null
+  const models = [...new Set(Object.keys(node.usage).map(modelOf))]
 
   return (
     <aside className="drawer" aria-label={`Details for ${node.label}`}>
@@ -103,6 +110,16 @@ export function Drawer({ node, parent, children, now, onClose, onSelect, onOpenP
             <dd>
               {node.agentType}
               {node.model && `, ${node.model}`}
+            </dd>
+          </>
+        )}
+        {(ownSpend || totalSpend) && (
+          <>
+            <dt>Cost</dt>
+            <dd>
+              {ownSpend ? capitalise(ownSpend) : 'None of its own'}
+              {models.length > 1 && <small className="models">{models.join(', ')}</small>}
+              {totalSpend && totalSpend !== ownSpend && <small className="models">With its subagents: {totalSpend}</small>}
             </dd>
           </>
         )}

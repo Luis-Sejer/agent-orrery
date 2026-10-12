@@ -1,5 +1,6 @@
 import type { Edge, Node } from '@xyflow/react'
 
+import { describeCost, mergeUsage } from './pricing'
 import { roomOf, statusOf } from './status'
 import type { AgentNode, Filter, GraphSnapshot } from './types'
 
@@ -152,7 +153,9 @@ function summarise(room: Room, now: number): string {
   const waiting = all.filter((node) => statusOf(node, now) === 'waiting').length
   const running = all.filter((node) => statusOf(node, now) === 'running').length
   const finished = all.length - waiting - running
-  return [waiting && `${waiting} waiting`, running && `${running} running`, finished && `${finished} finished`].filter(Boolean).join(', ')
+  const counts = [waiting && `${waiting} waiting`, running && `${running} running`, finished && `${finished} finished`].filter(Boolean).join(', ')
+  const cost = describeCost(mergeUsage(all.map((node) => node.usage)))
+  return cost ? `${counts} · ${cost}` : counts
 }
 
 // Repos a session's subagents work in, other than its own.

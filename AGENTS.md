@@ -43,6 +43,9 @@ Transcripts hold people's code, prompts and secrets, and local dashboards are a 
 - A **session** is `~/.claude/projects/<project>/<id>.jsonl`. Its **subagents** are `<id>/subagents/agent-<agentId>.jsonl`, plus a `.meta.json` with the description, agent type and the spawning `toolUseId`.
 - A transcript's `cwd` is always where the session started, even for subagents working elsewhere. An agent's **room** is the repository its tool paths touch most (`repos.mjs` walks up to the nearest `.git`, mapping worktrees to their repo). A session's room is where it started.
 - **Waiting on you** means the last assistant message ended its turn (`stop_reason: end_turn`) or called `AskUserQuestion`. A later non-meta user record clears it.
+- **Usage** is counted once per API `message.id` and kept per model on each node (token counts only). Cost is worked out in the page from `web/src/pricing.ts`; update that table when Anthropic changes prices.
+- **Quiet** is a tool call with no result yet (`pendingTool`) plus five minutes without activity (`isQuiet` in `status.ts`). The server tracks open calls by `tool_use` id; a result or a new human prompt closes them.
+- **Replay** reads a per-node history of state changes (`[at, activity, waiting reason, last tool, last record]`, 400 entries) and `firstAt` on nodes and message edges. `replay()` in `graph.mjs` rebuilds a node view at a time and reuses `snapshot()` for visibility. Usage and open tool calls are not replayed.
 - **Messages** between agents come from `SendMessage` tool calls (outgoing) and user records with `origin.kind === 'peer'` (incoming).
 - **Orb states** come from the last tool an agent used (`ACTIVITY_BY_TOOL` in `graph.mjs`). Shell commands are classified by `shellActivity`: readers turn blue, writers violet, everything else green. Only the state is kept.
 - **Search** (`/api/search`) scans plan and memory-note text on the server and returns short snippets; agents are matched in the browser.

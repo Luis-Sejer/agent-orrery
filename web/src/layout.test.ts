@@ -23,6 +23,8 @@ function agent(id: string, fields: Partial<AgentNode> = {}): AgentNode {
     lastTool: 'Bash',
     lastAt: NOW - MINUTE,
     waiting: null,
+    pendingTool: null,
+    usage: {},
     agentType: 'general-purpose',
     model: null,
     sessionId: 'lead',
