@@ -1,8 +1,9 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useContext, useEffect, useState, type CSSProperties } from 'react'
 
 import { describeSpend, mergeUsage, modelOf } from '../pricing'
-import { STATE_COLOURS, ago, describeStatus, orbStateOf, statusOf } from '../status'
+import { ago, describeStatus, orbStateOf, stateColour, statusOf } from '../status'
 import { getJson } from '../useGraph'
+import { HudContext } from '../useTheme'
 import type { AgentNode, TimelineEvent } from '../types'
 import { Orb } from './Orb'
 
@@ -63,6 +64,7 @@ function clockTime(timestamp: number): string {
 
 export function Drawer({ node, parent, children, now, onClose, onSelect, onOpenPlan, onDismiss }: DrawerProps) {
   const events = useTimeline(node.id)
+  const hud = useContext(HudContext)
   const [copied, setCopied] = useState(false)
   const sessionId = node.kind === 'session' ? node.id : node.sessionId
   const resumeCommand = sessionId ? `claude --resume ${sessionId}` : null
@@ -203,7 +205,7 @@ export function Drawer({ node, parent, children, now, onClose, onSelect, onOpenP
       ) : (
         <ol className="timeline">
           {collapseRuns(events).map((event, index) => (
-            <li key={`${event.at}-${index}`} style={{ '--state': STATE_COLOURS[event.activity] } as CSSProperties}>
+            <li key={`${event.at}-${index}`} style={{ '--state': stateColour(event.activity, hud) } as CSSProperties}>
               <span className="dot" aria-hidden="true" />
               <span>
                 {event.text}

@@ -8,6 +8,10 @@ All notable changes to Agent Orrery are documented here. The format is based on
 
 ### Added
 
+- The Orrery view: your agents in rings around you, closest when they're waiting on you, then running, then finished, with a sector for each repository. The rings turn slowly like an orrery's and stop while you point at them; agents glide between rings as their status changes, and finished ones fold into a pile.
+- The page remembers which view you were on (Agents, Orrery, Plans or Memory) when you reload.
+- T.Y.C.H.O., a fourth theme: a holographic HUD in amber and orange on black, with a turning dial around you in the Orrery view.
+- Voice: turn on the speaker and the page says out loud when a session starts waiting on you, using a voice on your machine.
 - Cost: an estimate for each agent, session (with its subagents) and room, and one line in the inbox for everything in view. Models without a known price show tokens only.
 - Quiet agents: a running agent that has been silent for five minutes is flagged amber and listed under Quiet, and says which tool call is still open, since that may be a permission prompt. An agent with an open tool call now counts as running for up to two hours instead of 15 minutes.
 - Replay: scrub back through the last hours, or play them at about ten minutes a second, with a banner and notifications paused. The server keeps a short in-memory history for it and serves `/api/replay` and `/api/window`.

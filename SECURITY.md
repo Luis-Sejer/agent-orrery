@@ -16,7 +16,7 @@ You can expect an acknowledgement within a few days, and a fix or a plan as soon
 - It keeps the graph in memory only. Nothing is stored, logged or sent anywhere.
 - The page receives metadata only: session titles, repository and branch names, agent types, tool names, file names and times. Plans and memory notes are sent only when you open them.
 - Search reads plan and memory text on your machine and sends back short snippets to the page.
-- Dismissed sessions, your theme and whether notifications are on are remembered in your browser's local storage. Notifications are shown by your browser and go nowhere else.
+- Dismissed sessions, your theme and whether notifications and voice are on are remembered in your browser's local storage. Notifications are shown by your browser and go nowhere else. Spoken announcements use only voices that run on your machine, never a network speech service.
 
 ## What's in scope
 

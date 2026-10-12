@@ -1,8 +1,9 @@
-import type { CSSProperties } from 'react'
+import { useContext, type CSSProperties } from 'react'
 import { ThinkingOrb, type OrbSize, type OrbState } from 'thinking-orbs'
 
 import { orbSpeed } from '../rhythm'
-import { STATE_COLOURS } from '../status'
+import { stateColour } from '../status'
+import { HudContext } from '../useTheme'
 
 // The small presets' dots get lost on a white card; heavier dots keep the state readable.
 const SMALL_DOT_SIZE = 1.6
@@ -17,7 +18,7 @@ interface OrbProps {
 }
 
 export function Orb({ state, size, ring = false, seed }: OrbProps) {
-  const colour = STATE_COLOURS[state]
+  const colour = stateColour(state, useContext(HudContext))
   const style = { '--state': colour } as CSSProperties
   return (
     <span className={`orb orb-${size}${ring ? ' orb-ring' : ''}`} style={style}>

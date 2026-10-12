@@ -84,6 +84,7 @@ Open the dashboard for them (`open http://127.0.0.1:4777` on macOS), then tell t
 - It shows Claude Code sessions from the last 6 hours, and anything waiting on them for 24 hours.
 - **Your turn** lists sessions that finished or asked a question. The ✕ dismisses one until it does something new.
 - Clicking an agent highlights everything connected to it. The drawer has a resume command they can paste into a terminal.
+- **Orrery** shows the same agents in rings around them, with whatever waits on them closest.
 - **Plans** and **Memory** show what Claude has saved, read-only.
 - To update later: `git pull && docker compose up -d --build` in the repository folder.
 - To remove it: `docker compose down` in the repository folder, then delete the folder.
