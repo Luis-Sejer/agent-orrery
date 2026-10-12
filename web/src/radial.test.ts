@@ -117,6 +117,16 @@ describe('buildOrrery', () => {
     expect(nodes.find((node) => node.id === 'child')).toMatchObject(ORBIT_SIZE)
   })
 
+  it('gives orbiting nodes a measured size and handles, so their edges stay drawn while they move', () => {
+    const graph = graphOf([session('lead'), agent('child'), finished('f1'), finished('f2'), finished('f3')])
+    const moving = buildOrrery(graph, options()).nodes.filter((node) => node.type === 'orbit' || node.type === 'fold')
+    expect(moving.map((node) => node.type).sort()).toEqual(['fold', 'orbit', 'orbit'])
+    for (const node of moving) {
+      expect(node.measured).toEqual({ width: node.width, height: node.height })
+      expect(node.handles?.map((handle) => handle.type).sort()).toEqual(['source', 'target'])
+    }
+  })
+
   it('turns the inner rings faster, and not at all at the start', () => {
     expect(turnsAt(0)).toEqual({ waiting: 0, running: 0, finished: 0 })
     const { waiting, running, finished } = turnsAt(60)

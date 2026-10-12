@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import type { Edge, Node } from '@xyflow/react'
+import { Position, type Edge, type Node, type NodeHandle } from '@xyflow/react'
 
 import {
   buildEdges,
@@ -23,6 +23,19 @@ import type { AgentNode, GraphSnapshot, Status } from './types'
 // An orbit node's box is just its orb; the name hangs outside it, pointing away from the centre.
 export const ORBIT_SIZE = { width: 56, height: 56 }
 export const ORB_CENTRE_Y = ORBIT_SIZE.height / 2
+const HANDLE_PX = 6
+
+// The orbit hands React Flow new node objects about 30 times a second. A node without a size
+// is re-measured, and its edges are dropped until then, so they flicker; the size and the
+// handles (centred, as the stylesheet draws them) are given up front instead.
+function fixedFrame(size: { width: number; height: number }, source: Position, target: Position) {
+  const box = { x: size.width / 2 - HANDLE_PX / 2, y: size.height / 2 - HANDLE_PX / 2, width: HANDLE_PX, height: HANDLE_PX }
+  const handles: NodeHandle[] = [
+    { ...box, type: 'source', position: source },
+    { ...box, type: 'target', position: target },
+  ]
+  return { measured: size, handles }
+}
 // The inner ring clears the core (its constellation reaches 131 px, its dial and caption about 190 px),
 // even for an orb staggered inwards.
 const RINGS: Record<Status, number> = { waiting: 255, running: 375, finished: 495 }
@@ -186,6 +199,7 @@ export function buildOrrery(graph: GraphSnapshot, options: FlowOptions): { nodes
       type: 'orbit',
       position: { x: 0, y: 0 },
       ...ORBIT_SIZE,
+      ...fixedFrame(ORBIT_SIZE, Position.Top, Position.Top),
       className: 'orrery-node',
       zIndex: focused ? Z_FOCUSED : related.has(node.id) ? Z_RELATED : Z_CARD,
       data: { node, now, dimmed: isDimmed(node), focused, related: related.has(node.id), alsoIn: [] },
@@ -208,6 +222,7 @@ export function buildOrrery(graph: GraphSnapshot, options: FlowOptions): { nodes
       type: 'fold',
       position: { x: 0, y: 0 },
       ...FOLD_SIZE,
+      ...fixedFrame(FOLD_SIZE, Position.Right, Position.Left),
       className: 'orrery-node',
       zIndex: Z_CARD,
       data: {
