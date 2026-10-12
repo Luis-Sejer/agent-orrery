@@ -14,7 +14,7 @@ const CARDS = [
   { name: 'end', query: 'card=end&', seconds: Number(process.env.END_SECONDS ?? 3.6), from: 12 },
 ]
 
-const chrome = await launch({ debugPort: 9354 })
+const chrome = await launch({ debugPort: 9356 })
 try {
   for (const card of CARDS) {
     const dir = `${SRC}build/cards/${card.name}/`

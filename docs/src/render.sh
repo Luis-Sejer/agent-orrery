@@ -6,6 +6,7 @@
 #
 #   sh docs/src/render.sh        # everything
 #   sh docs/src/render.sh hero   # only the animated hero and its still
+#   sh docs/src/render.sh video  # only the launch video and its poster
 set -e
 cd "$(dirname "$0")"
 ASSETS=../assets
@@ -17,9 +18,10 @@ LOOP_FADE=0.8
 LOOP_SEAM_AT=$(node -p "+($HERO_END - 2 * $LOOP_FADE).toFixed(3)")
 # The still hero: that session's drawer open.
 HERO_STILL_AT=6.5
-# The video's middle: the same story, then the switch to dark where a session starts waiting on you.
-VIDEO_START=1.0
-VIDEO_END=20.6
+# The video's middle, from record.mjs: a session opened, the orrery by repository, then T.Y.C.H.O.,
+# where a session starts waiting on you.
+VIDEO_START=0.5
+VIDEO_END=20.5
 # The video's cards: the title fades into the recording, which fades into the closing card.
 TITLE_SECONDS=2.6
 END_SECONDS=3.6
@@ -27,8 +29,8 @@ FADE=0.5
 INTO_RECORDING=$(node -p "+($TITLE_SECONDS - $FADE).toFixed(3)")
 INTO_END=$(node -p "+($INTO_RECORDING + $VIDEO_END - $VIDEO_START - $FADE).toFixed(3)")
 VIDEO_SECONDS=$(node -p "+($INTO_END + $END_SECONDS).toFixed(3)")
-# The video poster: a session in focus, with its drawer open.
-STILL_AT=4.6
+# The video poster: T.Y.C.H.O., once the new wait has joined Your turn.
+STILL_AT=19.0
 
 [ -f ../../web/dist/index.html ] || { echo "Run pnpm build in the repository first"; exit 1; }
 mkdir -p build
@@ -71,36 +73,45 @@ hero() {
     webp build/hero-dark.mp4 "$ASSETS/hero-dark.webp"
 }
 
+video() {
+    node record.mjs
+    TITLE_SECONDS=$TITLE_SECONDS END_SECONDS=$END_SECONDS node cards.mjs
+    encode build/rec build/recording.mp4
+    ffmpeg -v error -y -ss $STILL_AT -i build/recording.mp4 -frames:v 1 -q:v 3 "$ASSETS/poster.jpg"
+
+    # The sound: a synthesised pad and effects on the logged moments. Nothing sampled.
+    node audio.mjs $VIDEO_SECONDS $VIDEO_START $VIDEO_END $TITLE_SECONDS $FADE $INTO_END
+
+    # The launch video: title card, the recording, then the closing card with the links.
+    ffmpeg -v error -y \
+        -framerate $FPS -i build/cards/title/%04d.png \
+        -ss $VIDEO_START -to $VIDEO_END -i build/recording.mp4 \
+        -framerate $FPS -i build/cards/end/%04d.png \
+        -i build/audio/mix.wav \
+        -filter_complex "\
+[0]format=yuv420p,setsar=1,fps=$FPS[title];\
+[1]setpts=PTS-STARTPTS,format=yuv420p,setsar=1,fps=$FPS[rec];\
+[2]format=yuv420p,setsar=1,fps=$FPS[end];\
+[title][rec]xfade=transition=fade:duration=$FADE:offset=$INTO_RECORDING[a];\
+[a][end]xfade=transition=fade:duration=$FADE:offset=$INTO_END,format=yuv420p[v]" \
+        -map "[v]" -map 3:a -c:v libx264 -crf 24 -preset slow -tune animation -c:a aac -b:a 128k -shortest -movflags +faststart "$ASSETS/agent-orrery-launch.mp4"
+}
+
 if [ "$1" = hero ]; then
     hero
     echo "Rendered docs/assets: hero.webp, hero-dark.webp, hero.png"
     exit
 fi
 
+if [ "$1" = video ]; then
+    video
+    echo "Rendered docs/assets: agent-orrery-launch.mp4, poster.jpg"
+    exit
+fi
+
 node brand.mjs
 node stills.mjs
-node record.mjs
-TITLE_SECONDS=$TITLE_SECONDS END_SECONDS=$END_SECONDS node cards.mjs
+video
 hero
-
-encode build/rec build/recording.mp4
-ffmpeg -v error -y -ss $STILL_AT -i build/recording.mp4 -frames:v 1 -q:v 3 "$ASSETS/poster.jpg"
-
-# The sound: a synthesised pad and effects on the logged moments. Nothing sampled.
-node audio.mjs $VIDEO_SECONDS $VIDEO_START $VIDEO_END $TITLE_SECONDS $FADE $INTO_END
-
-# The launch video: title card, the recording, then the closing card with the links.
-ffmpeg -v error -y \
-    -framerate $FPS -i build/cards/title/%04d.png \
-    -ss $VIDEO_START -to $VIDEO_END -i build/recording.mp4 \
-    -framerate $FPS -i build/cards/end/%04d.png \
-    -i build/audio/mix.wav \
-    -filter_complex "\
-[0]format=yuv420p,setsar=1,fps=$FPS[title];\
-[1]setpts=PTS-STARTPTS,format=yuv420p,setsar=1,fps=$FPS[rec];\
-[2]format=yuv420p,setsar=1,fps=$FPS[end];\
-[title][rec]xfade=transition=fade:duration=$FADE:offset=$INTO_RECORDING[a];\
-[a][end]xfade=transition=fade:duration=$FADE:offset=$INTO_END,format=yuv420p[v]" \
-    -map "[v]" -map 3:a -c:v libx264 -crf 24 -preset slow -tune animation -c:a aac -b:a 128k -shortest -movflags +faststart "$ASSETS/agent-orrery-launch.mp4"
 
 echo "Rendered docs/assets: brand/, icon.png, social/, hero.webp, hero-dark.webp, hero.png, poster.jpg, agent-orrery-launch.mp4"

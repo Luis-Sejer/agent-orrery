@@ -1,7 +1,7 @@
-// Records the real app running on the demo data, on the Agents grid, for the launch video.
+// Records the real app running on the demo data, on the Orrery, for the launch video.
 // Starts its own demo (made-up sessions only), drives headless Chrome through a short story,
-// and saves the screencast frames with their timestamps to build/rec/. render.sh turns them into media.
-// The animated hero on the site is recorded by hero.mjs, on the Orrery.
+// and saves the screencast frames with their timestamps to build/rec/, plus build/rec/events.json,
+// the moments audio.mjs puts sounds on. render.sh turns them into media.
 //
 //   pnpm build && node docs/src/record.mjs
 
@@ -11,15 +11,18 @@ import { fileURLToPath } from 'node:url'
 
 import { addCursor, launch, pointer, screencast, sleep, waitFor } from './chrome.mjs'
 
-const PORT = '4785'
+const PORT = '4787'
 const URL_ = `http://127.0.0.1:${PORT}/`
 const VIEWPORT = { width: 1440, height: 900, dpr: 2 }
 const OUT = fileURLToPath(new URL('./build/rec/', import.meta.url))
-const OVERVIEW_AGAIN_SECONDS = 13.4
 const DEMO = fileURLToPath(new URL('../../scripts/demo.mjs', import.meta.url))
 // The demo's flaky-test session starts waiting on you 30 s after the demo starts. Starting the
-// recording 13 s in puts that moment near the end, after the switch to the dark theme.
-const START_AFTER_DEMO_MS = 13_000
+// recording 12.8 s in puts that moment near the end, after the switch to T.Y.C.H.O.
+const START_AFTER_DEMO_MS = 12_800
+const SECONDS = 20.6
+// The cursor rests just off screen, so the opening and the closing hold have none.
+const OFF_SCREEN = { x: 1500, y: 960 }
+const SESSION = 'Checkout redesign'
 
 // Watches the page for the moments the launch video's sound follows: a session joining Your turn
 // (the tab title's count goes up) and a message starting to travel along a line.
@@ -42,23 +45,21 @@ const WATCH = `(() => {
 
 const demo = spawn(process.execPath, [DEMO], { stdio: 'ignore', env: { ...process.env, AGENT_ORRERY_PORT: PORT } })
 const demoStarted = Date.now()
-const chrome = await launch({ debugPort: 9353 })
+const chrome = await launch({ debugPort: 9356 })
 
 try {
   await waitFor(async () => (await fetch(URL_)).ok, 'the demo server')
   rmSync(OUT, { recursive: true, force: true })
   mkdirSync(OUT, { recursive: true })
 
-  // Start in the light theme explicitly, so one click on the theme button turns it dark.
-  await chrome.open('about:blank', VIEWPORT)
+  // Start light, by status, with the side panel shown, whatever the defaults become.
   await chrome.open(URL_, VIEWPORT)
-  // The page now opens on the Orrery; the video was made on the Agents grid, so pin it there.
-  await chrome.evaluate(`localStorage.setItem('agent-orrery:theme', 'light'), localStorage.setItem('agent-orrery:view', 'graph'), true`)
+  await chrome.evaluate(`localStorage.setItem('agent-orrery:theme', 'light'), localStorage.setItem('agent-orrery:view', 'orrery'), localStorage.setItem('agent-orrery:arrangement', 'status'), localStorage.setItem('agent-orrery:clean', 'off'), true`)
   await chrome.open(URL_, VIEWPORT)
-  await waitFor(async () => (await chrome.evaluate("document.querySelectorAll('.card').length")) > 5, 'the graph')
-  await addCursor(chrome, { x: 1180, y: 760 })
+  await waitFor(async () => (await chrome.evaluate("document.querySelectorAll('.orbit-card').length")) > 5, 'the orrery')
+  await addCursor(chrome, OFF_SCREEN)
   await chrome.evaluate(WATCH)
-  await sleep(Math.max(0, START_AFTER_DEMO_MS - (Date.now() - demoStarted)))
+  await sleep(Math.max(1_000, START_AFTER_DEMO_MS - (Date.now() - demoStarted)))
 
   const events = []
   const mark = (type) => events.push({ type, time: Date.now() / 1000 })
@@ -67,76 +68,75 @@ try {
   const at = async (seconds) => sleep(Math.max(0, began + seconds * 1000 - Date.now()))
 
   const { centre, moveTo, click } = pointer(chrome)
-  const key = (key, code, keyCode, modifiers = 0) =>
-    Promise.all(['keyDown', 'keyUp'].map((type) => chrome.send('Input.dispatchKeyEvent', { type, key, code, windowsVirtualKeyCode: keyCode, modifiers })))
+  const escape = () => Promise.all(['keyDown', 'keyUp'].map((type) => chrome.send('Input.dispatchKeyEvent', { type, key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })))
+  // The session's orb, which the label hangs under. It moves until the cursor is on it.
+  const orb = () => chrome.evaluate(`(() => {
+    const box = [...document.querySelectorAll('.orbit-card')].find((node) => node.textContent.includes(${JSON.stringify(SESSION)})).querySelector('.orb').getBoundingClientRect()
+    return { x: Math.round(box.left + box.width / 2), y: Math.round(box.top + box.height / 2) }
+  })()`)
+  // A choice in the settings menu, such as "By repository" or "T.Y.C.H.O.".
+  const choice = (label) => centre('#settings button', label)
+  const choose = async (label, type, seconds) => {
+    await moveTo(await choice(label))
+    await at(seconds)
+    mark(type)
+    await click(await choice(label))
+    await sleep(150)
+  }
+  const openSettings = async (seconds) => {
+    await moveTo(await centre('.settings-button'))
+    await at(seconds)
+    mark('click')
+    await click(await centre('.settings-button'))
+    await sleep(150)
+  }
+  const closeSettings = async () => {
+    mark('escape')
+    await escape()
+    // Closing returns focus to the settings button; its focus ring isn't part of the story.
+    await chrome.evaluate('document.activeElement?.blur(), true')
+    await moveTo(OFF_SCREEN)
+  }
 
   // The story. Times are seconds into the recording.
-  await at(1.6)
-  const session = await centre('.react-flow__node', 'Checkout redesign')
-  await moveTo(session)
-  await at(2.6)
+  // 1. The Orrery turning, three sessions waiting on you. Then one session in focus: its lines
+  //    light up and the drawer shows what it cost.
+  await at(2.0)
+  await moveTo(await orb()) // Pointing steadies the rings.
+  await at(2.8)
+  await moveTo(await orb())
+  await at(3.3)
   mark('select')
-  await click(session) // Focus: its subagents and messages light up, the drawer opens.
+  await click(await orb())
 
-  await at(6.4)
-  const close = await centre('.drawer .close')
-  await moveTo(close)
-  await at(7.3)
+  await at(6.6)
+  await moveTo(await centre('.drawer .close'))
+  await at(7.4)
   mark('click')
-  await click(close)
+  await click(await centre('.drawer .close'))
 
-  await at(7.9)
-  await moveTo(await centre('.search-button'))
-  await at(8.8)
-  mark('key')
-  await key('k', 'KeyK', 75, 4) // ⌘K
-  await at(9.3)
-  for (const letter of 'checkout') {
-    mark('type')
-    await chrome.send('Input.insertText', { text: letter })
-    await sleep(110)
+  // 2. One ring per repository, with the menu closed so the whole orrery shows.
+  await at(7.7)
+  await openSettings(8.5)
+  await choose('By repository', 'arrange', 9.4)
+  await at(10.0)
+  await closeSettings()
+
+  // 3. Back to the rings by status, then T.Y.C.H.O.
+  await at(11.9)
+  await openSettings(12.7)
+  await choose('By status', 'arrange', 13.6)
+  await choose('T.Y.C.H.O.', 'theme', 14.6)
+  // T.Y.C.H.O., or a click missed: then press the button directly so the story still holds.
+  if (!(await chrome.evaluate('document.documentElement.hasAttribute("data-hud")'))) {
+    console.warn('theme click missed; pressing the button directly')
+    await chrome.evaluate(`[...document.querySelectorAll('#settings button')].find((button) => button.textContent === 'T.Y.C.H.O.').click(), true`)
   }
-  await at(12.2)
-  // The first Escape clears the query, the second closes the palette.
-  mark('escape')
-  await key('Escape', 'Escape', 27)
-  await at(12.4)
-  mark('escape')
-  await key('Escape', 'Escape', 27)
-  await at(12.5)
-  await moveTo({ x: 1180, y: 760 })
+  await at(15.3)
+  await closeSettings()
 
-  // Back on the overview. The video carries on into the dark theme, where the flaky-test
-  // session finishes and slides into Your turn.
-  await at(OVERVIEW_AGAIN_SECONDS)
-  await darkAndWait()
-
-  // The theme lives in the settings menu: open it, choose Dark, close it.
-  async function darkAndWait() {
-    const DARK_BUTTON = `[...document.querySelectorAll('#settings button')].find((button) => button.textContent === 'Dark')`
-    const settings = await centre('.settings-button')
-    await moveTo(settings)
-    await at(14.2)
-    mark('click')
-    await click(settings)
-    await sleep(150)
-    const dark = await chrome.evaluate(`(() => { const box = ${DARK_BUTTON}.getBoundingClientRect(); return { x: Math.round(box.left + box.width / 2), y: Math.round(box.top + box.height / 2) } })()`)
-    await moveTo(dark)
-    await at(15.0)
-    mark('click')
-    await click(dark)
-    await sleep(150)
-    // Dark, or a click missed: then press the button directly so the story still holds.
-    if ((await chrome.evaluate('document.documentElement.dataset.theme')) !== 'dark') {
-      console.warn('theme click missed; pressing the button directly')
-      await chrome.evaluate(`${DARK_BUTTON}.click(), true`)
-    }
-    await at(15.5)
-    await key('Escape', 'Escape', 27)
-    await moveTo({ x: 1180, y: 760 })
-    await at(21)
-  }
-
+  // 4. The flaky-test session finishes and joins Your turn; the core's count goes up.
+  await at(SECONDS)
   const first = await stopRecording(OUT)
   const timeline = [...events, ...(await chrome.evaluate('recEvents'))]
     .map(({ type, time }) => ({ type, time: Math.round((time - first) * 1000) / 1000 }))

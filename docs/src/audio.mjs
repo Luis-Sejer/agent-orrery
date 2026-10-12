@@ -1,5 +1,6 @@
 // Makes the launch video's sound from nothing but ffmpeg's synthesis filters: a slow pad in
-// C major 7 drifting to F major 7, and small effects placed on the moments the recording logged.
+// C major 7 that turns to F major 7 as T.Y.C.H.O. comes on, and small effects placed on the
+// moments the recording logged.
 // No samples, no downloads. Writes build/audio/mix.wav for render.sh to put in the video.
 //
 //   node docs/src/audio.mjs <video seconds> <recording start> <recording end> <title seconds> <fade seconds> <end card at>
@@ -19,6 +20,9 @@ const REDRAW_SECONDS = 0.6
 
 mkdirSync(OUT, { recursive: true })
 
+const events = JSON.parse(readFileSync(`${BUILD}rec/events.json`, 'utf8')).filter((event) => event.time >= recStart && event.time <= recEnd - 0.3)
+const themeEvent = events.find((event) => event.type === 'theme')
+
 const ffmpeg = (...args) => execFileSync('ffmpeg', ['-v', 'error', '-y', ...args])
 const synth = (name, seconds, expression, filters = 'anull') =>
   ffmpeg('-f', 'lavfi', '-i', `aevalsrc='${expression}':s=${RATE}:d=${seconds}`, '-af', filters, '-ac', '1', `${OUT}${name}.wav`)
@@ -30,7 +34,7 @@ const note = (frequency, amp, swell, phase, detune) =>
 const chord = (notes) => notes.map(([frequency, amp], index) => note(frequency, amp, 0.045 + index * 0.017, index * 1.3, 0.07 + index * 0.043)).join('+')
 const CMAJ7 = [[130.81, 0.36], [196.0, 0.34], [246.94, 0.28], [329.63, 0.22], [493.88, 0.07]]
 const FMAJ7 = [[87.31, 0.32], [220.0, 0.34], [261.63, 0.28], [329.63, 0.22], [440.0, 0.07]]
-const turn = duration * 0.46
+const turn = themeEvent ? themeEvent.time + recordingOffset : duration * 0.46
 synth(
   'bed',
   duration,
@@ -54,17 +58,27 @@ for (const [name, frequency] of [['blip-high', 1567.98], ['blip-low', 1318.51]])
 // A muted click: a short low thump and a filtered tick of noise.
 synth('click', 0.15, '0.5*exp(-48*t)*sin(2*PI*150*t)+0.35*exp(-140*t)*(2*random(0)-1)', 'lowpass=f=2400')
 synth('tick', 0.06, '0.4*exp(-260*t)*(2*random(0)-1)', 'highpass=f=1800,lowpass=f=7000')
+// The rings re-forming: a soft G and D pluck over a brush of noise.
+synth('reform', 0.9, '0.26*exp(-5*t)*min(t/0.015,1)*(sin(2*PI*392*t)+0.6*sin(2*PI*587.33*t))+0.12*exp(-9*t)*(2*random(0)-1)', 'lowpass=f=3200,aecho=0.8:0.5:110:0.25')
+// T.Y.C.H.O. powering up: a sweep rising two octaves into a high bell.
+synth('hud', 2.2, `0.2*lt(t,0.4)*sin(PI*t/0.4)*sin(2*PI*(330*t+1237.5*t*t))+0.22*${bell(1318.51, 0.32)}+0.14*${bell(1975.53, 0.42)}`, 'lowpass=f=6000,aecho=0.8:0.55:120|260:0.25|0.15')
 // A whoosh: pink noise in a soft band, swelling and falling away.
 ffmpeg('-f', 'lavfi', '-i', `anoisesrc=color=pink:r=${RATE}:d=1.4:a=0.5`, '-af', "highpass=f=180,lowpass=f=1300,volume='0.6*sin(PI*t/1.4)^2':eval=frame", '-ac', '1', `${OUT}whoosh.wav`)
 
 // Which sound plays when, in video time.
-const SOUNDS = { select: ['click', 1], click: ['click', 0.8], key: ['tick', 1], type: ['tick', 0.45], waiting: ['chime', 1] }
+const SOUNDS = {
+  select: [['click', 1]],
+  click: [['click', 0.8]],
+  escape: [['tick', 0.6]],
+  arrange: [['click', 0.8], ['reform', 1]],
+  theme: [['click', 0.8], ['hud', 1]],
+  waiting: [['chime', 1]],
+}
 const cues = [
   { sound: 'whoosh', at: 0, gain: 0.7 },
   { sound: 'whoosh', at: titleSeconds - fade - 0.45, gain: 0.8 },
   { sound: 'whoosh', at: endCardAt - 0.45, gain: 0.8 },
 ]
-const events = JSON.parse(readFileSync(`${BUILD}rec/events.json`, 'utf8')).filter((event) => event.time >= recStart && event.time <= recEnd - 0.3)
 let lastBlip = -Infinity
 let lastInteraction = -Infinity
 let blips = 0
@@ -76,9 +90,8 @@ for (const event of events) {
     if (at - lastBlip < MIN_BLIP_GAP || at - lastInteraction < REDRAW_SECONDS) continue
     lastBlip = at
     cues.push({ sound: blips++ % 2 ? 'blip-low' : 'blip-high', at, gain: 1 })
-  } else if (SOUNDS[event.type]) {
-    const [sound, gain] = SOUNDS[event.type]
-    cues.push({ sound, at, gain })
+  } else {
+    for (const [sound, gain] of SOUNDS[event.type] ?? []) cues.push({ sound, at, gain })
   }
 }
 
