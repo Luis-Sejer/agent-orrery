@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 
-import { applyLines, createGraph, ensureNode, replay, shellActivity, snapshot, timeline } from './graph.mjs'
+import { applyLines, createGraph, ensureNode, replay, shellActivity, snapshot, timeline, waitingSessions } from './graph.mjs'
 import { createLibrary, snippetAround } from './library.mjs'
 import { createRepoResolver, pathsInToolInput } from './repos.mjs'
 import { isTrustedRequest } from './server.mjs'
@@ -170,6 +170,17 @@ test('rejects rebinding hosts and cross-site requests', () => {
   assert.ok(!isTrustedRequest({ host: '127.0.0.1:4777', 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'iframe' }))
   const linkFromElsewhere = { host: '127.0.0.1:4777', 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' }
   assert.ok(isTrustedRequest(linkFromElsewhere))
+})
+
+test('lists sessions waiting on you, oldest first, without subagents', () => {
+  const graph = sessionWithSubagent()
+  ensureNode(graph, 'session-2', { kind: 'session', label: 'Older', sessionId: 'session-2' })
+  applyLines(graph, 'session-2', line({ type: 'assistant', timestamp: at(0), message: { stop_reason: 'end_turn', content: [] } }))
+  const waiting = waitingSessions(snapshot(graph, 0))
+  assert.deepEqual(waiting.map((entry) => entry.id), ['session-2', 'session-1'])
+  assert.deepEqual(Object.keys(waiting[1]), ['id', 'label', 'room', 'branch', 'reason', 'since'])
+  assert.equal(waiting[1].label, 'Checkout redesign')
+  assert.ok(!JSON.stringify(waiting).includes('SECRET'))
 })
 
 test('classifies shell commands by what they do, without keeping them', () => {

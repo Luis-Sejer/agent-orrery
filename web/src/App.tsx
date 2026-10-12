@@ -70,7 +70,21 @@ export function App() {
     setFocusRequest({ id, at: Date.now() })
   }, [])
 
-  const notifications = useNotifications({ nodes: graph.nodes, now, loaded: loaded && !replay.open, onOpen: selectAndFocus })
+  // The menu bar companion opens the dashboard at #agent=<id>.
+  useEffect(() => {
+    if (!loaded) return
+    const openFromHash = () => {
+      const id = new URLSearchParams(window.location.hash.slice(1)).get('agent')
+      if (!id || !nodesById.has(id)) return
+      history.replaceState(null, '', window.location.pathname + window.location.search)
+      selectAndFocus(id)
+    }
+    openFromHash()
+    window.addEventListener('hashchange', openFromHash)
+    return () => window.removeEventListener('hashchange', openFromHash)
+  }, [loaded, nodesById, selectAndFocus])
+
+    const notifications = useNotifications({ nodes: graph.nodes, now, loaded: loaded && !replay.open, onOpen: selectAndFocus })
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

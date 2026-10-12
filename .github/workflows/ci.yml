@@ -45,3 +45,10 @@ jobs:
           done
           docker logs agent-orrery
           exit 1
+
+  menubar:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: swift build
+        working-directory: menubar

@@ -117,6 +117,10 @@ pnpm install
 pnpm demo         # made-up sessions on http://127.0.0.1:4780
 ```
 
+## Menu bar companion
+
+On a Mac, a small menu bar app shows how many sessions are waiting on you and opens the one you pick in the dashboard. Build it with `./menubar/build.sh`; see [`menubar/README.md`](menubar/README.md).
+
 ## Settings
 
 Set these in your shell, or in a `.env` file next to `compose.yaml`.

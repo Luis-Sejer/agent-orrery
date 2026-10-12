@@ -11,6 +11,7 @@ All notable changes to Agent Orrery are documented here. The format is based on
 - Cost: an estimate for each agent, session (with its subagents) and room, and one line in the inbox for everything in view. Models without a known price show tokens only.
 - Quiet agents: a running agent that has been silent for five minutes is flagged amber and listed under Quiet, and says which tool call is still open, since that may be a permission prompt. An agent with an open tool call now counts as running for up to two hours instead of 15 minutes.
 - Replay: scrub back through the last hours, or play them at about ten minutes a second, with a banner and notifications paused. The server keeps a short in-memory history for it and serves `/api/replay` and `/api/window`.
+- A macOS menu bar companion in `menubar/` that counts the sessions waiting on you and opens the one you pick. It reads the new `/api/waiting` route, and the page now selects an agent from a `#agent=<id>` link.
 - Search everything with ⌘K (Ctrl K elsewhere): agents by name, repo or branch, and plans and memory notes by their text, with the matches highlighted. Pick a result to jump straight to it.
 - Notifications: turn them on with the bell, and your browser tells you when a session starts waiting on you while you're in another tab. Click one to jump to the session.
 - A dark theme that follows your system, and a button to pick light or dark instead.
