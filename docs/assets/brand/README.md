@@ -16,7 +16,7 @@ Everything you need to mention or link to Agent Orrery. All files here, and the 
 
 **Links.**
 
-- Site: https://luis-sejer.github.io/agent-orrery/
+- Site: https://orrery.luissejer.dk/
 - Code: https://github.com/Luis-Sejer/agent-orrery
 
 ## The mark

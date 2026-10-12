@@ -23,7 +23,7 @@
     <img src="docs/assets/hero.webp" alt="Agent Orrery on demo data: selecting a session lights up its subagents and messages, then a search for checkout finds agents and a plan.">
   </picture>
   <br>
-  <sub><a href="https://luis-sejer.github.io/agent-orrery/"><strong>luis-sejer.github.io/agent-orrery</strong></a> · <a href="docs/assets/agent-orrery-launch.mp4">Watch the launch video</a> (25 s, with sound)</sub>
+  <sub><a href="https://orrery.luissejer.dk/"><strong>orrery.luissejer.dk</strong></a> · <a href="docs/assets/agent-orrery-launch.mp4">Watch the launch video</a> (25 s, with sound)</sub>
   <br>
   <sub>Made-up sessions. Run <code>pnpm demo</code> to explore them yourself.</sub>
 </p>
