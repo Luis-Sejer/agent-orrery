@@ -8,7 +8,7 @@ All notable changes to Agent Orrery are documented here. The format is based on
 
 ### Added
 
-- The Orrery view: your agents in rings around you, closest when they're waiting on you, then running, then finished, with a sector for each repository. The rings turn slowly like an orrery's and stop while you point at them; agents glide between rings as their status changes, and finished ones fold into a pile.
+- The Orrery view: your agents in rings around you, closest when they're waiting on you, then running, then finished, with a sector for each repository. The rings turn slowly like an orrery's and steady themselves while you point at an agent; agents glide between rings as their status changes, and finished ones fold into a pile.
 - The page remembers which view you were on (Agents, Orrery, Plans or Memory) when you reload.
 - T.Y.C.H.O., a fourth theme: a holographic HUD in amber and orange on black, with a turning dial around you in the Orrery view.
 - Voice: turn on the speaker and the page says out loud when a session starts waiting on you, using a voice on your machine.
