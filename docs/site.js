@@ -5,6 +5,7 @@ document.documentElement.classList.remove('no-js')
 // The hero orrery. It stands still for people who prefer less motion (handled in orrery.js).
 const orrery = document.getElementById('orrery')
 if (orrery && window.Orrery) window.Orrery.mount(orrery)
+if (window.Orrery) window.Orrery.orbs(document.querySelectorAll('canvas[data-orb]'))
 
 // Copy buttons: copy the text of the element they point at, then say so for a moment.
 const COPIED_MS = 1600

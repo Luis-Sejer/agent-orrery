@@ -601,6 +601,7 @@ kbd {
   display: grid;
   grid-template-columns: 30px 1fr;
   column-gap: 12px;
+  align-content: start;
   color: var(--muted);
   font-size: 15px;
   line-height: 1.45;
@@ -611,17 +612,22 @@ kbd {
   font-weight: 500;
 }
 
+/* A plain sphere, until orrery.js paints the live orb over it. */
 .orb {
   grid-row: span 2;
-  width: 22px;
-  height: 22px;
-  margin-top: 1px;
+  width: 30px;
+  height: 30px;
+  margin-top: -3px;
   border-radius: 50%;
-  background: radial-gradient(circle at 36% 32%, rgba(255, 255, 255, 0.75), var(--orb) 38%, color-mix(in srgb, var(--orb) 82%, #000));
+  background: radial-gradient(circle at 36% 32%, rgba(255, 255, 255, 0.75), var(--orb) 38%, color-mix(in srgb, var(--orb) 82%, #000)) center / 22px 22px no-repeat;
+}
+
+.orb.is-live {
+  background: none;
 }
 
 .orb--waiting {
-  box-shadow: 0 0 0 4px var(--surface-low), 0 0 0 5.5px color-mix(in srgb, var(--orb) 55%, transparent);
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--orb) 55%, transparent);
 }
 
 .gallery {
@@ -1028,14 +1034,26 @@ kbd {
     grid-template-columns: 1fr;
   }
 
-  /* Only the outer orbits show, arcing behind the masthead, so the copy stays clear. */
+  /* The orrery gets the top of the hero to itself, and fades out before the title. */
+  .hero {
+    padding-top: 290px;
+  }
+
+  /* Faded at the top too, so nothing crosses the masthead. */
   .hero__orrery {
-    top: -420px;
-    right: -380px;
-    width: 600px;
-    height: 600px;
-    opacity: 0.5;
-    mask-image: none;
+    top: -100px;
+    right: auto;
+    left: calc(50% - 260px);
+    width: 520px;
+    height: 520px;
+    opacity: 1;
+    mask-image: linear-gradient(to bottom, transparent 6%, #000 24%, #000 62%, transparent 80%);
+  }
+
+  .tabs__list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
   }
 
   .prompt__box {
