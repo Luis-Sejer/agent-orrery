@@ -84,7 +84,7 @@ export function App() {
     return () => window.removeEventListener('hashchange', openFromHash)
   }, [loaded, nodesById, selectAndFocus])
 
-    const notifications = useNotifications({ nodes: graph.nodes, now, loaded: loaded && !replay.open, onOpen: selectAndFocus })
+  const notifications = useNotifications({ nodes: graph.nodes, now, loaded: loaded && !replay.open, onOpen: selectAndFocus })
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
