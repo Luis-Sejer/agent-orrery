@@ -83,7 +83,7 @@
           <source srcset="assets/hero-dark.webp" type="image/webp" media="(prefers-color-scheme: dark)">
           <source srcset="assets/hero.webp" type="image/webp">
           <img class="window__shot" src="assets/hero.png" width="1440" height="900" fetchpriority="high"
-            alt="Agent Orrery on demo data. Five repositories, from storefront-web to infra, each hold their agents as orbs. Three sessions wait in the Your turn list on the left. Selecting the Checkout redesign session lights up its subagents and messages, and opens a drawer with its timeline.">
+            alt="Agent Orrery on demo data. Agents orbit a glowing constellation at the centre in three rings: the sessions waiting on you closest, running agents next, finished ones outside, with a sector for each of five repositories. Three sessions wait in the Your turn list on the left. Selecting an agent lights up its lines and opens a drawer with its cost and timeline.">
         </picture>
       </figure>
       <p class="demo__caption">Made-up sessions, the same ones <code>pnpm demo</code> gives you. <a href="assets/agent-orrery-launch.mp4">Watch the launch video</a>, 25 seconds with sound.</p>
@@ -97,28 +97,40 @@
 
       <div class="feature-list">
         <article class="feature">
+          <h3>The orrery</h3>
+          <p>Your agents in rings around you: whatever waits on you sits closest, running agents next, finished ones on the outside, with a sector for each repository. Or a ring per repository, the ones that need you innermost. The rings turn slowly and steady themselves while you point at an agent.</p>
+        </article>
+        <article class="feature">
           <h3>Your turn</h3>
           <p>Every session that finished or asked you something, oldest first, with how long it has waited. The tab title shows the count. Dismiss one until it does something new.</p>
         </article>
         <article class="feature">
           <h3>Rooms per repository</h3>
-          <p>Each agent sits in the repo its work touches, not the folder its session started in. A session started in storefront-api whose subagents edit storefront-web reaches across into that room.</p>
+          <p>Each agent sits in the repo its work touches, not the folder its session started in. The Agents tab lays them out as a grid of rooms, and a session started in storefront-api whose subagents edit storefront-web reaches across into that room.</p>
         </article>
         <article class="feature">
-          <h3>Focus</h3>
-          <p>Click an agent to light up its parent, its subagents and everyone it messaged, and dim the rest. A drawer shows what it has done, step by step, and a command to resume the session.</p>
+          <h3>Focus, and what it cost</h3>
+          <p>Click an agent to light up its parent, its subagents and everyone it messaged. A drawer shows what it has done, a command to resume it, and an estimate of what it cost from its token counts.</p>
+        </article>
+        <article class="feature">
+          <h3>Quiet agents</h3>
+          <p>A running agent that has gone silent for five minutes is flagged, with the tool call still open. That is how a permission prompt looks from outside, so it may be waiting for your approval.</p>
+        </article>
+        <article class="feature">
+          <h3>Replay</h3>
+          <p>Drag back through the last hours to see who was running, waiting and finished at any moment, or play them back at ten minutes a second.</p>
         </article>
         <article class="feature">
           <h3>Search everything</h3>
-          <p>Press <kbd>⌘</kbd> <kbd>K</kbd> to find agents by name, repo or branch, and plans and memory notes by what they say.</p>
+          <p>Press <kbd>⌘</kbd> <kbd>K</kbd> to find agents by name, repo or branch, and the plans and memory notes Claude has saved by what they say.</p>
         </article>
         <article class="feature">
-          <h3>Notifications</h3>
-          <p>Turn them on and your browser tells you when a session starts waiting on you while you’re in another tab.</p>
+          <h3>Never miss a wait</h3>
+          <p>A browser notification when a session starts waiting on you, a voice that says which one, and on a Mac a menu bar count that opens it in one click.</p>
         </article>
         <article class="feature">
-          <h3>Plans and memory</h3>
-          <p>Read the plans and memory notes Claude has saved, by project. Plans link back to the sessions that wrote them.</p>
+          <h3>Light, dark and T.Y.C.H.O.</h3>
+          <p>Pick a theme in the settings, or follow your system. T.Y.C.H.O., Tracks Your Claude Helpers’ Orbits, is a holographic HUD in amber on black. Clean view hides everything but the map.</p>
         </article>
       </div>
 
@@ -139,9 +151,19 @@
 
       <div class="gallery">
         <figure>
+          <img src="screenshots/tycho.webp" width="1440" height="900" loading="lazy" decoding="async"
+            alt="The orrery in the T.Y.C.H.O. theme: amber rings and glowing orbs on black, with a turning dial around the constellation at the centre.">
+          <figcaption>T.Y.C.H.O., the HUD theme.</figcaption>
+        </figure>
+        <figure>
           <img src="screenshots/focus.webp" width="1440" height="900" loading="lazy" decoding="async"
-            alt="The Checkout redesign session selected. Its subagents and the agents it messaged stay lit while the rest dims, and a drawer lists what it has done with a resume command.">
-          <figcaption>Click an agent to see everything connected to it.</figcaption>
+            alt="The Agents grid with the Checkout redesign session selected. Its subagents and the agents it messaged stay lit while the rest dims, and a drawer shows its cost, what it has done and a resume command.">
+          <figcaption>Agents, the grid of rooms. Click an agent to see everything connected to it.</figcaption>
+        </figure>
+        <figure>
+          <img src="screenshots/replay.webp" width="1440" height="900" loading="lazy" decoding="async"
+            alt="Replay open on the orrery: a slider at the bottom set to an hour and a half ago, with fewer agents and different statuses than now.">
+          <figcaption>Replay the last hours.</figcaption>
         </figure>
         <figure>
           <img src="screenshots/search.webp" width="1440" height="900" loading="lazy" decoding="async"
@@ -154,8 +176,8 @@
           <figcaption>Memory notes, by project.</figcaption>
         </figure>
         <figure>
-          <img src="screenshots/dark.webp" width="1440" height="900" loading="lazy" decoding="async"
-            alt="The dashboard in the dark theme: green-black grounds with the same rooms, orbs and lines.">
+          <img src="screenshots/orrery-dark.webp" width="1440" height="900" loading="lazy" decoding="async"
+            alt="The orrery in the dark theme: green-black ground with the same rings, orbs and lines.">
           <figcaption>Dark, when your system is.</figcaption>
         </figure>
       </div>
@@ -293,12 +315,20 @@ pnpm demo</pre>
           <p>The room is the repository its tools touched most. An agent that only ran shell commands, without paths, stays with its session. In Docker, repositories outside <code>AGENT_ORRERY_CODE_DIR</code> can’t be seen.</p>
         </details>
         <details>
+          <summary>How accurate is the cost?</summary>
+          <p>It’s an estimate: the token counts in the transcripts, priced at Anthropic’s published API rates, with fast mode and long prompts included. On a Claude subscription you’re billed differently, so read it as what the same work would cost on the API.</p>
+        </details>
+        <details>
+          <summary>Does the voice send anything anywhere?</summary>
+          <p>No. It only uses voices installed on your machine, never a network voice, so session titles stay local.</p>
+        </details>
+        <details>
           <summary>Does it work on Linux?</summary>
           <p>Yes. Set <code>AGENT_ORRERY_UID</code>, <code>AGENT_ORRERY_GID</code> and <code>AGENT_ORRERY_CODE_DIR</code> to match your machine.</p>
         </details>
         <details>
           <summary>What’s an orrery?</summary>
-          <p>A clockwork model of the planets, each on its orbit around the sun. Agent Orrery does the same for your agents and the repositories they work in.</p>
+          <p>A clockwork model of the planets, each on its orbit around the sun. In Agent Orrery you’re the sun: your agents orbit you, closer the more they need you.</p>
         </details>
       </div>
     </section>

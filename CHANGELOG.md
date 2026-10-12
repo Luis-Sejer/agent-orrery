@@ -10,14 +10,16 @@ All notable changes to Agent Orrery are documented here. The format is based on
 
 - The Orrery view: your agents in rings around you, closest when they're waiting on you, then running, then finished, with a sector for each repository. The rings turn slowly like an orrery's and steady themselves while you point at an agent; agents glide between rings as their status changes, and finished ones fold into a pile. It's the view the page opens on; Agents, the grid of rooms, is one tab over.
 - The page remembers which view you were on (Agents, Orrery, Plans or Memory) when you reload.
+- Arrange the orrery by repository: each repository gets a ring of its own, the ones that need you innermost, so many repositories add rings instead of thinning sectors.
+- One settings menu holds the filters, the orrery's arrangement, the theme, replay, notifications and voice, leaving the toolbar with search and the views. Clean view hides the side panel, minimap and zoom as well.
 - T.Y.C.H.O., a fourth theme: a holographic HUD in amber and orange on black, with a turning dial around you in the Orrery view.
-- Voice: turn on the speaker and the page says out loud when a session starts waiting on you, using a voice on your machine.
+- Voice: turn it on in the settings and the page says out loud when a session starts waiting on you, using a voice on your machine.
 - Cost: an estimate for each agent, session (with its subagents) and room, and one line in the inbox for everything in view. Models without a known price show tokens only.
 - Quiet agents: a running agent that has been silent for five minutes is flagged amber and listed under Quiet, and says which tool call is still open, since that may be a permission prompt. An agent with an open tool call now counts as running for up to two hours instead of 15 minutes.
 - Replay: scrub back through the last hours, or play them at about ten minutes a second, with a banner and notifications paused. The server keeps a short in-memory history for it and serves `/api/replay` and `/api/window`.
 - A macOS menu bar companion in `menubar/` that counts the sessions waiting on you and opens the one you pick. It reads the new `/api/waiting` route, and the page now selects an agent from a `#agent=<id>` link.
 - Search everything with ⌘K (Ctrl K elsewhere): agents by name, repo or branch, and plans and memory notes by their text, with the matches highlighted. Pick a result to jump straight to it.
-- Notifications: turn them on with the bell, and your browser tells you when a session starts waiting on you while you're in another tab. Click one to jump to the session.
+- Notifications: turn them on in the settings, and your browser tells you when a session starts waiting on you while you're in another tab. Click one to jump to the session.
 - A dark theme that follows your system, and a button to pick light or dark instead.
 - Hide finished: a room you've opened can fold its finished agents back into a pile.
 - The drawer lists a session's subagents, so you can jump to any of them, even when they're folded away.

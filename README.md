@@ -20,7 +20,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/hero-dark.webp">
-    <img src="docs/assets/hero.webp" alt="Agent Orrery on demo data: selecting a session lights up its subagents and messages, then a search for checkout finds agents and a plan.">
+    <img src="docs/assets/hero.webp" alt="Agent Orrery on demo data: agents orbit you in rings, with the ones waiting on you closest; selecting one lights up its lines and opens its drawer.">
   </picture>
   <br>
   <sub><a href="https://orrery.luissejer.dk/"><strong>orrery.luissejer.dk</strong></a> · <a href="docs/assets/agent-orrery-launch.mp4">Watch the launch video</a> (25 s, with sound)</sub>
@@ -36,20 +36,28 @@ Agent Orrery answers that at a glance. It reads the transcripts Claude Code alre
 
 ## Features
 
+- **The orrery.** The page opens on your agents in rings around you: whatever waits on you sits closest, running agents next, finished ones on the outside, with a sector for each repository. Working across many repositories? Arrange it by repository instead: each one gets a ring of its own, and the ones that need you move inwards. The rings turn slowly, inner ones faster, and steady themselves while you point at an agent. Agents, one tab over, lays the same agents out as a grid of rooms.
 - **Your turn.** Every session that finished or asked you something, oldest first, with how long it has waited. The tab title shows the count. Dismiss one until it does something new.
-- **The orrery.** The page opens on your agents in rings around you: whatever waits on you sits closest, running agents next, finished ones on the outside, with a sector for each repository. The rings turn slowly, inner ones faster, and steady themselves while you point at an agent. Agents, one tab over, lays the same agents out as a grid of rooms. The page remembers which view you were on.
 - **Rooms per repository.** Each agent sits in the repo its work touches, not the folder its session started in. A session started in the API whose subagents edit the web app reaches across into the web app's room.
-- **Live state.** Each agent's orb shows what it's doing now: reading, writing code, running a command, talking to other agents, or waiting on you. Messages between agents travel along the lines as they're sent.
 - **Focus.** Click an agent to light up its parent, its subagents and everyone it messaged, and dim the rest. A drawer shows what it has done, step by step, and a command to resume the session.
-- **Search everything.** Press <kbd>⌘</kbd> <kbd>K</kbd> to find agents by name, repo or branch, and plans and memory notes by what they say.
-- **Notifications.** Turn them on and your browser tells you when a session starts waiting on you while you're in another tab.
 - **Cost.** An estimate of what each agent, session and room has cost, worked out in your browser from the token counts and Anthropic's published prices. Models it has no price for show tokens only.
-- **Quiet agents.** An agent that is running but has been silent for five minutes is flagged, and if a tool call is still open it says which one: that is how a permission prompt looks from outside, so it may be waiting for your approval.
-- **Replay.** Press Replay and drag back through the last hours (the same window as `AGENT_ORRERY_WINDOW_HOURS`) to see who was running, waiting and finished at any moment. Notifications stay off while you replay.
-- **Voice.** Turn on the speaker and the page says out loud which session is waiting on you, using the best British voice on your machine. On a Mac, add a better one in System Settings → Accessibility → Spoken Content → System voice → Manage voices (a Premium British voice sounds most natural).
-- **Plans and memory.** Read the plans and memory notes Claude has saved, by project.
+- **Replay.** Turn on Replay in the settings and drag back through the last hours (the same window as `AGENT_ORRERY_WINDOW_HOURS`) to see who was running, waiting and finished at any moment. Notifications stay off while you replay.
 - **Light, dark and T.Y.C.H.O.** Follows your system, or pick one. T.Y.C.H.O. (Tracks Your Claude Helpers' Orbits) is a holographic HUD in amber on black.
-- **Quiet by design.** It only reads files, never writes them, and nothing leaves your machine.
+- **A clean dashboard.** Search and the views sit on top; filters, the arrangement, themes, replay, notifications and voice are in one settings menu. Clean view hides the side panel, minimap and zoom too, for a screen you glance at. The page remembers all of it.
+- **Read-only and local.** It only reads files, never writes them, and nothing leaves your machine.
+
+<details>
+<summary><strong>And more:</strong> live state, search everything, notifications, menu bar, quiet agents, voice, plans and memory</summary>
+
+- **Live state.** Each agent's orb shows what it's doing now: reading, writing code, running a command, talking to other agents, or waiting on you. Messages between agents travel along the lines as they're sent.
+- **Search everything.** Press <kbd>⌘</kbd> <kbd>K</kbd> to find agents by name, repo or branch, and plans and memory notes by what they say.
+- **Notifications.** Turn them on in the settings and your browser tells you when a session starts waiting on you while you're in another tab.
+- **Menu bar.** On a Mac, a small [menu bar app](#menu-bar-companion) shows how many sessions are waiting on you, and opens the one you pick.
+- **Quiet agents.** An agent that is running but has been silent for five minutes is flagged, and if a tool call is still open it says which one: that is how a permission prompt looks from outside, so it may be waiting for your approval.
+- **Voice.** Turn on Voice in the settings and the page says out loud which session is waiting on you, using the best British voice on your machine. On a Mac, add a better one in System Settings → Accessibility → Spoken Content → System voice → Manage voices (a Premium British voice sounds most natural).
+- **Plans and memory.** Read the plans and memory notes Claude has saved, by project.
+
+</details>
 
 ### What the orbs mean
 
@@ -64,22 +72,46 @@ Agent Orrery answers that at a glance. It reads the transcripts Claude Code alre
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/focus.webp" alt="One session selected: its subagents and messages light up, everything else dims, and a drawer lists what it has done."></td>
-    <td width="50%"><img src="docs/screenshots/plans.webp" alt="The Plans view: a list of saved plans beside the selected plan, rendered as a document."></td>
+    <td width="50%"><img src="docs/screenshots/tycho.webp" alt="The orrery in the T.Y.C.H.O. theme: amber rings and glowing orbs on black, with a turning dial around the constellation at the centre."></td>
+    <td width="50%"><img src="docs/screenshots/focus.webp" alt="The Agents grid with one session selected: its subagents and messages light up, everything else dims, and a drawer shows its cost and what it has done."></td>
   </tr>
   <tr>
-    <td><sub>Click an agent to see everything connected to it.</sub></td>
-    <td><sub>Plans, linked to the sessions that wrote them.</sub></td>
+    <td><sub>T.Y.C.H.O., the HUD theme.</sub></td>
+    <td><sub>Agents, the grid of rooms. Click an agent to see everything connected to it, and what it cost.</sub></td>
   </tr>
+</table>
+
+<details>
+<summary><strong>More screenshots:</strong> replay, search, arranged by repository, the settings, plans and the dark theme</summary>
+
+<table>
   <tr>
+    <td width="50%"><img src="docs/screenshots/replay.webp" alt="Replay open on the orrery: a slider at the bottom set to an hour and a half ago, with fewer agents and different statuses than now."></td>
     <td width="50%"><img src="docs/screenshots/search.webp" alt="The search window open over the dashboard, listing agents, plans and memory notes that match checkout, with the matches highlighted."></td>
-    <td width="50%"><img src="docs/screenshots/dark.webp" alt="The dashboard in the dark theme: green-black grounds with the same rooms, orbs and lines."></td>
   </tr>
   <tr>
+    <td><sub>Replay the last hours.</sub></td>
     <td><sub>Search agents, plans and memory with <kbd>⌘</kbd> <kbd>K</kbd>.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/orrery-repo.webp" alt="The orrery arranged by repository: a ring per repository, named in its gap, with the repositories that have sessions waiting on you innermost."></td>
+    <td width="50%"><img src="docs/screenshots/settings.webp" alt="The settings menu open over the orrery: show, arrange the orrery, theme, and switches for replay, notifications, voice and clean view."></td>
+  </tr>
+  <tr>
+    <td><sub>Or a ring per repository, the ones that need you innermost.</sub></td>
+    <td><sub>Everything else lives in one settings menu.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/plans.webp" alt="The Plans view: a list of saved plans beside the selected plan, rendered as a document."></td>
+    <td width="50%"><img src="docs/screenshots/orrery-dark.webp" alt="The orrery in the dark theme: green-black ground with the same rings, orbs and lines."></td>
+  </tr>
+  <tr>
+    <td><sub>Plans, linked to the sessions that wrote them.</sub></td>
     <td><sub>Dark, when your system is.</sub></td>
   </tr>
 </table>
+
+</details>
 
 ## Get started
 
@@ -102,7 +134,8 @@ docker compose up -d --build
 
 Open http://127.0.0.1:4777. The container comes back after a crash and whenever Docker starts. To have it after a reboot, turn on **Start Docker Desktop when you sign in** in Docker Desktop's settings.
 
-### From source
+<details>
+<summary><strong>From source</strong></summary>
 
 Needs Node 24 and pnpm (`corepack enable`).
 
@@ -112,12 +145,17 @@ pnpm build
 pnpm start        # http://127.0.0.1:4777
 ```
 
-### Just looking
+</details>
+
+<details>
+<summary><strong>Just looking: the demo, with made-up sessions</strong></summary>
 
 ```bash
 pnpm install
 pnpm demo         # made-up sessions on http://127.0.0.1:4780
 ```
+
+</details>
 
 ## Menu bar companion
 
@@ -127,6 +165,9 @@ On a Mac, a small menu bar app shows how many sessions are waiting on you and op
 
 Set these in your shell, or in a `.env` file next to `compose.yaml`.
 
+<details>
+<summary><strong>All settings:</strong> port, history window, folders, user</summary>
+
 | Variable | Default | What it does |
 |---|---|---|
 | `AGENT_ORRERY_CODE_DIR` | `~/Documents/GitHub` | Folder holding your repositories, shared read-only with the container so it can tell which repo an agent works in (Docker only) |
@@ -135,6 +176,8 @@ Set these in your shell, or in a `.env` file next to `compose.yaml`.
 | `AGENT_ORRERY_WINDOW_HOURS` | `6` | How far back to show sessions and agents |
 | `AGENT_ORRERY_WAITING_HOURS` | `24` | How long a session waiting on you stays listed |
 | `AGENT_ORRERY_CLAUDE_DIR` | `~/.claude` | Where Claude Code keeps its files (from source only) |
+
+</details>
 
 ## How it works
 
@@ -166,15 +209,54 @@ Found a problem? See [SECURITY.md](SECURITY.md).
 
 ## FAQ
 
-**Does it work with several machines?** No. It reads the Claude Code files on the machine it runs on.
+<details>
+<summary><strong>Does it work with several machines?</strong></summary>
 
-**Do notifications work when the tab is closed?** No. They come from the dashboard tab, so keep it open, in the background, or pinned.
+No. It reads the Claude Code files on the machine it runs on.
 
-**Does it slow Claude Code down?** No. It reads files Claude Code writes anyway, and adds no hooks.
+</details>
 
-**Why is an agent in the wrong room?** The room is the repository its tools touched most. An agent that only ran shell commands, without paths, stays with its session. In Docker, repositories outside `AGENT_ORRERY_CODE_DIR` can't be seen.
+<details>
+<summary><strong>Do notifications work when the tab is closed?</strong></summary>
 
-**Does it work on Linux?** Yes. Set `AGENT_ORRERY_UID`, `AGENT_ORRERY_GID` and `AGENT_ORRERY_CODE_DIR` to match your machine.
+No. They come from the dashboard tab, so keep it open, in the background, or pinned.
+
+</details>
+
+<details>
+<summary><strong>Does it slow Claude Code down?</strong></summary>
+
+No. It reads files Claude Code writes anyway, and adds no hooks.
+
+</details>
+
+<details>
+<summary><strong>Why is an agent in the wrong room?</strong></summary>
+
+The room is the repository its tools touched most. An agent that only ran shell commands, without paths, stays with its session. In Docker, repositories outside `AGENT_ORRERY_CODE_DIR` can't be seen.
+
+</details>
+
+<details>
+<summary><strong>How accurate is the cost?</strong></summary>
+
+It's an estimate: the token counts in the transcripts, priced at Anthropic's published API rates, with fast mode and long prompts included. On a Claude subscription you're billed differently, so read it as what the same work would cost on the API.
+
+</details>
+
+<details>
+<summary><strong>Does the voice send anything anywhere?</strong></summary>
+
+No. It only uses voices installed on your machine, never a network voice, so session titles stay local.
+
+</details>
+
+<details>
+<summary><strong>Does it work on Linux?</strong></summary>
+
+Yes. Set `AGENT_ORRERY_UID`, `AGENT_ORRERY_GID` and `AGENT_ORRERY_CODE_DIR` to match your machine.
+
+</details>
 
 ## Contributing
 
