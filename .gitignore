@@ -6,3 +6,4 @@ dist/
 .claude/worktrees/
 menubar/build/
 .build/
+docs/src/build/

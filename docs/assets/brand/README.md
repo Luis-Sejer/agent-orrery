@@ -84,4 +84,4 @@ The launch video's music and effects are original: synthesised from scratch with
 
 ## Remaking these files
 
-Everything here is rendered from the sources in `docs/src/`. Run `pnpm build` in the repository, then `sh docs/src/render.sh`. It needs Node 24, Google Chrome, ffmpeg and img2webp, and records the app on the made-up demo data only.
+Everything here is rendered from the sources in `docs/src/`. Run `pnpm build` in the repository, then `sh docs/src/render.sh` (or `sh docs/src/render.sh hero` for just the animated hero). It needs Node 24, Google Chrome, ffmpeg and img2webp, and records the app on the made-up demo data only.

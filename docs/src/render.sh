@@ -2,14 +2,21 @@
 # Renders every brand asset in docs/assets from the sources in this folder:
 # logo files, app icon, social images, the animated hero and the launch video.
 # Needs Node 24, Google Chrome, ffmpeg and img2webp (`brew install webp`), and a built app:
-# run `pnpm build` in the repository first. The recording uses the demo's made-up data only.
+# run `pnpm build` in the repository first. The recordings use the demo's made-up data only.
+#
+#   sh docs/src/render.sh        # everything
+#   sh docs/src/render.sh hero   # only the animated hero and its still
 set -e
 cd "$(dirname "$0")"
 ASSETS=../assets
 FPS=30
-# The hero loop: from the overview, focus a session, search, and back (seconds of the recording).
-HERO_START=0
-HERO_END=13.3
+# The hero loop, from hero.mjs: the Orrery turning, one session opened and closed (seconds of
+# the recording). Its last LOOP_FADE seconds fade into its first, so the loop has no seam.
+HERO_END=12.5
+LOOP_FADE=0.8
+LOOP_SEAM_AT=$(node -p "+($HERO_END - 2 * $LOOP_FADE).toFixed(3)")
+# The still hero: that session's drawer open.
+HERO_STILL_AT=6.5
 # The video's middle: the same story, then the switch to dark where a session starts waiting on you.
 VIDEO_START=1.0
 VIDEO_END=20.6
@@ -20,17 +27,11 @@ FADE=0.5
 INTO_RECORDING=$(node -p "+($TITLE_SECONDS - $FADE).toFixed(3)")
 INTO_END=$(node -p "+($INTO_RECORDING + $VIDEO_END - $VIDEO_START - $FADE).toFixed(3)")
 VIDEO_SECONDS=$(node -p "+($INTO_END + $END_SECONDS).toFixed(3)")
-# The still hero and the video poster: a session in focus, with its drawer open.
+# The video poster: a session in focus, with its drawer open.
 STILL_AT=4.6
 
 [ -f ../../web/dist/index.html ] || { echo "Run pnpm build in the repository first"; exit 1; }
 mkdir -p build
-
-node brand.mjs
-node stills.mjs
-node record.mjs
-node record.mjs --dark
-TITLE_SECONDS=$TITLE_SECONDS END_SECONDS=$END_SECONDS node cards.mjs
 
 # Screencast frames arrive when the page changes, so play each one for as long as it was on screen.
 encode() {
@@ -47,21 +48,43 @@ require("fs").writeFileSync(`${dir}/list.ffconcat`, lines.join("\n"))
     ffmpeg -v error -y -f concat -safe 0 -i "$1/list.ffconcat" -vf "fps=$FPS,scale=1440:900:flags=lanczos,format=yuv420p" \
         -c:v libx264 -crf 12 -preset medium "$2"
 }
-encode build/rec build/recording.mp4
-encode build/rec-dark build/recording-dark.mp4
-
-ffmpeg -v error -y -ss $STILL_AT -i build/recording.mp4 -frames:v 1 "$ASSETS/hero.png"
-ffmpeg -v error -y -ss $STILL_AT -i build/recording.mp4 -frames:v 1 -q:v 3 "$ASSETS/poster.jpg"
 
 # Animated WebP autoplays in a README at a fraction of a GIF's size. The site shows the dark
 # take when the visitor's system is dark.
 webp() {
     rm -rf build/webp && mkdir -p build/webp
-    ffmpeg -v error -ss $HERO_START -to $HERO_END -i "$1" -vf "fps=15" build/webp/%04d.png
-    img2webp -loop 0 -lossy -q 70 -m 6 -d 67 build/webp/*.png -o "$2" >/dev/null
+    ffmpeg -v error -i "$1" -filter_complex "\
+[0]split[a][b];\
+[a]trim=$LOOP_FADE:$HERO_END,setpts=PTS-STARTPTS[body];\
+[b]trim=0:$LOOP_FADE,setpts=PTS-STARTPTS[head];\
+[body][head]xfade=transition=fade:duration=$LOOP_FADE:offset=$LOOP_SEAM_AT,fps=15" build/webp/%04d.png
+    img2webp -loop 0 -lossy -q 60 -m 6 -d 67 build/webp/*.png -o "$2" >/dev/null
 }
-webp build/recording.mp4 "$ASSETS/hero.webp"
-webp build/recording-dark.mp4 "$ASSETS/hero-dark.webp"
+
+hero() {
+    node hero.mjs
+    node hero.mjs --dark
+    encode build/hero build/hero.mp4
+    encode build/hero-dark build/hero-dark.mp4
+    ffmpeg -v error -y -ss $HERO_STILL_AT -i build/hero.mp4 -frames:v 1 "$ASSETS/hero.png"
+    webp build/hero.mp4 "$ASSETS/hero.webp"
+    webp build/hero-dark.mp4 "$ASSETS/hero-dark.webp"
+}
+
+if [ "$1" = hero ]; then
+    hero
+    echo "Rendered docs/assets: hero.webp, hero-dark.webp, hero.png"
+    exit
+fi
+
+node brand.mjs
+node stills.mjs
+node record.mjs
+TITLE_SECONDS=$TITLE_SECONDS END_SECONDS=$END_SECONDS node cards.mjs
+hero
+
+encode build/rec build/recording.mp4
+ffmpeg -v error -y -ss $STILL_AT -i build/recording.mp4 -frames:v 1 -q:v 3 "$ASSETS/poster.jpg"
 
 # The sound: a synthesised pad and effects on the logged moments. Nothing sampled.
 node audio.mjs $VIDEO_SECONDS $VIDEO_START $VIDEO_END $TITLE_SECONDS $FADE $INTO_END

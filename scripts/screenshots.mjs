@@ -52,21 +52,44 @@ async function connect() {
   return { send, evaluate, close: () => socket.close() }
 }
 
-const clickView = (name) => `[...document.querySelectorAll('.views button')].find((b) => b.textContent === '${name}').click()`
 const clickNode = (label) => `[...document.querySelectorAll('.react-flow__node')].find((n) => n.textContent.includes('${label}')).click()`
+const OPEN_SETTINGS = `document.querySelector('.settings-button').click()`
+const CLOSE_SETTINGS = `document.getElementById('settings').hidePopover()`
+const toggleSetting = (label) => `[...document.querySelectorAll('#settings label')].find((row) => row.textContent.startsWith('${label}')).querySelector('input').click()`
+// React keeps its own copy of an input's value, so set it through the native setter and announce it.
+const setInput = (selector, value) =>
+  `(() => { const input = document.querySelector('${selector}'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${value}); input.dispatchEvent(new Event('input', { bubbles: true })) })()`
 
 const OPEN_SEARCH = `window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))`
-const TYPE_SEARCH = (text) =>
-  `(() => { const input = document.querySelector('.palette input'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, '${text}'); input.dispatchEvent(new Event('input', { bubbles: true })) })()`
+const TYPE_SEARCH = (text) => setInput('.palette input', `'${text}'`)
+// The orrery fits its widest ring, which leaves the orbs small at 1440 wide; one step in still keeps every ring in frame.
+const ZOOM_IN = `document.querySelector('.react-flow__controls-zoomin').click()`
+const SCRUB_BACK = (minutes) => setInput('.replay-bar input[type=range]', `Date.now() - ${minutes} * 60_000`)
 
+// Each shot sets its view, theme, arrangement and clean view in localStorage first, so it never
+// depends on the defaults; a shot lists only what differs from these.
+const DEFAULTS = { view: 'orrery', theme: 'light', arrangement: 'status', clean: 'off' }
 const SHOTS = [
-  { name: 'overview', steps: [] },
-  { name: 'dark', steps: [], dark: true },
-  { name: 'search', steps: [OPEN_SEARCH, TYPE_SEARCH('checkout')] },
-  { name: 'focus', steps: [clickNode('Checkout redesign')] },
-  { name: 'plans', steps: [clickView('Plans')] },
-  { name: 'memory', steps: [clickView('Memory'), `[...document.querySelectorAll('.library-list button')][2].click()`] },
-]
+  { name: 'orrery', steps: [ZOOM_IN] },
+  { name: 'orrery-dark', theme: 'dark', steps: [ZOOM_IN] },
+  { name: 'tycho', theme: 'tycho', steps: [ZOOM_IN] },
+  { name: 'orrery-repo', arrangement: 'room', steps: [ZOOM_IN] },
+  { name: 'settings', steps: [ZOOM_IN, OPEN_SETTINGS] },
+  { name: 'agents', view: 'graph', steps: [] },
+  { name: 'dark', view: 'graph', theme: 'dark', steps: [] },
+  { name: 'search', view: 'graph', steps: [OPEN_SEARCH, TYPE_SEARCH('checkout')] },
+  { name: 'focus', view: 'graph', steps: [clickNode('Checkout redesign')] },
+  { name: 'replay', steps: [OPEN_SETTINGS, toggleSetting('Replay'), CLOSE_SETTINGS, SCRUB_BACK(90), ZOOM_IN] },
+  { name: 'plans', view: 'plans', steps: [] },
+  { name: 'memory', view: 'memory', steps: [`[...document.querySelectorAll('.library-list button')][2].click()`] },
+].map((shot) => ({ ...DEFAULTS, ...shot }))
+// What has to be on screen before a view is ready to shoot.
+const READY = {
+  orrery: "document.querySelectorAll('.orbit-card').length > 5",
+  graph: "document.querySelectorAll('.card').length > 5",
+  plans: "document.querySelectorAll('.library-list li').length > 0",
+  memory: "document.querySelectorAll('.library-list button').length > 2",
+}
 
 const chromePath = CHROME_CANDIDATES.find((path) => existsSync(path))
 if (!chromePath) throw new Error('Google Chrome not found; set CHROME_PATH')
@@ -82,10 +105,16 @@ try {
   await page.send('Emulation.setDeviceMetricsOverride', VIEWPORT)
   mkdirSync(OUT_DIR, { recursive: true })
 
+  // localStorage belongs to the page's origin, so load the demo once before writing to it.
+  await page.send('Page.navigate', { url: `http://127.0.0.1:${DEMO_PORT}/` })
+  await waitFor(() => page.evaluate("document.readyState === 'complete'"), 'the page')
+
   for (const shot of SHOTS) {
-    await page.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: shot.dark ? 'dark' : 'light' }] })
+    for (const key of Object.keys(DEFAULTS)) await page.evaluate(`localStorage.setItem('agent-orrery:${key}', '${shot[key]}')`)
+    await page.evaluate('window.previousShot = true')
     await page.send('Page.navigate', { url: `http://127.0.0.1:${DEMO_PORT}/` })
-    await waitFor(async () => (await page.evaluate("document.querySelectorAll('.card').length")) > 5, 'the graph')
+    // The flag goes with the old page, so this can't pass on the shot before.
+    await waitFor(() => page.evaluate(`!window.previousShot && ${READY[shot.view]}`), `the ${shot.view} view`)
     // Let the first data arrive, the canvas fit, and the orbs draw a few frames.
     await sleep(2_500)
     for (const step of shot.steps) {
