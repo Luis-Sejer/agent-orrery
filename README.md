@@ -39,11 +39,16 @@ Agent Orrery answers that at a glance. It reads the transcripts Claude Code alre
 - **Your turn.** Every session that finished or asked you something, oldest first, with how long it has waited. The tab title shows the count. Dismiss one until it does something new.
 - **Rooms per repository.** Each agent sits in the repo its work touches, not the folder its session started in. A session started in the API whose subagents edit the web app reaches across into the web app's room.
 - **Live state.** Each agent's orb shows what it's doing now: reading, writing code, running a command, talking to other agents, or waiting on you. Messages between agents travel along the lines as they're sent.
+- **The orrery.** The same agents in rings around you: whatever waits on you sits closest, running agents next, finished ones on the outside, with a sector for each repository. The rings turn slowly, inner ones faster, and steady themselves while you point at an agent. The page remembers which view you were on.
 - **Focus.** Click an agent to light up its parent, its subagents and everyone it messaged, and dim the rest. A drawer shows what it has done, step by step, and a command to resume the session.
 - **Search everything.** Press <kbd>⌘</kbd> <kbd>K</kbd> to find agents by name, repo or branch, and plans and memory notes by what they say.
 - **Notifications.** Turn them on and your browser tells you when a session starts waiting on you while you're in another tab.
+- **Cost.** An estimate of what each agent, session and room has cost, worked out in your browser from the token counts and Anthropic's published prices. Models it has no price for show tokens only.
+- **Quiet agents.** An agent that is running but has been silent for five minutes is flagged, and if a tool call is still open it says which one: that is how a permission prompt looks from outside, so it may be waiting for your approval.
+- **Replay.** Press Replay and drag back through the last hours (the same window as `AGENT_ORRERY_WINDOW_HOURS`) to see who was running, waiting and finished at any moment. Notifications stay off while you replay.
+- **Voice.** Turn on the speaker and the page says out loud which session is waiting on you, using the best British voice on your machine. On a Mac, add a better one in System Settings → Accessibility → Spoken Content → System voice → Manage voices (a Premium British voice sounds most natural).
 - **Plans and memory.** Read the plans and memory notes Claude has saved, by project.
-- **Light and dark.** Follows your system, or pick one.
+- **Light, dark and T.Y.C.H.O.** Follows your system, or pick one. T.Y.C.H.O. (Tracks Your Claude Helpers' Orbits) is a holographic HUD in amber on black.
 - **Quiet by design.** It only reads files, never writes them, and nothing leaves your machine.
 
 ### What the orbs mean
@@ -114,6 +119,10 @@ pnpm install
 pnpm demo         # made-up sessions on http://127.0.0.1:4780
 ```
 
+## Menu bar companion
+
+On a Mac, a small menu bar app shows how many sessions are waiting on you and opens the one you pick in the dashboard. Build it with `./menubar/build.sh`; see [`menubar/README.md`](menubar/README.md).
+
 ## Settings
 
 Set these in your shell, or in a `.env` file next to `compose.yaml`.
@@ -136,6 +145,9 @@ Claude Code saves every session to `~/.claude/projects/<project>/<session>.jsonl
 - **Orb colours** come from the last tool each agent used. Shell commands count by what they do: `cat` and `grep` read, `sed -i` and redirects write. Only the colour is kept, never the command.
 - **Waiting on you** means the session's last reply ended its turn, or it asked a question you haven't answered.
 - **Messages** come from agents' `SendMessage` calls and the replies they receive.
+- **Cost** comes from the token counts on each reply, counted once per message and kept per model. Prices live in one table, `web/src/pricing.ts`, so the figure is an estimate.
+- **Quiet** means a tool call has started and no result has come back, and nothing else has happened for five minutes.
+- **Replay** uses a short history of state changes the server keeps for each agent (a few hundred entries, in memory only).
 
 The page is React with [React Flow](https://reactflow.dev) and [Thinking Orbs](https://libraries.dev/orbs). The server is plain Node with no dependencies.
 
@@ -143,7 +155,7 @@ The page is React with [React Flow](https://reactflow.dev) and [Thinking Orbs](h
 
 Your transcripts hold your code, your prompts and sometimes secrets, so Agent Orrery is built to keep them in:
 
-- **The graph holds no content.** Only titles, repo and branch names, agent types, tool names, file names and times reach the page. Never messages, commands or tool output.
+- **The graph holds no content.** Only titles, repo and branch names, agent types, tool names, file names, token counts, model names and times reach the page. Never messages, commands or tool output.
 - **It only listens on this machine.** The server binds to `127.0.0.1`, and Docker publishes it there only.
 - **Other websites can't read it.** Requests for another hostname are refused, which blocks DNS rebinding. So are data requests from other sites.
 - **Read-only.** It never writes to your files, and the server accepts only `GET` requests. Plans and notes are opened by name from the server's own folder listing, never by a path from the request.

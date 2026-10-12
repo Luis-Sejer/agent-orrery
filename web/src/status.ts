@@ -4,9 +4,14 @@ import type { AgentNode, Status } from './types'
 
 // A running tool such as a long test suite writes nothing for minutes, so "running" lasts this long.
 const STALE_MS = 15 * 60_000
+// A tool call with no result yet may be a permission prompt waiting for you, so the agent keeps
+// looking busy for much longer instead of quietly passing as finished.
+const PENDING_STALE_MS = 2 * 60 * 60_000
+// Running but silent for this long is worth a look: it may be waiting for approval.
+const QUIET_MS = 5 * 60_000
 const ELSEWHERE = 'elsewhere'
 
-export const STATE_COLOURS: Record<OrbState, string> = {
+const STATE_COLOURS: Record<OrbState, string> = {
   working: '#34955f',
   solving: '#34955f',
   shaping: '#34955f',
@@ -18,12 +23,36 @@ export const STATE_COLOURS: Record<OrbState, string> = {
   breathing: '#97a29f',
 }
 
+// The same meanings, brighter, for the T.Y.C.H.O. HUD's black ground.
+const NEON_COLOURS: Record<OrbState, string> = {
+  working: '#3dffa2',
+  solving: '#3dffa2',
+  shaping: '#3dffa2',
+  weaving: '#3dffa2',
+  searching: '#4fd2ff',
+  composing: '#b78cff',
+  connecting: '#ffb02e',
+  listening: '#ff4d5a',
+  breathing: '#8d8a84',
+}
+
+export function stateColour(state: OrbState, hud: boolean): string {
+  return (hud ? NEON_COLOURS : STATE_COLOURS)[state]
+}
+
 export function statusOf(node: AgentNode, now: number): Status {
   if (node.dismissed) return 'finished'
   if (node.waiting && node.kind === 'session') return 'waiting'
   if (node.waiting) return 'finished'
-  return now - node.lastAt < STALE_MS ? 'running' : 'finished'
+  return now - node.lastAt < (node.pendingTool ? PENDING_STALE_MS : STALE_MS) ? 'running' : 'finished'
 }
+
+export function isQuiet(node: AgentNode, now: number): boolean {
+  return statusOf(node, now) === 'running' && now - node.lastAt >= QUIET_MS
+}
+
+// MCP tools are named mcp__server__tool; the last part reads best.
+const toolLabel = (name: string) => name.split('__').pop() ?? name
 
 export function orbStateOf(node: AgentNode, now: number): OrbState {
   const status = statusOf(node, now)
@@ -53,6 +82,10 @@ export function describeStatus(node: AgentNode, now: number): string {
   if (status === 'waiting') {
     const what = node.waiting?.reason === 'question' ? 'Asked you a question' : 'Finished, waiting for you'
     return `${what}, ${ago(node.waiting?.since ?? node.lastAt, now)} ago`
+  }
+  if (isQuiet(node, now)) {
+    if (!node.pendingTool) return `Quiet for ${ago(node.lastAt, now)}`
+    return `${toolLabel(node.pendingTool.name)} has run for ${ago(node.pendingTool.since, now)}, may be waiting for your approval`
   }
   if (status === 'finished') return `Finished ${ago(node.lastAt, now)} ago`
   return node.lastTool ? `${verbFor(node.activity)} ${ago(node.lastAt, now)} ago` : 'Thinking'

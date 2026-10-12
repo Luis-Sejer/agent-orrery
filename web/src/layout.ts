@@ -1,5 +1,6 @@
 import type { Edge, Node } from '@xyflow/react'
 
+import { describeCost, mergeUsage } from './pricing'
 import { roomOf, statusOf } from './status'
 import type { AgentNode, Filter, GraphSnapshot } from './types'
 
@@ -18,13 +19,13 @@ const ROWS_PER_COLUMN = 4
 const MAX_COLUMNS = 3
 const FOLD_FROM = 3
 const RECENT_MESSAGE_MS = 20_000
-const Z_ROOM = -1
-const Z_CARD = 1
-const Z_RELATED = 10
+export const Z_ROOM = -1
+export const Z_CARD = 1
+export const Z_RELATED = 10
 // Lit edges sit above every card but the selected one, so they stay readable without
 // running across the selected card's own text.
 const Z_LIT_EDGE = 30
-const Z_FOCUSED = 40
+export const Z_FOCUSED = 40
 
 // React Flow requires node data to be assignable to Record<string, unknown>, which interfaces are not.
 export type CardData = { node: AgentNode; now: number; dimmed: boolean; focused: boolean; related: boolean; alsoIn: string[] }
@@ -47,7 +48,7 @@ export interface FlowOptions {
   onCollapse: (room: string) => void
 }
 
-interface Room {
+export interface Room {
   name: string
   sessions: AgentNode[]
   agents: AgentNode[]
@@ -62,7 +63,7 @@ interface Placement {
   y: number
 }
 
-const foldId = (room: string) => `fold:${room}`
+export const foldId = (room: string) => `fold:${room}`
 const roomId = (room: string) => `room:${room}`
 
 // The selected node, its parent, its subagents, everything in its session, and anyone it messaged.
@@ -84,7 +85,7 @@ export function relatedTo(graph: GraphSnapshot, selectedId: string | null): Set<
   return related
 }
 
-function matches(node: AgentNode, filter: Filter, now: number): boolean {
+export function matches(node: AgentNode, filter: Filter, now: number): boolean {
   return filter === 'all' || statusOf(node, now) === filter
 }
 
@@ -94,7 +95,7 @@ function stableOrder(nodes: AgentNode[], now: number): AgentNode[] {
   return [...nodes].sort((a, b) => rank(a) - rank(b) || a.label.localeCompare(b.label))
 }
 
-function groupIntoRooms(graph: GraphSnapshot, options: FlowOptions): Room[] {
+export function groupIntoRooms(graph: GraphSnapshot, options: FlowOptions): Room[] {
   const rooms = new Map<string, Room>()
   const roomFor = (name: string) => {
     if (!rooms.has(name)) rooms.set(name, { name, sessions: [], agents: [], folded: [], foldable: false })
@@ -152,7 +153,9 @@ function summarise(room: Room, now: number): string {
   const waiting = all.filter((node) => statusOf(node, now) === 'waiting').length
   const running = all.filter((node) => statusOf(node, now) === 'running').length
   const finished = all.length - waiting - running
-  return [waiting && `${waiting} waiting`, running && `${running} running`, finished && `${finished} finished`].filter(Boolean).join(', ')
+  const counts = [waiting && `${waiting} waiting`, running && `${running} running`, finished && `${finished} finished`].filter(Boolean).join(', ')
+  const cost = describeCost(mergeUsage(all.map((node) => node.usage)))
+  return cost ? `${counts} · ${cost}` : counts
 }
 
 // Repos a session's subagents work in, other than its own.
@@ -241,7 +244,7 @@ export function buildFlow(graph: GraphSnapshot, options: FlowOptions): { nodes: 
   return { nodes, edges: buildEdges(graph, foldedInto, selectedId, now) }
 }
 
-function buildEdges(graph: GraphSnapshot, foldedInto: Map<string, string>, selectedId: string | null, now: number): Edge[] {
+export function buildEdges(graph: GraphSnapshot, foldedInto: Map<string, string>, selectedId: string | null, now: number): Edge[] {
   const edges = new Map<string, Edge>()
   const endpoint = (id: string) => foldedInto.get(id) ?? id
   const style = (from: string, to: string) => {

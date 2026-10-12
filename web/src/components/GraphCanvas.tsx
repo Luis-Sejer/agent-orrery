@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef } from 'react'
-import { Background, BackgroundVariant, Controls, MiniMap, ReactFlow, useReactFlow } from '@xyflow/react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Background, BackgroundVariant, Controls, MiniMap, ReactFlow, useReactFlow, type Edge } from '@xyflow/react'
 
-import { buildFlow, SESSION_SIZE, type FlowNode, type FlowOptions } from '../layout'
+import { buildFlow, type FlowOptions } from '../layout'
+import { buildOrrery, type Polar } from '../radial'
+import { useOrbit, type CanvasNode } from '../useOrbit'
 import { statusOf } from '../status'
 import type { GraphSnapshot } from '../types'
 import { edgeTypes, nodeTypes } from './FlowNodes'
@@ -10,6 +12,8 @@ const FOCUS_ZOOM = 0.95
 const FOCUS_DURATION_MS = 600
 
 interface GraphCanvasProps extends FlowOptions {
+  // Rooms in a grid (Agents), or rings around you (Orrery).
+  layout: 'grid' | 'orrery'
   graph: GraphSnapshot
   theme: 'light' | 'dark'
   focusRequest: { id: string; at: number } | null
@@ -17,15 +21,22 @@ interface GraphCanvasProps extends FlowOptions {
 }
 
 // Colours live in the stylesheet, so the minimap follows the theme.
-function minimapClass(node: FlowNode, now: number): string {
+function minimapClass(node: CanvasNode, now: number): string {
   if (node.type === 'room') return 'mini-room'
+  if (node.type === 'backdrop') return 'mini-backdrop'
   if (node.type === 'fold') return 'mini-finished'
   return `mini-${statusOf(node.data.node, now)}`
 }
 
-export function GraphCanvas({ graph, theme, focusRequest, onSelect, ...options }: GraphCanvasProps) {
+export function GraphCanvas({ layout, graph, theme, focusRequest, onSelect, ...options }: GraphCanvasProps) {
   const { fitView, setCenter } = useReactFlow()
-  const { nodes, edges } = useMemo(() => buildFlow(graph, options), [graph, options])
+  const { nodes: laidOut, edges, polar } = useMemo<{ nodes: CanvasNode[]; edges: Edge[]; polar: Map<string, Polar> | null }>(
+    () => (layout === 'orrery' ? buildOrrery(graph, options) : { ...buildFlow(graph, options), polar: null }),
+    [layout, graph, options],
+  )
+  // The orrery's rings steady themselves while you point at an agent or a pile, or have one selected.
+  const [pointing, setPointing] = useState(false)
+  const nodes = useOrbit(laidOut, polar, pointing || options.selectedId !== null)
   const hasFitted = useRef(false)
 
   // Fit once, when the first data arrives; after that the viewport is the user's.
@@ -39,7 +50,7 @@ export function GraphCanvas({ graph, theme, focusRequest, onSelect, ...options }
     if (!focusRequest) return
     const target = nodes.find((node) => node.id === focusRequest.id)
     if (!target) return
-    setCenter(target.position.x + SESSION_SIZE.width / 2, target.position.y + SESSION_SIZE.height / 2, {
+    setCenter(target.position.x + target.width! / 2, target.position.y + target.height! / 2, {
       zoom: FOCUS_ZOOM,
       duration: FOCUS_DURATION_MS,
     })
@@ -53,8 +64,10 @@ export function GraphCanvas({ graph, theme, focusRequest, onSelect, ...options }
       nodeTypes={nodeTypes}
       edgeTypes={edgeTypes}
       colorMode={theme}
-      onNodeClick={(_, node) => node.type !== 'room' && node.type !== 'fold' && onSelect(node.id)}
+      onNodeClick={(_, node) => (node.type === 'session' || node.type === 'agent' || node.type === 'orbit') && onSelect(node.id)}
       onPaneClick={() => onSelect(null)}
+      onNodeMouseEnter={(_, node) => setPointing(node.type !== 'backdrop' && node.type !== 'room')}
+      onNodeMouseLeave={() => setPointing(false)}
       nodesDraggable={false}
       nodesConnectable={false}
       elementsSelectable={false}
@@ -62,7 +75,7 @@ export function GraphCanvas({ graph, theme, focusRequest, onSelect, ...options }
       maxZoom={1.6}
     >
       <Background variant={BackgroundVariant.Dots} gap={24} size={1.2} />
-      <MiniMap pannable zoomable nodeClassName={(node) => minimapClass(node as FlowNode, options.now)} />
+      <MiniMap pannable zoomable nodeClassName={(node) => minimapClass(node as CanvasNode, options.now)} />
       <Controls showInteractive={false} />
     </ReactFlow>
   )

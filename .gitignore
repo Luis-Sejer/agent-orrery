@@ -4,3 +4,5 @@ dist/
 *.log
 .env
 .claude/worktrees/
+menubar/build/
+.build/

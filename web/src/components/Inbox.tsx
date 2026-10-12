@@ -1,4 +1,5 @@
-import { ago, orbStateOf, statusOf, verbFor } from '../status'
+import { describeSpend, mergeUsage } from '../pricing'
+import { ago, describeStatus, isQuiet, orbStateOf, statusOf, verbFor } from '../status'
 import type { Connection } from '../useGraph'
 import type { AgentNode } from '../types'
 import { beamStyle } from '../rhythm'
@@ -10,7 +11,7 @@ const RUNNING_SHOWN = 8
 interface InboxProps {
   nodes: AgentNode[]
   now: number
-  connection: Connection
+  connection: Connection | 'replay'
   selectedId: string | null
   dismissedCount: number
   onSelect: (id: string) => void
@@ -29,19 +30,24 @@ function waitingLede(count: number): string {
   return `${COUNT_WORDS[count] ?? `${count} agents are`} waiting on you.`
 }
 
+const CONNECTION_LABELS = { connecting: 'Reconnecting', reconnecting: 'Reconnecting', live: 'Live', replay: 'Replay' }
+
 export function Inbox({ nodes, now, connection, selectedId, dismissedCount, onSelect, onDismiss, onRestoreDismissed }: InboxProps) {
   const waiting = nodes
     .filter((node) => statusOf(node, now) === 'waiting')
     .sort((a, b) => (a.waiting?.since ?? 0) - (b.waiting?.since ?? 0))
-  const running = nodes
+  const runningNow = nodes
     .filter((node) => node.kind !== 'peer' && statusOf(node, now) === 'running')
     .sort((a, b) => b.lastAt - a.lastAt)
+  const running = runningNow.filter((node) => !isQuiet(node, now))
+  const quiet = runningNow.filter((node) => isQuiet(node, now))
+  const spend = describeSpend(mergeUsage(nodes.map((node) => node.usage)))
 
   return (
     <aside className="inbox">
       <div className="inbox-top">
         <Wordmark />
-        <span className={`connection connection-${connection}`}>{connection === 'live' ? 'Live' : 'Reconnecting'}</span>
+        <span className={`connection connection-${connection}`}>{CONNECTION_LABELS[connection]}</span>
       </div>
       <h1 className="serif">Your turn</h1>
       <p className="lede">{waitingLede(waiting.length)}</p>
@@ -93,6 +99,24 @@ export function Inbox({ nodes, now, connection, selectedId, dismissedCount, onSe
       </ol>
       {running.length > RUNNING_SHOWN && <p className="empty-note">And {running.length - RUNNING_SHOWN} more.</p>}
       {running.length === 0 && <p className="empty-note">No agents are running.</p>}
+      {quiet.length > 0 && (
+        <>
+          <h3 className="quiet-heading">Quiet</h3>
+          <ol className="running quiet-list">
+            {quiet.map((node) => (
+              <li key={node.id}>
+                <button type="button" onClick={() => onSelect(node.id)}>
+                  <Orb state={orbStateOf(node, now)} size={20} seed={node.id} />
+                  <span>
+                    <b>{node.label}</b> {describeStatus(node, now)}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
+      {spend && <p className="spend-note">Everything in view: {spend}</p>}
     </aside>
   )
 }

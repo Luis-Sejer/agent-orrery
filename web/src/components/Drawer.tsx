@@ -1,7 +1,9 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useContext, useEffect, useState, type CSSProperties } from 'react'
 
-import { STATE_COLOURS, ago, describeStatus, orbStateOf, statusOf } from '../status'
+import { describeSpend, mergeUsage, modelOf } from '../pricing'
+import { ago, describeStatus, orbStateOf, stateColour, statusOf } from '../status'
 import { getJson } from '../useGraph'
+import { HudContext } from '../useTheme'
 import type { AgentNode, TimelineEvent } from '../types'
 import { Orb } from './Orb'
 
@@ -54,12 +56,15 @@ function collapseRuns(events: TimelineEvent[]): TimelineRow[] {
   return rows
 }
 
+const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
+
 function clockTime(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
 }
 
 export function Drawer({ node, parent, children, now, onClose, onSelect, onOpenPlan, onDismiss }: DrawerProps) {
   const events = useTimeline(node.id)
+  const hud = useContext(HudContext)
   const [copied, setCopied] = useState(false)
   const sessionId = node.kind === 'session' ? node.id : node.sessionId
   const resumeCommand = sessionId ? `claude --resume ${sessionId}` : null
@@ -70,6 +75,10 @@ export function Drawer({ node, parent, children, now, onClose, onSelect, onOpenP
     setCopied(true)
     setTimeout(() => setCopied(false), COPIED_FEEDBACK_MS)
   }
+
+  const ownSpend = describeSpend(node.usage)
+  const totalSpend = children.length > 0 ? describeSpend(mergeUsage([node.usage, ...children.map((child) => child.usage)])) : null
+  const models = [...new Set(Object.keys(node.usage).map(modelOf))]
 
   return (
     <aside className="drawer" aria-label={`Details for ${node.label}`}>
@@ -103,6 +112,16 @@ export function Drawer({ node, parent, children, now, onClose, onSelect, onOpenP
             <dd>
               {node.agentType}
               {node.model && `, ${node.model}`}
+            </dd>
+          </>
+        )}
+        {(ownSpend || totalSpend) && (
+          <>
+            <dt>Cost</dt>
+            <dd>
+              {ownSpend ? capitalise(ownSpend) : 'None of its own'}
+              {models.length > 1 && <small className="models">{models.join(', ')}</small>}
+              {totalSpend && totalSpend !== ownSpend && <small className="models">With its subagents: {totalSpend}</small>}
             </dd>
           </>
         )}
@@ -186,7 +205,7 @@ export function Drawer({ node, parent, children, now, onClose, onSelect, onOpenP
       ) : (
         <ol className="timeline">
           {collapseRuns(events).map((event, index) => (
-            <li key={`${event.at}-${index}`} style={{ '--state': STATE_COLOURS[event.activity] } as CSSProperties}>
+            <li key={`${event.at}-${index}`} style={{ '--state': stateColour(event.activity, hud) } as CSSProperties}>
               <span className="dot" aria-hidden="true" />
               <span>
                 {event.text}

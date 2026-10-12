@@ -43,13 +43,16 @@ Transcripts hold people's code, prompts and secrets, and local dashboards are a 
 - A **session** is `~/.claude/projects/<project>/<id>.jsonl`. Its **subagents** are `<id>/subagents/agent-<agentId>.jsonl`, plus a `.meta.json` with the description, agent type and the spawning `toolUseId`.
 - A transcript's `cwd` is always where the session started, even for subagents working elsewhere. An agent's **room** is the repository its tool paths touch most (`repos.mjs` walks up to the nearest `.git`, mapping worktrees to their repo). A session's room is where it started.
 - **Waiting on you** means the last assistant message ended its turn (`stop_reason: end_turn`) or called `AskUserQuestion`. A later non-meta user record clears it.
+- **Usage** is counted once per API `message.id` and kept per model on each node (token counts only). Cost is worked out in the page from `web/src/pricing.ts`; update that table when Anthropic changes prices.
+- **Quiet** is a tool call with no result yet (`pendingTool`) plus five minutes without activity (`isQuiet` in `status.ts`). The server tracks open calls by `tool_use` id; a result or a new human prompt closes them.
+- **Replay** reads a per-node history of state changes (`[at, activity, waiting reason, last tool, last record]`, 400 entries) and `firstAt` on nodes and message edges. `replay()` in `graph.mjs` rebuilds a node view at a time and reuses `snapshot()` for visibility. Usage and open tool calls are not replayed.
 - **Messages** between agents come from `SendMessage` tool calls (outgoing) and user records with `origin.kind === 'peer'` (incoming).
 - **Orb states** come from the last tool an agent used (`ACTIVITY_BY_TOOL` in `graph.mjs`). Shell commands are classified by `shellActivity`: readers turn blue, writers violet, everything else green. Only the state is kept.
 - **Search** (`/api/search`) scans plan and memory-note text on the server and returns short snippets; agents are matched in the browser.
-- **Dismissals, theme and the notifications switch** live in the browser's localStorage only. Notifications come from the open tab, never a service worker, and only for waits that start after the page loaded.
+- **Dismissals, theme and the notifications and voice switches** live in the browser's localStorage only. Voice uses on-device speech voices only, so titles never reach a speech service. Notifications come from the open tab, never a service worker, and only for waits that start after the page loaded.
 
 ## Style
 
-Match the code around you: small functions, constants for magic numbers, and comments only for why. The look: Instrument Serif for headings, Inter for text, green `#34955f` and ink `#162925`, tonal surfaces without borders, an 8 px radius (3 px for chips), and dashed orbit rings for sessions. Check UI changes in a real browser before calling them done; `pnpm demo` gives you data to look at.
+Match the code around you: small functions, constants for magic numbers, and comments only for why. The look: Instrument Serif for headings, Inter for text, green `#34955f` and ink `#162925`, tonal surfaces without borders, an 8 px radius (3 px for chips), and dashed orbit rings for sessions. The T.Y.C.H.O. theme sets `data-theme="dark"` plus `data-hud` on `<html>`, so it inherits every dark style; its overrides live under `:root[data-hud]`. Check UI changes in a real browser before calling them done; `pnpm demo` gives you data to look at.
 
 Never commit real transcripts, session names or screenshots of real sessions. Use the demo data (`scripts/demo.mjs`) for examples, tests and screenshots.
