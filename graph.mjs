@@ -163,6 +163,8 @@ export function ensureNode(graph, id, fields) {
       // Artifacts it published, by address, and its publish calls still waiting for their reply.
       artifacts: new Map(),
       artifactCalls: new Map(),
+      // Tool calls so far: the page sends a packet along its line for each new one.
+      toolCount: 0,
     }
     graph.nodes.set(id, node)
   }
@@ -242,6 +244,7 @@ function addMessage(graph, from, to, at) {
 function recordToolUse(graph, node, block, record, at) {
   if (block.input?.run_in_background === true && !SPAWN_TOOLS.has(String(block.name))) node.backgroundTasks.set(block.id, { name: String(block.name), since: at })
   const name = String(block.name)
+  node.toolCount += 1
   if (name === TASK_STOP_TOOL) closeBackgroundTask(node, { taskId: block.input?.task_id })
   node.lastTool = name
   node.activity = name === 'Bash' ? shellActivity(block.input?.command) : (ACTIVITY_BY_TOOL[name] ?? 'working')
@@ -561,6 +564,7 @@ function publicNode(graph, node, now) {
     live: liveOf(graph, node, now),
     youWaits: node.youWaits,
     artifacts: [...node.artifacts.values()].reverse(),
+    toolCount: node.toolCount,
   }
 }
 

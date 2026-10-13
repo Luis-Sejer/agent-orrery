@@ -124,7 +124,9 @@ export function App() {
     if (drawerOpened === 0) return
     const heading = document.querySelector<HTMLElement>('.drawer h2')
     heading?.focus({ preventScroll: true })
-    heading?.scrollIntoView({ block: 'start' })
+    // Back to the top of the drawer itself; scrollIntoView could move the panels around it too.
+    const drawer = heading?.closest<HTMLElement>('.drawer')
+    if (drawer) drawer.scrollTop = 0
   }, [drawerOpened])
   // Clicking the empty canvas deselects without moving focus.
   const selectOnCanvas = useCallback((id: string | null) => (id ? select(id) : setSelectedId(null)), [select])
@@ -266,6 +268,7 @@ export function App() {
                   arrangement={arrangement}
                   graph={canvasGraph}
                   theme={theme}
+                  live={!replay.open}
                   now={now}
                   selectedId={selectedId}
                   expandedRooms={expandedRooms}

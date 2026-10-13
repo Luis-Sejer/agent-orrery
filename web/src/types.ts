@@ -76,6 +76,8 @@ export interface AgentNode {
   youWaits?: Span[]
   // Artifacts it published on claude.ai, newest first.
   artifacts?: Artifact[]
+  // Tool calls so far; each new one sends a packet along its line.
+  toolCount?: number
 }
 
 export interface Artifact {

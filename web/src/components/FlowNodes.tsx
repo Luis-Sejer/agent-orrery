@@ -1,11 +1,13 @@
-import { memo } from 'react'
-import { BaseEdge, getBezierPath, Handle, Position, type Edge, type EdgeProps, type NodeProps } from '@xyflow/react'
+import { memo, useContext, useEffect, useRef } from 'react'
+import { BaseEdge, getBezierPath, getStraightPath, Handle, Position, type Edge, type EdgeProps, type NodeProps } from '@xyflow/react'
 
 import type { CardNode, FoldNode, MessageData, RoomNode } from '../layout'
 import type { OrbitNode, PileNode } from '../radial'
 import { useStill } from '../motion'
 import { beamStyle } from '../rhythm'
-import { describeStatus, isFreshWait, isQuiet, orbStateOf, statusOf, waitingLine } from '../status'
+import { describeStatus, isFreshWait, isQuiet, orbStateOf, stateColour, statusOf, waitingLine } from '../status'
+import { PACKET_MS, type Packet } from '../usePackets'
+import { HudContext } from '../useTheme'
 import { Orb } from './Orb'
 import { OrreryBackdrop } from './OrreryBackdrop'
 
@@ -176,6 +178,40 @@ export function MessageEdge(props: EdgeProps<Edge<MessageData, 'message'>>) {
   )
 }
 
+export type SpawnData = { packets: Packet[]; straight: boolean }
+
+// One packet, from the subagent's end of the line to its parent's. SMIL times a dynamically added
+// animation from the page's start, so each one is started by hand once it's on the page.
+function PacketDot({ packet, path }: { packet: Packet; path: string }) {
+  const hud = useContext(HudContext)
+  const motion = useRef<SVGAnimateMotionElement>(null)
+  const fade = useRef<SVGAnimateElement>(null)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      motion.current?.beginElement()
+      fade.current?.beginElement()
+    }, packet.delay)
+    return () => clearTimeout(timer)
+  }, [packet.delay])
+  return (
+    <circle r={3.2} className="packet" fill={stateColour(packet.activity, hud)} opacity={0}>
+      <animateMotion ref={motion} begin="indefinite" dur={`${PACKET_MS}ms`} fill="freeze" keyPoints="1;0" keyTimes="0;1" calcMode="linear" path={path} />
+      <animate ref={fade} attributeName="opacity" begin="indefinite" dur={`${PACKET_MS}ms`} values="0;1;1;0" keyTimes="0;0.12;0.85;1" fill="freeze" />
+    </circle>
+  )
+}
+
+// A subagent's line to its parent, with a packet for each tool call it has just made.
+export function SpawnEdge(props: EdgeProps<Edge<SpawnData, 'spawn'>>) {
+  const [path] = props.data?.straight ? getStraightPath(props) : getBezierPath(props)
+  return (
+    <>
+      <BaseEdge id={props.id} path={path} />
+      {props.data?.packets.map((packet) => <PacketDot key={packet.id} packet={packet} path={path} />)}
+    </>
+  )
+}
+
 // The orbit moves orrery nodes many times a second, and React Flow re-renders a node whenever it moves.
 // What an orbit card or pile shows depends only on its data, which the orbit passes through
 // untouched, so they skip those renders.
@@ -190,4 +226,4 @@ export const nodeTypes = {
   pile: memo(PileCard, sameData),
   backdrop: OrreryBackdrop,
 }
-export const edgeTypes = { message: MessageEdge }
+export const edgeTypes = { message: MessageEdge, spawn: SpawnEdge }

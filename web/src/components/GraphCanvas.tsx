@@ -5,11 +5,17 @@ import { buildFlow, buildTree, type FlowOptions } from '../layout'
 import { prefersStill } from '../motion'
 import { buildOrrery, galaxyView, type Arrangement, type BackdropNode, type Polar } from '../radial'
 import { useOrbit, type CanvasNode } from '../useOrbit'
+import { usePackets, type Packet } from '../usePackets'
 import { statusOf } from '../status'
 import type { GraphSnapshot } from '../types'
 import { edgeTypes, nodeTypes } from './FlowNodes'
 
 const FOCUS_ZOOM = 0.95
+// Going to an agent keeps your zoom, unless you're so far out its name can't be read. Zooming makes the
+// browser redraw the whole canvas at the new scale, which shows as a flash; panning only moves it.
+const READABLE_ZOOM = 0.6
+// Labels resize to the zoom once it settles, not on every frame of a zoom: each change restyles them all.
+const ZOOM_SETTLE_MS = 120
 const FIT_PADDING = 0.12
 const MIN_ZOOM = 0.15
 const MAX_ZOOM = 1.6
@@ -35,6 +41,8 @@ interface GraphCanvasProps extends FlowOptions {
   arrangement: Arrangement
   graph: GraphSnapshot
   theme: 'light' | 'dark'
+  // Live, not a replay: only then do packets run.
+  live: boolean
   focusRequest: { id: string; at: number } | null
   onSelect: (id: string | null) => void
 }
@@ -47,7 +55,16 @@ function minimapClass(node: CanvasNode, now: number): string {
   return `mini-${statusOf(node.data.node, now)}`
 }
 
-export function GraphCanvas({ layout, arrangement, graph, theme, focusRequest, onSelect, now, selectedId, expandedRooms, filter, onExpand, onCollapse }: GraphCanvasProps) {
+// A subagent's line gets its packets; a line to a pile of finished agents never has any.
+function withPackets(edges: Edge[], packets: Map<string, Packet[]>, straight: boolean): Edge[] {
+  if (packets.size === 0) return edges
+  return edges.map((edge) => {
+    const list = edge.id.startsWith('spawn:') ? packets.get(edge.target) : undefined
+    return list ? { ...edge, type: 'spawn', data: { packets: list, straight } } : edge
+  })
+}
+
+export function GraphCanvas({ layout, arrangement, graph, theme, live, focusRequest, onSelect, now, selectedId, expandedRooms, filter, onExpand, onCollapse }: GraphCanvasProps) {
   // One options object per change, not per render: the layout rebuilds whenever it changes, and the
   // orbit re-renders 30 times a second.
   const options = useMemo<FlowOptions>(
@@ -64,18 +81,32 @@ export function GraphCanvas({ layout, arrangement, graph, theme, focusRequest, o
   const [pointing, setPointing] = useState(false)
   const [focused, setFocused] = useState(false)
   const nodes = useOrbit(laidOut, polar, pointing || focused || options.selectedId !== null)
+  const packets = usePackets(graph, live)
+  const shownEdges = useMemo(() => withPackets(edges, packets, layout === 'orrery'), [edges, packets, layout])
   // Fitted to what's there before the first data arrives, and once more when it does.
   const fitted = useRef<'nothing' | 'empty' | 'data'>('nothing')
   const far = useStore((state) => state.transform[2] < FAR_ZOOM)
   const galaxy = layout === 'orrery' && arrangement === 'galaxy'
   // The zoom, as --zoom on the canvas, so a galaxy's names and suns keep a readable size however far
-  // out you are. Set straight on the element, as it changes every frame of a zoom.
+  // out you are. Set straight on the element, and only once a zoom has settled: the store changes on
+  // every orbit frame too, and every change of --zoom restyles every label.
   const store = useStoreApi()
   const canvas = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    const show = (zoom: number) => canvas.current?.style.setProperty('--zoom', String(zoom))
-    show(store.getState().transform[2])
-    return store.subscribe((state) => show(state.transform[2]))
+    let shown = store.getState().transform[2]
+    let timer: ReturnType<typeof setTimeout> | undefined
+    canvas.current?.style.setProperty('--zoom', String(shown))
+    const unsubscribe = store.subscribe((state) => {
+      const zoom = state.transform[2]
+      if (zoom === shown) return
+      shown = zoom
+      clearTimeout(timer)
+      timer = setTimeout(() => canvas.current?.style.setProperty('--zoom', String(zoom)), ZOOM_SETTLE_MS)
+    })
+    return () => {
+      unsubscribe()
+      clearTimeout(timer)
+    }
   }, [store])
 
   // The orrery is fitted to its backdrop, which spans all of it; a galaxy is centred on you as well.
@@ -111,10 +142,22 @@ export function GraphCanvas({ layout, arrangement, graph, theme, focusRequest, o
     if (!focusRequest) return
     const target = nodes.find((node) => node.id === focusRequest.id)
     if (!target) return
-    setCenter(target.position.x + target.width! / 2, target.position.y + target.height! / 2, {
-      zoom: FOCUS_ZOOM,
-      duration: duration(FOCUS_DURATION_MS),
+    const zoom = store.getState().transform[2]
+    const centre = () =>
+      setCenter(target.position.x + target.width! / 2, target.position.y + target.height! / 2, {
+        zoom: zoom >= READABLE_ZOOM ? zoom : FOCUS_ZOOM,
+        duration: duration(FOCUS_DURATION_MS),
+      })
+    // The pan starts once the selection has been drawn (two frames on), so the canvas isn't repainting
+    // every agent and line while it moves.
+    let second = 0
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(centre)
     })
+    return () => {
+      cancelAnimationFrame(first)
+      cancelAnimationFrame(second)
+    }
     // Only a new request should move the view, not every data update, so nodes is left out.
   }, [focusRequest])
 
@@ -163,7 +206,7 @@ export function GraphCanvas({ layout, arrangement, graph, theme, focusRequest, o
     <ReactFlow
       ref={canvas}
       nodes={nodes}
-      edges={edges}
+      edges={shownEdges}
       nodeTypes={nodeTypes}
       edgeTypes={edgeTypes}
       colorMode={theme}
