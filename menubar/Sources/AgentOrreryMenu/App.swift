@@ -12,6 +12,10 @@ struct AgentOrreryMenuApp: App {
 
     var body: some Scene {
         MenuBarExtra {
+            if let summary = poller.usage?.summary {
+                Text(summary)
+                Divider()
+            }
             if !poller.reachable {
                 Text("Agent Orrery isn't running on port \(poller.port)")
             } else if poller.waiting.isEmpty {
@@ -45,6 +49,7 @@ func runCheck() -> Never {
         do {
             let waiting = try await fetchWaiting(port: port)
             print("port \(port): \(waiting.count) waiting")
+            if let summary = await fetchUsage(port: port)?.summary { print(summary) }
             for session in waiting { print("\(session.label) | \(session.detail) | #agent=\(session.id)") }
         } catch {
             print("Agent Orrery isn't running on port \(port)")

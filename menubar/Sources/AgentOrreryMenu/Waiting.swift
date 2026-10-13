@@ -36,6 +36,33 @@ func configuredPort() -> Int {
     return value.flatMap(Int.init) ?? 4777
 }
 
+// Matches GET /api/usage: your plan's windows, when the status line bridge is set up; {} when not.
+struct PlanUsage: Decodable, Sendable {
+    struct Window: Decodable, Sendable {
+        let percent: Double
+        let resetsAt: Double?  // milliseconds since the epoch
+    }
+    let fiveHour: Window?
+    let sevenDay: Window?
+
+    // "Session 66 %, resets 18:30 · Week 11 %"; nil without any window.
+    var summary: String? {
+        let format = Date.FormatStyle(date: .omitted, time: .shortened)
+        let parts = [("Session", fiveHour), ("Week", sevenDay)].compactMap { name, window -> String? in
+            guard let window else { return nil }
+            let reset = window.resetsAt.map { ", resets \(Date(timeIntervalSince1970: $0 / 1000).formatted(format))" } ?? ""
+            return "\(name) \(Int(window.percent.rounded())) %\(name == "Session" ? reset : "")"
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+}
+
+func fetchUsage(port: Int) async -> PlanUsage? {
+    let url = URL(string: "http://127.0.0.1:\(port)/api/usage")!
+    guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
+    return try? JSONDecoder().decode(PlanUsage.self, from: data)
+}
+
 func fetchWaiting(port: Int) async throws -> [WaitingSession] {
     let url = URL(string: "http://127.0.0.1:\(port)/api/waiting")!
     let (data, response) = try await URLSession.shared.data(from: url)
@@ -49,6 +76,7 @@ final class Poller: ObservableObject {
     let port = configuredPort()
     @Published var waiting: [WaitingSession] = []
     @Published var reachable = true
+    @Published var usage: PlanUsage?
 
     init() {
         Task { await run() }
@@ -59,6 +87,7 @@ final class Poller: ObservableObject {
             do {
                 waiting = try await fetchWaiting(port: port)
                 reachable = true
+                usage = await fetchUsage(port: port)
             } catch {
                 waiting = []
                 reachable = false

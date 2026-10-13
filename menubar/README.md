@@ -1,6 +1,6 @@
 # Agent Orrery menu bar companion
 
-A small macOS menu bar app. It shows how many Claude Code sessions are waiting on you, lists them, and opens the one you pick in the dashboard. It only reads `GET /api/waiting` from your own Agent Orrery on `127.0.0.1`.
+A small macOS menu bar app. It shows how many Claude Code sessions are waiting on you, lists them, and opens the one you pick in the dashboard. With [plan usage](../README.md#plan-usage) set up, the top of the menu also says how much of your session and week you've used ("Session 64 %, resets 19:50 · Week 11 %"). It only reads `GET /api/waiting` and `GET /api/usage` from your own Agent Orrery on `127.0.0.1`.
 
 - The menu bar shows an orb glyph, and a count when anything waits. The menu bar draws it in one colour, so the count is the signal rather than red.
 - Each waiting session shows its label, then its repo, what it wants and how long ago, for example "storefront-api, asked you a question, 6 min ago".
