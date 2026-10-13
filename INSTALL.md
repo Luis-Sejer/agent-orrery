@@ -6,7 +6,7 @@ Work through the steps in order. Each one says how to check it worked. Tell the 
 
 ## Rules
 
-- **Don't change their Claude setup.** Agent Orrery needs no hooks, plugins, MCP servers or settings. Never edit `~/.claude/settings.json` or anything else under `~/.claude`.
+- **Don't change their Claude setup.** Agent Orrery needs no hooks, plugins, MCP servers or settings. Never edit `~/.claude/settings.json` or anything else under `~/.claude`. The one exception is the optional plan usage step (6), and only once they've said yes to it.
 - **Keep it on this machine.** Never change the port mapping away from `127.0.0.1`, never set `AGENT_ORRERY_BIND`, and never expose the port any other way. The dashboard shows what their agents are working on.
 - **Don't commit or push.** Settings go in `.env`, which git ignores.
 - **Ask before installing software.** If Docker Desktop is missing, tell them and stop. Don't install it yourself.
@@ -77,7 +77,38 @@ If curl doesn't print `200`, read `docker logs agent-orrery`:
 
 The container restarts by itself, but only while Docker Desktop is running. Ask them to turn on **Docker Desktop → Settings → General → Start Docker Desktop when you sign in**. You can't change this setting for them.
 
-## 6. Hand over
+## 6. Optional: show their plan usage (ask first)
+
+Orrery can show the same plan usage as Claude Code's `/usage` (the session's five-hour window and the week's), live, in Your turn, round T.Y.C.H.O.'s core and in the menu bar app. Claude Code gives these numbers only to the status line, so this takes a small bridge in their status line, the one change to their Claude setup. **Ask them first**, in these words or close: "Want Orrery to show your plan usage, like /usage? It needs one line in your Claude Code status line." Skip this step if they say no, or if they use Claude Code with an API key (plans without usage limits have nothing to show).
+
+1. **Check `jq`:** `command -v jq`. If it's missing, ask before installing it (`brew install jq` on macOS).
+2. **Install the bridge:**
+   ```bash
+   mkdir -p ~/.claude/orrery
+   cp statusline/orrery-usage.sh ~/.claude/orrery-usage.sh
+   ```
+   It writes only the usage percentages and reset times to `~/.claude/orrery/usage.json`.
+3. **Connect it to their status line.** Look at `statusLine` in `~/.claude/settings.json`:
+   - **None set:** make the bridge their status line. Add this to `settings.json`, keeping everything else as it is (it shows `5h 65% · 7d 11%`):
+     ```json
+     "statusLine": { "type": "command", "command": "bash ~/.claude/orrery-usage.sh" }
+     ```
+   - **A script of their own** (such as `bash ~/.claude/statusline.sh`): add one line to it, right after it reads its input (usually `input=$(cat)`):
+     ```bash
+     printf '%s' "$input" | bash ~/.claude/orrery-usage.sh >/dev/null 2>&1
+     ```
+     If the script names its input differently, use that name. Show them the line you added.
+   - **Anything else** (a command from a package, say): don't edit it. Write `~/.claude/statusline-orrery.sh` that passes the input to both, and point `statusLine.command` at it:
+     ```bash
+     #!/usr/bin/env bash
+     input=$(cat)
+     printf '%s' "$input" | bash ~/.claude/orrery-usage.sh >/dev/null 2>&1
+     printf '%s' "$input" | <their command, exactly as it was>
+     ```
+4. **Restart Orrery** so Docker shares the new folder: `docker compose up -d`.
+5. **Check it:** once they've sent Claude Code a message, `cat ~/.claude/orrery/usage.json` shows `five_hour` and `seven_day` percentages, and `curl -s http://127.0.0.1:4777/api/usage` shows the same. The numbers are as fresh as the last time any status line was drawn; the page says when they're old.
+
+## 7. Hand over
 
 Open the dashboard for them (`open http://127.0.0.1:4777` on macOS), then tell them:
 
@@ -85,7 +116,9 @@ Open the dashboard for them (`open http://127.0.0.1:4777` on macOS), then tell t
 - **Your turn** lists sessions that finished or asked a question. The ✕ dismisses one until it does something new.
 - Clicking an agent highlights everything connected to it. The drawer has a resume command they can paste into a terminal.
 - **Orrery** shows the same agents in rings around them, with whatever waits on them closest.
+- **Day** shows when each session worked and waited on them today, and **Artifacts** lists every page their agents published.
 - **Plans** and **Memory** show what Claude has saved, read-only.
+- If they set up plan usage, it sits under Your turn, as in `/usage`, and turns amber near the limit.
 - To update later: `git pull && docker compose up -d --build` in the repository folder.
 - To remove it: `docker compose down` in the repository folder, then delete the folder.
 

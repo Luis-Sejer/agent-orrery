@@ -121,6 +121,10 @@
           <p>Today’s sessions on one clock: when each one worked, when its subagents did, and when it sat waiting on you, with how long agents waited on you in total.</p>
         </article>
         <article class="feature">
+          <h3>Your plan’s limits</h3>
+          <p>The same session and weekly usage as <code>/usage</code>, live beside Your turn and in the menu bar, amber near the limit and red at it. One line in your status line shares it.</p>
+        </article>
+        <article class="feature">
           <h3>Artifacts</h3>
           <p>Every page your agents published on claude.ai, from all their sessions, in one list you can filter and search. Agents that published something carry a small mark, and their drawer lists what they made.</p>
         </article>
@@ -256,6 +260,7 @@
             <li>File names</li>
             <li>Token counts and times</li>
             <li>Titles and links of the artifacts your agents published</li>
+            <li>Your plan’s usage percentages, if you share them</li>
           </ul>
         </div>
         <div class="ledger__col ledger__col--never">
@@ -295,7 +300,7 @@
             <pre id="code-agent" class="wrap">Install Agent Orrery for me: clone https://github.com/Luis-Sejer/agent-orrery and follow its INSTALL.md.</pre>
             <button class="copy" type="button" data-copy-from="code-agent" aria-label="Copy the install prompt">Copy</button>
           </div>
-          <p class="note"><a href="https://github.com/Luis-Sejer/agent-orrery/blob/main/INSTALL.md">INSTALL.md</a> walks the agent through checking Docker, writing settings for your machine, starting the container and checking it works. It never touches your Claude settings.</p>
+          <p class="note"><a href="https://github.com/Luis-Sejer/agent-orrery/blob/main/INSTALL.md">INSTALL.md</a> walks the agent through checking Docker, writing settings for your machine, starting the container and checking it works. It changes nothing in your Claude setup, except, if you say yes, one line in your status line so Orrery can show your plan usage.</p>
         </div>
         <div class="tabs__panel" role="tabpanel" id="panel-docker" aria-labelledby="tab-docker" tabindex="0">
           <p>Needs Docker Desktop, or Docker on Linux.</p>
@@ -336,6 +341,10 @@ pnpm demo</pre>
     <section class="section faq" id="faq" aria-labelledby="faq-title">
       <h2 id="faq-title">Questions</h2>
       <div class="faq__list">
+        <details>
+          <summary>Can it show my plan usage, like <code>/usage</code>?</summary>
+          <p>Yes, with one line in your status line: Claude Code hands the numbers only to the status line. Copy <code>statusline/orrery-usage.sh</code> to <code>~/.claude/</code> and call it from your status line, or use it as your status line. The <a href="https://github.com/Luis-Sejer/agent-orrery#plan-usage">README</a> has the details, and an agent following INSTALL.md offers to do it. Orrery never asks Anthropic for your usage and never reads your login.</p>
+        </details>
         <details>
           <summary>Does it slow Claude Code down?</summary>
           <p>No. It reads files Claude Code writes anyway, and adds no hooks.</p>

@@ -12,7 +12,7 @@ You can expect an acknowledgement within a few days, and a fix or a plan as soon
 
 ## What Agent Orrery does with your data
 
-- It reads Claude Code's files under `~/.claude/projects` and `~/.claude/plans`, and the status files in `~/.claude/sessions`. That folder also holds each session's key file; only files named `<pid>.json` are ever opened. It never writes to any of them, or to your code.
+- It reads Claude Code's files under `~/.claude/projects` and `~/.claude/plans`, the status files in `~/.claude/sessions`, and, if you set up the status line bridge, `~/.claude/orrery/usage.json` with your plan's usage percentages and reset times. That folder also holds each session's key file; only files named `<pid>.json` are ever opened. It never writes to any of them, or to your code.
 - It keeps the graph in memory only. Nothing is stored, logged or sent anywhere.
 - The page receives metadata only: session titles, repository and branch names, agent types, tool names, file names and times, and the title and claude.ai address of each artifact your agents published. Plans and memory notes are sent only when you open them.
 - Search reads plan and memory text on your machine and sends back short snippets to the page.
