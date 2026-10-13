@@ -2,11 +2,14 @@
 // actually works rather than where its session started. In a monorepo it also names the area:
 // the package or app the path sits in ("shop › apps/web").
 
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { closeSync, constants, existsSync, fstatSync, openSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 
 const WORKTREE_MARKER = '/.claude/worktrees/'
+// Longer than any real path; checking a longer one would only cost time.
+const MAX_PATH = 4096
+const MAX_CACHED = 50_000
 // Repository names never contain it, so a room key splits back into repository and area.
 export const AREA_SEPARATOR = ' › '
 // Between a repository and one of its worktrees' branches. The page folds worktrees into their
@@ -35,20 +38,32 @@ const TRAILING_PUNCTUATION = /[.,:;!?]+$/
 const ABSOLUTE_PATH_IN_COMMAND = /(?:^|[\s'"=(])((?:~|\/)[^\s'"`;|&<>()]+)/g
 
 // The area patterns from a repository's .orrery.json, or null to use manifests.
-function readAreaPatterns(checkout) {
+// Repositories are whatever a transcript names, so a config file in one may be hostile: a FIFO that
+// never answers, a symlink to /dev/zero, or a huge file. Only a small, regular file is read, opened
+// without blocking.
+const MAX_CONFIG_BYTES = 256 * 1024
+
+function readText(path) {
+  let fd = null
   try {
-    const areas = JSON.parse(readFileSync(join(checkout, AREAS_FILE), 'utf8')).areas
-    return Array.isArray(areas) ? areas.filter((area) => typeof area === 'string').map((area) => area.split('/').filter(Boolean)) : null
+    fd = openSync(path, constants.O_RDONLY | constants.O_NONBLOCK)
+    const info = fstatSync(fd)
+    return info.isFile() && info.size <= MAX_CONFIG_BYTES ? readFileSync(fd, 'utf8') : ''
   } catch {
-    return null
+    return ''
+  } finally {
+    if (fd !== null) closeSync(fd)
   }
 }
 
-function readText(path) {
+const isDirectory = (path) => statSync(path, { throwIfNoEntry: false })?.isDirectory() ?? false
+
+function readAreaPatterns(checkout) {
   try {
-    return readFileSync(path, 'utf8')
+    const areas = JSON.parse(readText(join(checkout, AREAS_FILE))).areas
+    return Array.isArray(areas) ? areas.filter((area) => typeof area === 'string').map((area) => area.split('/').filter(Boolean)) : null
   } catch {
-    return ''
+    return null
   }
 }
 
@@ -100,6 +115,12 @@ export function createRepoResolver(home = homedir()) {
   const areas = new Map()
   const patterns = new Map()
   const monorepos = new Map()
+  // Every path an agent names lands in these caches, so they start over once they grow large;
+  // that also picks up edited .orrery.json and workspace files.
+  const forgetIfLarge = () => {
+    if (repos.size + areas.size < MAX_CACHED) return
+    for (const cache of [repos, areas, patterns, monorepos]) cache.clear()
+  }
 
   // The repository a directory is in, as its name and root folder.
   function repoOf(start) {
@@ -127,7 +148,11 @@ export function createRepoResolver(home = homedir()) {
     if (!patterns.has(checkout)) patterns.set(checkout, readAreaPatterns(checkout))
     const named = patterns.get(checkout)
     const segments = relative(checkout, path).split('/')
-    if (named) return matchArea(named, segments)
+    // A named area must be a folder that exists, so text after a path in a command can't become a room.
+    if (named) {
+      const area = matchArea(named, segments)
+      return area && isDirectory(join(checkout, area)) ? area : null
+    }
     if (!monorepos.has(checkout)) monorepos.set(checkout, isMonorepo(checkout))
     if (!monorepos.get(checkout)) return null
     // Look only above any dependency or build folder, and let the outermost manifest below the root
@@ -143,6 +168,7 @@ export function createRepoResolver(home = homedir()) {
   }
 
   return function resolveRepo(file) {
+    forgetIfLarge()
     const dependencyAt = file.split('/').findIndex((segment) => DEPENDENCIES.has(segment))
     const path = dependencyAt === -1 ? file : file.split('/').slice(0, dependencyAt).join('/')
     const worktreeAt = path.indexOf(WORKTREE_MARKER)
@@ -183,5 +209,5 @@ export function pathsInToolInput(input, cwd, home = homedir()) {
       paths.push(expandHome(match[1].replace(TRAILING_PUNCTUATION, ''), home))
     }
   }
-  return paths.filter((path) => isAbsolute(path))
+  return paths.filter((path) => isAbsolute(path) && path.length <= MAX_PATH)
 }

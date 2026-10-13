@@ -5,7 +5,7 @@ import { foldWorktree } from './rooms'
 import { beamStyle, phaseOf } from './rhythm'
 import { statusOf } from './status'
 import type { AgentNode, GraphSnapshot } from './types'
-import { applyDismissals } from './useDismissed'
+import { applyDismissals, parseDismissals } from './useDismissed'
 import { newWaits } from './useNotifications'
 import { THEMES, parsePreference, resolveTheme } from './useTheme'
 import { announcement, pickVoice } from './useVoice'
@@ -215,5 +215,14 @@ describe('worktrees', () => {
     expect(foldWorktree('shop ⎇ feat/search')).toBe('shop')
     expect(foldWorktree('shop ⎇ feat/search › apps/web')).toBe('shop › apps/web')
     expect(foldWorktree('shop › apps/web')).toBe('shop › apps/web')
+  })
+})
+
+describe('stored dismissals', () => {
+  it('ignores anything that is not an object of numbers', () => {
+    expect(parseDismissals('null')).toEqual({})
+    expect(parseDismissals('[1, 2]')).toEqual({})
+    expect(parseDismissals('not json')).toEqual({})
+    expect(parseDismissals('{"a": 1, "b": "x", "c": null}')).toEqual({ a: 1 })
   })
 })

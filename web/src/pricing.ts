@@ -90,7 +90,7 @@ export function costOf(usage: ModelUsage): number | null {
 }
 
 export function mergeUsage(all: ModelUsage[]): ModelUsage {
-  const merged: ModelUsage = {}
+  const merged: ModelUsage = Object.create(null)
   for (const usage of all) {
     for (const [model, t] of Object.entries(usage)) {
       const sum = (merged[model] ??= { input: 0, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 })

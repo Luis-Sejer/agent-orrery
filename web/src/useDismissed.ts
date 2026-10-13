@@ -8,9 +8,20 @@ const FORGET_AFTER_MS = 7 * 24 * 3_600_000
 // Session id → its last activity when you dismissed it. Anything newer brings it back.
 type Dismissals = Record<string, number>
 
+// Only an object of numbers counts; anything else stored under the key is ignored.
+export function parseDismissals(text: string | null): Dismissals {
+  try {
+    const value: unknown = JSON.parse(text ?? '{}')
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+    return Object.fromEntries(Object.entries(value).filter(([, at]) => typeof at === 'number' && Number.isFinite(at)))
+  } catch {
+    return {}
+  }
+}
+
 function load(): Dismissals {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') as Dismissals
+    return parseDismissals(localStorage.getItem(STORAGE_KEY))
   } catch {
     return {}
   }

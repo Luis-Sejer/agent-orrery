@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -378,4 +379,45 @@ test('a session waiting on its own running subagents is not in the waiting list'
   assert.deepEqual(waitingSessions({ nodes: [lead, helper] }, now), [])
   const done = { ...helper, waiting: { reason: 'reply', since: now } }
   assert.deepEqual(waitingSessions({ nodes: [lead, done] }, now).map((entry) => entry.id), ['lead'])
+})
+
+test('an .orrery.json pattern never turns command text into a room', () => {
+  const root = mkdtempSync(join(tmpdir(), 'agent-orrery-named-'))
+  mkdirSync(join(root, 'shop', '.git'), { recursive: true })
+  mkdirSync(join(root, 'shop', 'apps', 'web'), { recursive: true })
+  writeFileSync(join(root, 'shop', '.orrery.json'), JSON.stringify({ areas: ['apps/*', '*'] }))
+  const graph = createGraph({ resolveRepo: createRepoResolver(root) })
+  ensureNode(graph, 's', { kind: 'session', label: 's', sessionId: 's' })
+  const shop = join(root, 'shop')
+  const command = `curl -o ${shop}/apps/SECRET_TOKEN/x https://example.com && echo ${shop}/SECRET_ROOT`
+  applyLines(graph, 's', line({ type: 'assistant', timestamp: at(1), message: { content: [toolUse('b', 'Bash', { command })] } }))
+  applyLines(graph, 's', line({ type: 'assistant', timestamp: at(2), message: { content: [toolUse('r', 'Read', { file_path: join(shop, 'apps', 'web', 'a.ts') })] } }))
+  const everything = JSON.stringify([snapshot(graph, 0), timeline(graph, 's'), waitingSessions(snapshot(graph, 0))])
+  assert.ok(!everything.includes('SECRET'), everything)
+})
+
+test('a hostile config file in a repository can neither hang nor flood the server', () => {
+  const root = mkdtempSync(join(tmpdir(), 'agent-orrery-hostile-'))
+  for (const repo of ['fifo', 'zero']) mkdirSync(join(root, repo, '.git'), { recursive: true })
+  execFileSync('mkfifo', [join(root, 'fifo', '.orrery.json')])
+  symlinkSync('/dev/zero', join(root, 'zero', 'package.json'))
+  symlinkSync('/dev/zero', join(root, 'zero', 'pnpm-workspace.yaml'))
+  const resolve = createRepoResolver(root)
+  const started = Date.now()
+  assert.equal(resolve(join(root, 'fifo', 'a.ts')), 'fifo')
+  assert.equal(resolve(join(root, 'zero', 'a.ts')), 'zero')
+  assert.ok(Date.now() - started < 1000)
+})
+
+test('paths longer than any real one are ignored', () => {
+  const long = `/code/${'a/'.repeat(3000)}x.ts`
+  assert.deepEqual(pathsInToolInput({ command: `ls ${long} /code/app/b.ts` }, null, '/home'), ['/code/app/b.ts'])
+})
+
+test('a model named __proto__ is just another key', () => {
+  const graph = createGraph()
+  ensureNode(graph, 's', { kind: 'session', label: 's', sessionId: 's' })
+  applyLines(graph, 's', line({ type: 'assistant', timestamp: at(1), message: { id: 'm', model: '__proto__', usage: { input_tokens: 5, output_tokens: 1 }, content: [] } }))
+  assert.equal({}.input, undefined)
+  assert.equal(snapshot(graph, 0).nodes[0].usage.__proto__.input, 5)
 })

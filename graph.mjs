@@ -100,7 +100,8 @@ export function ensureNode(graph, id, fields) {
       repos: {},
       events: [],
       plans: new Set(),
-      usage: {},
+      // No prototype, so a model named __proto__ is just another key.
+      usage: Object.create(null),
       lastMessageId: null,
       openTools: new Map(),
       history: [],
