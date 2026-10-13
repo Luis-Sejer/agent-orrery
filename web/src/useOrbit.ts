@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { FlowNode } from './layout'
 import { onStillChange, prefersStill } from './motion'
@@ -32,7 +32,8 @@ type Shown = { angle: number; r: number } & Centre
 // or Pause motion.
 // In a galaxy, agents circle their system's sun, and a system glides between lanes with its agents.
 export function useOrbit(nodes: CanvasNode[], polar: Map<string, Polar> | null, paused: boolean): CanvasNode[] {
-  const [frame, setFrame] = useState<CanvasNode[] | null>(null)
+  // The last frame the loop drew, and the layout it drew it from.
+  const [frame, setFrame] = useState<{ from: CanvasNode[]; nodes: CanvasNode[] } | null>(null)
   const input = useRef({ nodes, polar, paused })
   input.current = { nodes, polar, paused }
   const orbiting = polar !== null
@@ -102,7 +103,7 @@ export function useOrbit(nodes: CanvasNode[], polar: Map<string, Polar> | null, 
         return placeAt(node as OrreryNode, angle, r, cx, cy)
       })
       drawn = nodes
-      setFrame(next)
+      setFrame({ from: nodes, nodes: next })
     }
     wake.current = () => {
       if (request) return
@@ -118,5 +119,17 @@ export function useOrbit(nodes: CanvasNode[], polar: Map<string, Polar> | null, 
     }
   }, [orbiting])
 
-  return orbiting && frame ? frame : nodes
+  // A new layout (a selection, a filter, new data) shows in this render, at the positions the loop last
+  // drew, rather than on its next frame: lines and cards change together, with no flash between.
+  return useMemo(() => {
+    if (!orbiting || !frame) return nodes
+    if (frame.from === nodes) return frame.nodes
+    const drawn = new Map(frame.nodes.map((node) => [node.id, node]))
+    return nodes.map((node) => {
+      const was = drawn.get(node.id)
+      if (!was) return node
+      if (node.type === 'backdrop' && was.type === 'backdrop') return { ...node, data: { ...node.data, turns: was.data.turns, systems: was.data.systems } }
+      return { ...node, position: was.position, style: was.style }
+    })
+  }, [orbiting, frame, nodes])
 }
