@@ -10,7 +10,12 @@ struct WaitingSession: Decodable, Identifiable, Sendable {
     let since: Double  // milliseconds since the epoch
 
     var detail: String {
-        let what = reason == "question" ? "asked you a question" : "finished, waiting for you"
+        let what = switch reason {
+        case "question": "asked you a question"
+        case "permission": "needs your permission"
+        case "dialog": "needs your input"
+        default: "finished, waiting for you"
+        }
         return [room, what, "\(ago(since)) ago"].compactMap { $0 }.joined(separator: ", ")
     }
 }
