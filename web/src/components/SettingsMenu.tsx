@@ -40,6 +40,8 @@ interface SettingsMenuProps {
   onTheme: (theme: ThemePreference) => void
   clean: boolean
   onClean: (clean: boolean) => void
+  worktreeRooms: boolean
+  onWorktreeRooms: (on: boolean) => void
 }
 
 function Choice<T extends string>({ label, options, value, onChange }: { label: string; options: { value: T; label: string }[]; value: T; onChange: (value: T) => void }) {
@@ -96,6 +98,9 @@ export function SettingsMenu(props: SettingsMenuProps) {
             />
           )}
           {voice.supported && <Toggle label="Voice" detail="Says which session is waiting on you" on={voice.enabled} onChange={voice.toggle} />}
+          {props.onCanvas && (
+            <Toggle label="Worktrees as their own rooms" detail="Each worktree's branch gets a room" on={props.worktreeRooms} onChange={() => props.onWorktreeRooms(!props.worktreeRooms)} />
+          )}
           <Toggle label="Clean view" detail="Hide the side panel, minimap and zoom" on={props.clean} onChange={() => props.onClean(!props.clean)} />
         </div>
       </div>

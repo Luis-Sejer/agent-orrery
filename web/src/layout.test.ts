@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { buildFlow, relatedTo, type CardNode, type FlowOptions } from './layout'
+import { foldWorktree } from './rooms'
 import { beamStyle, phaseOf } from './rhythm'
 import { statusOf } from './status'
 import type { AgentNode, GraphSnapshot } from './types'
@@ -206,5 +207,13 @@ describe('pickVoice', () => {
     expect(pick([voice('Eddy (English (UK))'), voice('Google UK English Male', 'en-GB', { localService: false }), voice('Samantha', 'en-US')])).toBe('Samantha')
     expect(pick([voice('Zarvox', 'en-US'), voice('Anna', 'de-DE', { default: true })])).toBe('Anna')
     expect(pick([])).toBeNull()
+  })
+})
+
+describe('worktrees', () => {
+  it('folds a worktree into its repository, keeping the area', () => {
+    expect(foldWorktree('shop ⎇ feat/search')).toBe('shop')
+    expect(foldWorktree('shop ⎇ feat/search › apps/web')).toBe('shop › apps/web')
+    expect(foldWorktree('shop › apps/web')).toBe('shop › apps/web')
   })
 })

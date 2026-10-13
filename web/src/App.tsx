@@ -11,12 +11,13 @@ import { SearchPalette } from './components/SearchPalette'
 import { SettingsMenu } from './components/SettingsMenu'
 import { statusOf } from './status'
 import type { Filter, View } from './types'
+import { foldWorktrees } from './rooms'
 import { applyDismissals, useDismissed } from './useDismissed'
 import { useGraph, useNow } from './useGraph'
 import { useNotifications } from './useNotifications'
 import { useReplay } from './useReplay'
 import { HudContext, useTheme } from './useTheme'
-import { useArrangement, useCleanView, useView } from './useView'
+import { useArrangement, useCleanView, useView, useWorktreeRooms } from './useView'
 import { useVoice } from './useVoice'
 
 const VIEWS: { value: View; label: string }[] = [
@@ -40,7 +41,11 @@ export function App() {
   const now = replay.view ? replay.view.at : clock
   const { dismissals, dismiss, restoreAll } = useDismissed()
   const { preference, theme, hud, choose: chooseTheme } = useTheme()
-  const graph = useMemo(() => replay.view?.graph ?? applyDismissals(liveGraph, dismissals), [replay.view, liveGraph, dismissals])
+  const [worktreeRooms, setWorktreeRooms] = useWorktreeRooms()
+  const graph = useMemo(() => {
+    const shown = replay.view?.graph ?? applyDismissals(liveGraph, dismissals)
+    return worktreeRooms === 'on' ? shown : foldWorktrees(shown)
+  }, [replay.view, liveGraph, dismissals, worktreeRooms])
   const dismissedCount = graph.nodes.filter((node) => node.dismissed).length
   const { view, setView, toCanvas } = useView()
   const [arrangement, arrange] = useArrangement()
@@ -163,6 +168,8 @@ export function App() {
               onTheme={chooseTheme}
               clean={clean === 'on'}
               onClean={(on) => setClean(on ? 'on' : 'off')}
+              worktreeRooms={worktreeRooms === 'on'}
+              onWorktreeRooms={(on) => setWorktreeRooms(on ? 'on' : 'off')}
             />
           </div>
 

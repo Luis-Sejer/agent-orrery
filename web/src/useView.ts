@@ -70,3 +70,6 @@ export const useArrangement = () => useStored<Arrangement>('agent-orrery:arrange
 
 // The clean view hides the side panel, the minimap and the zoom buttons, for a dashboard on a wall.
 export const useCleanView = () => useStored<'off' | 'on'>('agent-orrery:clean', ['off', 'on'])
+
+// Worktrees fold into their repository unless you ask for a room per worktree.
+export const useWorktreeRooms = () => useStored<'off' | 'on'>('agent-orrery:worktrees', ['off', 'on'])

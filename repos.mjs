@@ -9,6 +9,9 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:pat
 const WORKTREE_MARKER = '/.claude/worktrees/'
 // Repository names never contain it, so a room key splits back into repository and area.
 export const AREA_SEPARATOR = ' › '
+// Between a repository and one of its worktrees' branches. The page folds worktrees into their
+// repository unless you ask for them as rooms of their own.
+export const WORKTREE_SEPARATOR = ' ⎇ '
 // A folder holding one of these, below the repository root, is a package or app of its own.
 const MANIFESTS = ['package.json', 'Cargo.toml', 'go.mod', 'pyproject.toml', 'project.json']
 // An optional file at the repository root that names the areas instead: {"areas": ["apps/*", "infra"]}.
@@ -79,14 +82,22 @@ export function createRepoResolver(home = homedir()) {
   }
 
   return function resolveRepo(path) {
-    // A worktree belongs to the repository it was made from; its areas are measured from its own root.
     const worktreeAt = path.indexOf(WORKTREE_MARKER)
     const repo = repoOf(worktreeAt === -1 ? path : path.slice(0, worktreeAt))
     if (!repo) return null
-    const worktree = worktreeAt === -1 ? null : path.slice(worktreeAt + WORKTREE_MARKER.length).split('/')[0]
-    const checkout = worktree ? path.slice(0, worktreeAt + WORKTREE_MARKER.length) + worktree : repo.root
-    const area = areaOf(path, checkout)
-    return area ? `${repo.name}${AREA_SEPARATOR}${area}` : repo.name
+    if (worktreeAt === -1) {
+      const area = areaOf(path, repo.root)
+      return area ? `${repo.name}${AREA_SEPARATOR}${area}` : repo.name
+    }
+    // A worktree belongs to the repository it was made from. Its root is the folder holding its .git
+    // file, however many folders its branch name spans ("feat/font-registry"); areas are measured from
+    // there, and the branch rides along so the page can give the worktree a room of its own.
+    const worktrees = path.slice(0, worktreeAt + WORKTREE_MARKER.length)
+    const checkout = repoOf(path)
+    if (!checkout?.root.startsWith(worktrees)) return repo.name
+    const name = `${repo.name}${WORKTREE_SEPARATOR}${checkout.root.slice(worktrees.length)}`
+    const area = areaOf(path, checkout.root)
+    return area ? `${name}${AREA_SEPARATOR}${area}` : name
   }
 }
 
