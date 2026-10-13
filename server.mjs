@@ -15,6 +15,7 @@ import { applyLines, createGraph, day, ensureNode, forget, replay, setLive, snap
 import { createLibrary } from './library.mjs'
 import { createRepoResolver, readText } from './repos.mjs'
 import { createStore, settingDefaults } from './store.mjs'
+import { agentTranscripts, listDir } from './transcripts.mjs'
 
 const PORT = Number(process.env.AGENT_ORRERY_PORT ?? 4777)
 // Inside Docker the server must listen on all interfaces; compose publishes it on 127.0.0.1 only.
@@ -47,10 +48,6 @@ const artifacts = createArtifactIndex({ projectsDir: PROJECTS_DIR, resolveRepo }
 const tracked = new Map()
 const sessionDirs = new Map()
 
-async function listDir(path) {
-  return readdir(path).catch(() => [])
-}
-
 function track(path, nodeId) {
   if (!tracked.has(path)) tracked.set(path, { nodeId, offset: 0, rest: Buffer.alloc(0) })
 }
@@ -72,20 +69,21 @@ async function discoverSessions() {
   }
 }
 
+// A workflow's agents say which phase of it they belong to; that names them better than their type.
+const agentTypeOf = (meta) => (typeof meta.workflowPhase === 'string' && meta.workflowPhase ? `${meta.workflowPhase} (workflow)` : (meta.agentType ?? null))
+
 async function discoverSubagents() {
   for (const [sessionId, sessionDir] of sessionDirs) {
-    const subagentDir = join(sessionDir, 'subagents')
-    for (const name of await listDir(subagentDir)) {
-      const path = join(subagentDir, name)
-      if (!name.startsWith('agent-') || !name.endsWith('.jsonl') || tracked.has(path)) continue
-      const agentId = name.slice('agent-'.length, -'.jsonl'.length)
-      const meta = await readFile(join(subagentDir, `agent-${agentId}.meta.json`), 'utf8')
+    for (const { path, metaPath, agentId } of await agentTranscripts(sessionDir)) {
+      if (tracked.has(path)) continue
+      const meta = await readFile(metaPath, 'utf8')
         .then(JSON.parse)
         .catch(() => ({}))
+      // A workflow's agents have no spawning call of their own, so they belong to the session.
       ensureNode(graph, agentId, {
         kind: 'subagent',
         label: String(meta.description ?? agentId),
-        agentType: meta.agentType ?? null,
+        agentType: agentTypeOf(meta),
         model: meta.model ?? null,
         spawnToolUseId: meta.toolUseId ?? null,
         sessionId,

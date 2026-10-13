@@ -42,6 +42,7 @@ All notable changes to Agent Orrery are documented here. The format is based on
 
 ### Changed
 
+- A workflow's agents show up: they are written to a folder per run under the session's subagents, which Orrery didn't look in. They hang off the session that ran the workflow, labelled with their phase ("Write (workflow)").
 - The Settings button shows its label only when the toolbar has room for it, so it no longer drops to a second line with the drawer open.
 
 - Forked subagents keep their parent. A fork's transcript starts with a copy of the message that started it, which made each fork claim its own spawn, and its siblings', and count that message's tokens again. Such an agent dropped out of the orrery, and a repository holding only one crashed the galaxy.

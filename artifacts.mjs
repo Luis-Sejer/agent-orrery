@@ -2,20 +2,17 @@
 // so the Artifacts view can find last week's too. Each transcript is read once, then only what has
 // been added to it since. Only titles, addresses, times and where they were made are kept.
 
-import { open, readdir, stat } from 'node:fs/promises'
+import { open, stat } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 
 import { artifactCall, artifactUrlIn } from './graph.mjs'
+import { agentTranscripts, listDir } from './transcripts.mjs'
 
 const READ_CHUNK_BYTES = 4 * 1024 * 1024
 const MAX_RESULTS = 20
 const MIN_QUERY = 2
 // Cheap checks before a line is parsed: most lines are none of these.
 const MIGHT_MATTER = ['"Artifact"', 'claude.ai/', '"ai-title"']
-
-async function listDir(path) {
-  return readdir(path).catch(() => [])
-}
 
 // Everything worth reading: sessions, and their subagents beside them.
 async function transcripts(projectsDir) {
@@ -25,10 +22,7 @@ async function transcripts(projectsDir) {
       if (!name.endsWith('.jsonl')) continue
       const sessionId = name.slice(0, -'.jsonl'.length)
       found.push({ path: join(projectsDir, project, name), sessionId, agentId: null })
-      const subagents = join(projectsDir, project, sessionId, 'subagents')
-      for (const agent of await listDir(subagents)) {
-        if (agent.startsWith('agent-') && agent.endsWith('.jsonl')) found.push({ path: join(subagents, agent), sessionId, agentId: agent.slice('agent-'.length, -'.jsonl'.length) })
-      }
+      for (const { path, agentId } of await agentTranscripts(join(projectsDir, project, sessionId))) found.push({ path, sessionId, agentId })
     }
   }
   return found

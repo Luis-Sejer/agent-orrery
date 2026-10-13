@@ -36,3 +36,18 @@ test('finds artifacts in every transcript, with their session, and reads only wh
   assert.deepEqual((await index.search('launch')).map(({ title }) => title), ['Launch plan'])
   assert.deepEqual(await index.search('x'), [])
 })
+
+test("a workflow's agents are found in their run folders, beside the session's own subagents", async () => {
+  const { agentTranscripts } = await import('./transcripts.mjs')
+  const session = mkdtempSync(join(tmpdir(), 'orrery-session-'))
+  mkdirSync(join(session, 'subagents', 'workflows', 'wf_run-1'), { recursive: true })
+  for (const path of ['subagents/agent-a1.jsonl', 'subagents/agent-a1.meta.json', 'subagents/workflows/wf_run-1/agent-w1.jsonl', 'subagents/workflows/wf_run-1/agent-w2.jsonl', 'subagents/workflows/wf_run-1/notes.txt']) {
+    writeFileSync(join(session, path), '')
+  }
+  const found = (await agentTranscripts(session)).map(({ agentId, path, metaPath }) => [agentId, path.slice(session.length + 1), metaPath.slice(session.length + 1)])
+  assert.deepEqual(found.sort(), [
+    ['a1', 'subagents/agent-a1.jsonl', 'subagents/agent-a1.meta.json'],
+    ['w1', 'subagents/workflows/wf_run-1/agent-w1.jsonl', 'subagents/workflows/wf_run-1/agent-w1.meta.json'],
+    ['w2', 'subagents/workflows/wf_run-1/agent-w2.jsonl', 'subagents/workflows/wf_run-1/agent-w2.meta.json'],
+  ])
+})
