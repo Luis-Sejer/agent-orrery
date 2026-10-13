@@ -31,6 +31,11 @@ const DATA_DIR = process.env.AGENT_ORRERY_DATA_DIR ?? join(homedir(), '.config',
 const SESSIONS_DIR = join(CLAUDE_DIR, 'sessions')
 // Only these names are opened; the folder also holds each session's secret key file.
 const STATUS_FILE = /^\d{1,10}\.json$/
+// Your plan's usage, written by the status line bridge (statusline/orrery-usage.sh), if you set it up.
+const USAGE_DIR = join(CLAUDE_DIR, 'orrery')
+const USAGE_FILE = join(USAGE_DIR, 'usage.json')
+const SECONDS_IN_MS = 1000
+const EPOCH_MS_FROM = 1e12
 const WEB_DIR = fileURLToPath(new URL('./web/dist/', import.meta.url))
 // File events trigger a read straight away; the slower check catches events that get lost,
 // which happens with Docker's file sharing.
@@ -151,6 +156,34 @@ async function readLiveSessions() {
   return sessions
 }
 
+// A time from the status line: epoch seconds or milliseconds, or an ISO date. Null if none of those.
+function timeOf(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value < EPOCH_MS_FROM ? value * SECONDS_IN_MS : value
+  if (typeof value === 'string') return Date.parse(value) || null
+  return null
+}
+
+function windowOf(value) {
+  const percent = value?.used_percentage
+  if (typeof percent !== 'number' || !Number.isFinite(percent)) return null
+  return { percent: Math.min(100, Math.max(0, percent)), resetsAt: timeOf(value.resets_at) }
+}
+
+// The plan's session (five-hour) and weekly windows, and when they were seen; null without the bridge.
+export function parseUsage(text) {
+  try {
+    const usage = JSON.parse(text)
+    const at = timeOf(usage.at)
+    const fiveHour = windowOf(usage.five_hour)
+    const sevenDay = windowOf(usage.seven_day)
+    return at && (fiveHour || sevenDay) ? { at, fiveHour, sevenDay } : null
+  } catch {
+    return null
+  }
+}
+
+const readUsage = () => parseUsage(readText(USAGE_FILE))
+
 const clients = new Set()
 let lastPayload = ''
 let lastPushAt = 0
@@ -193,7 +226,7 @@ async function tick(discover, paths) {
   for (const [path, entry] of tracked) if (!paths || paths.has(path)) await readAppended(path, entry)
   const now = Date.now()
   setLive(graph, await readLiveSessions(), now)
-  const payload = JSON.stringify(snapshot(graph, now - WINDOW_MS, now - WAITING_WINDOW_MS, now))
+  const payload = JSON.stringify({ ...snapshot(graph, now - WINDOW_MS, now - WAITING_WINDOW_MS, now), usage: readUsage() })
   if (payload !== lastPayload) push(payload)
 }
 
@@ -260,11 +293,20 @@ function startWatching(scheduler) {
     } catch {
       // No sessions folder (yet): the fallback check reads it once it exists.
     }
+    // The bridge rewrites its file whenever a status line is drawn.
+    let usageWatcher = null
+    try {
+      usageWatcher = watch(USAGE_DIR, () => scheduler.soon())
+      usageWatcher.on('error', () => usageWatcher.close())
+    } catch {
+      // No bridge set up: the fallback check picks it up if one appears.
+    }
     const fallback = setInterval(scheduler.now, FALLBACK_INTERVAL_MS)
     watcher.on('error', (error) => {
       console.warn('agent-orrery: file events stopped, polling instead', error.message)
       watcher.close()
       statusWatcher?.close()
+      usageWatcher?.close()
       clearInterval(fallback)
       poll()
     })
@@ -365,6 +407,7 @@ const API_ROUTES = {
     return Number.isFinite(at) && query.get('at') ? replay(graph, at, WINDOW_MS, WAITING_WINDOW_MS) : null
   },
   '/api/window': () => ({ windowMs: WINDOW_MS }),
+  '/api/usage': () => readUsage() ?? {},
   '/api/day': (query) => {
     const since = Number(query.get('since'))
     return Number.isFinite(since) && query.get('since') ? day(graph, since) : null

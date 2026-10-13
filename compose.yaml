@@ -38,6 +38,8 @@ services:
       # What each running session is doing, in Claude Code's own words. Only its <pid>.json files are
       # opened; the folder's key files are never read.
       - ${HOME}/.claude/sessions:${HOME}/.claude/sessions:ro
+      # Your plan's usage, if you set up the status line bridge (INSTALL.md, "Plan usage").
+      - ${HOME}/.claude/orrery:${HOME}/.claude/orrery:ro
       # Only read to tell which folders are git repositories.
       - ${AGENT_ORRERY_CODE_DIR:-${HOME}/Documents/GitHub}:${AGENT_ORRERY_CODE_DIR:-${HOME}/Documents/GitHub}:ro
     read_only: true

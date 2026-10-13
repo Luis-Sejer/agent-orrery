@@ -68,3 +68,17 @@ test('the page gets its state in a meta tag, escaped', () => {
   assert.match(html, /<head><meta name="agent-orrery-state" content="\{&quot;defaults&quot;:\{\},&quot;settings&quot;:\{&quot;theme&quot;:&quot;dark&quot;\}/)
   assert.doesNotMatch(html, /<script>/)
 })
+
+test("the plan's usage comes from the status line bridge's file, and only its windows", async () => {
+  const { parseUsage } = await import('./server.mjs')
+  const at = 1_791_898_557.5
+  const usage = parseUsage(JSON.stringify({ at, five_hour: { used_percentage: 65.4, resets_at: 1_791_900_000 }, seven_day: { used_percentage: 140, resets_at: '2026-10-18T09:00:00Z' }, spend: 12 }))
+  assert.deepEqual(usage, {
+    at: at * 1000,
+    fiveHour: { percent: 65.4, resetsAt: 1_791_900_000_000 },
+    sevenDay: { percent: 100, resetsAt: Date.parse('2026-10-18T09:00:00Z') },
+  })
+  assert.equal(parseUsage(JSON.stringify({ at, five_hour: null })), null)
+  assert.equal(parseUsage('{broken'), null)
+  assert.equal(parseUsage(''), null)
+})
