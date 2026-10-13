@@ -1,6 +1,8 @@
-import { useContext, type CSSProperties } from 'react'
-import { ThinkingOrb, type OrbSize, type OrbState } from 'thinking-orbs'
+import { useContext, useEffect, useRef, type CSSProperties } from 'react'
+import type { OrbSize, OrbState } from 'thinking-orbs'
 
+import { useStill } from '../motion'
+import { startOrb, toTint } from '../orbTicker'
 import { orbSpeed } from '../rhythm'
 import { stateColour } from '../status'
 import { HudContext } from '../useTheme'
@@ -19,6 +21,12 @@ interface OrbProps {
 
 export function Orb({ state, size, ring = false, seed }: OrbProps) {
   const colour = stateColour(state, useContext(HudContext))
+  const still = useStill()
+  const canvas = useRef<HTMLCanvasElement>(null)
+  const dotSize = size === 64 ? 1.2 : SMALL_DOT_SIZE
+  const speed = seed ? orbSpeed(seed) : 1
+  // A finished agent's orb (breathing) holds still, as does every orb when motion is paused.
+  useEffect(() => startOrb(canvas.current!, { state, size, tint: toTint(colour), dotSize, speed }, still || state === 'breathing'), [state, size, colour, dotSize, speed, still])
   const style = { '--state': colour } as CSSProperties
   return (
     <span className={`orb orb-${size}${ring ? ' orb-ring' : ''}`} style={style}>
@@ -28,15 +36,8 @@ export function Orb({ state, size, ring = false, seed }: OrbProps) {
           <circle cx="32" cy="32" r="24" />
         </svg>
       )}
-      <ThinkingOrb
-        state={state}
-        size={size}
-        theme="auto"
-        color={colour}
-        dotSize={size === 64 ? 1.2 : SMALL_DOT_SIZE}
-        speed={seed ? orbSpeed(seed) : 1}
-        paused={state === 'breathing'}
-      />
+      {/* Decoration: the text next to every orb already says what it shows. */}
+      <canvas ref={canvas} aria-hidden="true" style={{ width: size, height: size }} />
     </span>
   )
 }

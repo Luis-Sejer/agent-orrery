@@ -157,5 +157,18 @@ export function MessageEdge(props: EdgeProps<Edge<MessageData, 'message'>>) {
   )
 }
 
-export const nodeTypes = { session: SessionCard, agent: AgentCard, fold: FoldCard, room: RoomBox, orbit: OrbitCard, pile: PileCard, backdrop: OrreryBackdrop }
+// The orbit moves orrery nodes many times a second, and React Flow re-renders a node whenever it moves.
+// What an orbit card or pile shows depends only on its data, which the orbit passes through
+// untouched, so they skip those renders.
+const sameData = (before: { data: unknown }, after: { data: unknown }) => before.data === after.data
+
+export const nodeTypes = {
+  session: SessionCard,
+  agent: AgentCard,
+  fold: FoldCard,
+  room: RoomBox,
+  orbit: memo(OrbitCard, sameData),
+  pile: memo(PileCard, sameData),
+  backdrop: OrreryBackdrop,
+}
 export const edgeTypes = { message: MessageEdge }

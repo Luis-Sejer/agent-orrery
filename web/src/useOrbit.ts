@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 
 import type { FlowNode } from './layout'
+import { onStillChange, prefersStill } from './motion'
 import { placeAt, type BackdropNode, type OrreryNode, type Polar, type System, type Turns } from './radial'
 
 export type CanvasNode = FlowNode | OrreryNode
 
-// About 30 frames a second is plenty for rings that take minutes per lap.
+// About 30 frames a second while something glides or the rings ease to a stop or back up. Turning
+// steadily, rings move a fraction of a pixel a frame, so 10 updates a second look the same for a
+// third of the work.
 const FRAME_MS = 33
+const STEADY_MS = 100
 // A moved agent glides to its new place and settles in about 600 ms.
 const EASE_RATE = 7
 // After a hidden tab or a long frame, step at most this far, so nothing jumps.
@@ -24,17 +28,20 @@ type Shown = { angle: number; r: number } & Centre
 
 // Turns the orrery's rings, and glides agents between rings when their status changes. Positions
 // are worked out each frame from the layout and how far the rings have turned, so edges, the
-// minimap and focus all follow. Rings ease to a stop while paused, and never turn under reduced motion.
+// minimap and focus all follow. Rings ease to a stop while paused, and never turn under reduced motion
+// or Pause motion.
 // In a galaxy, agents circle their system's sun, and a system glides between lanes with its agents.
 export function useOrbit(nodes: CanvasNode[], polar: Map<string, Polar> | null, paused: boolean): CanvasNode[] {
   const [frame, setFrame] = useState<CanvasNode[] | null>(null)
   const input = useRef({ nodes, polar, paused })
   input.current = { nodes, polar, paused }
   const orbiting = polar !== null
+  // Restarts the loop after it has gone to sleep with nothing to move.
+  const wake = useRef<() => void>(() => {})
+  useEffect(() => wake.current(), [nodes, polar, paused])
 
   useEffect(() => {
     if (!orbiting) return
-    const reduced = matchMedia('(prefers-reduced-motion: reduce)')
     const shown = new Map<string, Shown>()
     const suns = new Map<string, Centre>()
     // How far each ring has turned. Each one adds up its own turning, so a ring that changes
@@ -49,17 +56,23 @@ export function useOrbit(nodes: CanvasNode[], polar: Map<string, Polar> | null, 
 
     const tick = (now: number) => {
       request = requestAnimationFrame(tick)
-      if (now - last < FRAME_MS) return
+      if (now - last < (settled && pace === 1 ? STEADY_MS : FRAME_MS)) return
       const step = Math.min(MAX_STEP_SECONDS, (now - last) / 1000)
       last = now
       const { nodes, polar, paused } = input.current
       if (!polar) return
-      const still = reduced.matches
+      const still = prefersStill()
       pace += ((paused ? 0 : 1) - pace) * (1 - Math.exp(-PACE_RATE * step))
       if (pace < STOPPED) pace = 0
+      if (pace > 1 - STOPPED) pace = 1
       const rings = nodes.find((node): node is BackdropNode => node.type === 'backdrop')?.data.rings ?? []
       for (const ring of rings) turned.set(ring.key, (turned.get(ring.key) ?? 0) + (still ? 0 : (2 * Math.PI * step * pace) / ring.lap))
-      if ((still || pace === 0) && settled && drawn === nodes) return
+      if ((still || pace === 0) && settled && drawn === nodes) {
+        // Nothing to move until something changes: stop asking for frames.
+        cancelAnimationFrame(request)
+        request = 0
+        return
+      }
       const turns: Turns = Object.fromEntries(rings.map((ring) => [ring.key, still ? 0 : turned.get(ring.key)!]))
       const ease = still ? 1 : 1 - Math.exp(-EASE_RATE * step)
       settled = true
@@ -91,8 +104,18 @@ export function useOrbit(nodes: CanvasNode[], polar: Map<string, Polar> | null, 
       drawn = nodes
       setFrame(next)
     }
-    request = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(request)
+    wake.current = () => {
+      if (request) return
+      last = performance.now() - FRAME_MS
+      request = requestAnimationFrame(tick)
+    }
+    wake.current()
+    const unsubscribe = onStillChange(() => wake.current())
+    return () => {
+      cancelAnimationFrame(request)
+      unsubscribe()
+      wake.current = () => {}
+    }
   }, [orbiting])
 
   return orbiting && frame ? frame : nodes

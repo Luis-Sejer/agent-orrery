@@ -3,12 +3,15 @@ import type { NodeProps } from '@xyflow/react'
 import { MODE_FRAMES, resolvePreset, scaleCounts, scaleRadii } from 'thinking-orbs'
 import { paintFrame } from 'thinking-orbs/engine'
 
+import { onStillChange, prefersStill } from '../motion'
 import { ROOM_LABEL_SIDE_REACH, type BackdropNode, type Box, type Sector, type System, type Turns } from '../radial'
+import { STILL_AT, toTint } from '../orbTicker'
 import { HudContext } from '../useTheme'
 
 const TOP = -Math.PI / 2
-// Ring labels ride an arc this wide, centred on the empty wedge at the top.
-const LABEL_ARC = 0.7
+// Ring labels ride an arc this wide, centred on the empty wedge at the top; wide enough for a label
+// grown to stay readable when zoomed out.
+const LABEL_ARC = 1.6
 // Sector boundaries are short ticks just outside the outer ring.
 const TICK_FROM = 14
 const TICK_TO = 34
@@ -19,8 +22,7 @@ const CORE_DENSITY = 2
 const CORE_DOT_SCALE = 0.85
 const CORE_LINE_WIDTH = 1.1
 const CORE_SPEED = 0.25
-// Where a still (reduced-motion) orb is painted, in seconds.
-const STILL_AT = 0.6
+const CORE_FRAME_MS = 33
 // Galaxy: a sun is a small disc in a soft glow. Spokes start outside the core's dial and stop at a
 // system's outer ring.
 const SUN_RADIUS = 7
@@ -28,14 +30,10 @@ const SUN_GLOW = 24
 const SPOKE_FROM = 190
 const ORIGIN = { cx: 0, cy: 0 }
 
-function toTint(colour: string) {
-  const [r, g, b] = colour.match(/[\da-f]{2}/gi)!.map((pair) => parseInt(pair, 16))
-  return { r, g, b }
-}
 
 // You, at the centre: a constellation painted with the thinking-orbs engine, in the theme's ink, or
 // red while anything waits on you (--core in the stylesheet). It pauses off screen and in hidden
-// tabs, and holds still for reduced motion.
+// tabs, and holds still for reduced motion or Pause motion.
 function CoreOrb({ waiting }: { waiting: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null)
 
@@ -46,24 +44,30 @@ function CoreOrb({ waiting }: { waiting: boolean }) {
     canvas.width = canvas.height = CORE_SIZE * ratio
     const { mode, speed, opts: preset } = resolvePreset(CORE_STATE, 64)
     const opts = { ...scaleRadii(scaleCounts(preset, CORE_DENSITY), CORE_DOT_SCALE), lineW: CORE_LINE_WIDTH }
-    const still = matchMedia('(prefers-reduced-motion: reduce)')
     let onScreen = true
     let request = 0
+    let last = 0
+    // Ink and theme are read when they can change (theme switch, a wait), not on every frame.
+    let tint = toTint(getComputedStyle(canvas).getPropertyValue('--core'))
+    let dark = document.documentElement.dataset.theme === 'dark'
 
     const paint = (seconds: number) => {
       context.setTransform(ratio, 0, 0, ratio, 0, 0)
       context.clearRect(0, 0, CORE_SIZE, CORE_SIZE)
-      const tint = toTint(getComputedStyle(canvas).getPropertyValue('--core'))
-      const dark = document.documentElement.dataset.theme === 'dark'
       paintFrame(context, MODE_FRAMES[mode](CORE_SIZE, seconds * speed * CORE_SPEED, opts), dark, tint)
     }
+    // At the same 30 frames a second as the other orbs.
     const loop = (now: number) => {
-      paint(now / 1000)
       request = requestAnimationFrame(loop)
+      if (now - last < CORE_FRAME_MS) return
+      last = now
+      paint(now / 1000)
     }
     const update = () => {
+      tint = toTint(getComputedStyle(canvas).getPropertyValue('--core'))
+      dark = document.documentElement.dataset.theme === 'dark'
       cancelAnimationFrame(request)
-      if (still.matches) paint(STILL_AT)
+      if (prefersStill()) paint(STILL_AT)
       else if (onScreen) request = requestAnimationFrame(loop)
     }
     const visibility = new IntersectionObserver(([entry]) => {
@@ -74,13 +78,13 @@ function CoreOrb({ waiting }: { waiting: boolean }) {
     // New ink when the theme changes, even while it holds still.
     const theme = new MutationObserver(update)
     theme.observe(document.documentElement, { attributeFilter: ['data-theme', 'data-hud'] })
-    still.addEventListener('change', update)
+    const stopWatching = onStillChange(update)
     update()
     return () => {
       cancelAnimationFrame(request)
       visibility.disconnect()
       theme.disconnect()
-      still.removeEventListener('change', update)
+      stopWatching()
     }
   }, [waiting])
 
@@ -150,7 +154,7 @@ function AreaLabel({ sector, centre, turns, box, onCollapse }: { sector: Sector;
     <div className="sector-label area" style={{ left: centre.cx + cos * sector.r - box.x, top: centre.cy + sin * sector.r - box.y, '--cos': cos, '--sin': sin } as CSSProperties}>
       {sector.label && <span className="area-name">{sector.label}</span>}
       {sector.foldable && (
-        <button type="button" className="room-fold nodrag" onClick={() => onCollapse(sector.name)}>
+        <button type="button" className="room-fold nodrag" data-room={sector.name} onClick={() => onCollapse(sector.name)}>
           Hide finished
         </button>
       )}
@@ -241,7 +245,7 @@ export function OrreryBackdrop({ data }: NodeProps<BackdropNode>) {
           >
             <span className="serif">{sector.name}</span>
             {sector.foldable && (
-              <button type="button" className="room-fold nodrag" onClick={() => onCollapse(sector.name)}>
+              <button type="button" className="room-fold nodrag" data-room={sector.name} onClick={() => onCollapse(sector.name)}>
                 Hide finished
               </button>
             )}
