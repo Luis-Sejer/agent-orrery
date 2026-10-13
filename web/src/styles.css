@@ -304,8 +304,8 @@ kbd {
   display: none;
 }
 
-/* Wide screens have room to say what the button is. */
-@media (min-width: 1280px) {
+/* A wide toolbar has room to say what the button is; with the drawer open it may not. */
+@container toolbar (min-width: 960px) {
   .settings-button {
     width: auto;
     grid-auto-flow: column;
