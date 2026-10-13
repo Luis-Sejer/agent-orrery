@@ -10,7 +10,7 @@
 ## Checklist
 
 - [ ] `pnpm test`, `pnpm typecheck` and `pnpm build` pass
-- [ ] Keeps the safety rules in AGENTS.md (no transcript content in the graph, loopback only, read-only)
+- [ ] Keeps the safety rules in AGENTS.md (no transcript content in the graph, loopback only, never writing Claude Code's files or your code)
 - [ ] Works with the keyboard and respects Reduce Motion for anything new
 - [ ] Added an entry under **Unreleased** in `CHANGELOG.md` (if users will notice)
 - [ ] Screenshot attached for visual changes, and `pnpm screenshots` re-run if the README images changed

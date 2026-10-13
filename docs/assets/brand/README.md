@@ -10,7 +10,7 @@ Everything you need to mention or link to Agent Orrery. All files here, and the 
 
 **Three sentences**
 
-> Agent Orrery shows every Claude Code session and subagent on your machine, grouped by the git repository each one is working in, with lines for who started whom and the messages between them. A "Your turn" list shows which sessions finished or asked you a question, and clicking an agent shows what it has done and how to resume it. It only reads the transcripts Claude Code already writes, runs locally in Docker, and never sends anything off your machine.
+> Agent Orrery shows every Claude Code session and subagent on your machine, grouped by the git repository each one is working in, with lines for who started whom and the messages between them. A "Your turn" list shows which sessions finished, asked you a question or need your permission, and clicking an agent shows what it has done and how to resume it. It reads the files Claude Code already writes and never changes them, saves only its own settings, runs locally in Docker, and never sends anything off your machine.
 
 **Name.** Write it as two words, **Agent Orrery**, with capitals. Use `agent-orrery` only where a slug is needed (URLs, package and repository names). The byline is **by sejer**, lower case.
 

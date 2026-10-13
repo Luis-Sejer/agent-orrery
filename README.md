@@ -82,10 +82,29 @@ Agent Orrery answers that at a glance. It reads the transcripts Claude Code alre
     <td><sub>T.Y.C.H.O., the HUD theme.</sub></td>
     <td><sub>Agents, the grid of rooms. Click an agent to see everything connected to it, and what it cost.</sub></td>
   </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/same-files.webp" alt="The Agents grid with Order history export selected: a red dashed line joins it to Write the order API contract, and the drawer says that agent also edited routes.ts."></td>
+    <td width="50%"><img src="docs/screenshots/day.webp" alt="The Day view: today's sessions on one clock, green where each one worked and red where it waited on you, with how long agents waited on you in total."></td>
+  </tr>
+  <tr>
+    <td><sub>Same files: two agents in one file get a red line before they undo each other's work.</sub></td>
+    <td><sub>Your day: when each session worked and when it waited on you.</sub></td>
+  </tr>
 </table>
 
 <details>
-<summary><strong>More screenshots:</strong> a monorepo, a galaxy, replay, search, arranged by repository, the settings, plans and the dark theme</summary>
+<summary><strong>More screenshots:</strong> artifacts, the tree, a monorepo, a galaxy, replay, search, arranged by repository, the settings, plans and the dark theme</summary>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/artifacts.webp" alt="The Artifacts view: four made-up pages agents published on claude.ai, newest first, each with its session, repository and time, and a link to show its session."></td>
+    <td width="50%"><img src="docs/screenshots/tree.webp" alt="The Agents view as a tree with finished agents hidden: sessions on the left, each subagent a column to the right of its parent."></td>
+  </tr>
+  <tr>
+    <td><sub>Every artifact your agents published, in one place.</sub></td>
+    <td><sub>Agents as a tree of who started whom, with finished ones hidden.</sub></td>
+  </tr>
+</table>
 
 <p><img src="docs/screenshots/monorepo.webp" alt="The orrery on a made-up monorepo, atlas, with a sector for each of its eight packages, from atlas › apps/web to atlas › services/search, and two sessions waiting on you closest to the centre."></p>
 <p><sub>A monorepo: every busy package gets a room of its own.</sub></p>
@@ -96,15 +115,15 @@ Agent Orrery answers that at a glance. It reads the transcripts Claude Code alre
 <table>
   <tr>
     <td width="50%"><img src="docs/screenshots/replay.webp" alt="Replay open on the orrery: a slider at the bottom set to an hour and a half ago, with fewer agents and different statuses than now."></td>
-    <td width="50%"><img src="docs/screenshots/search.webp" alt="The search window open over the dashboard, listing agents, plans and memory notes that match checkout, with the matches highlighted."></td>
+    <td width="50%"><img src="docs/screenshots/search.webp" alt="The search window open over the dashboard, listing agents, artifacts and plans that match checkout, with the matches highlighted."></td>
   </tr>
   <tr>
     <td><sub>Replay the last hours.</sub></td>
-    <td><sub>Search agents, plans and memory with <kbd>⌘</kbd> <kbd>K</kbd>.</sub></td>
+    <td><sub>Search agents, artifacts, plans and memory with <kbd>⌘</kbd> <kbd>K</kbd>.</sub></td>
   </tr>
   <tr>
     <td width="50%"><img src="docs/screenshots/orrery-repo.webp" alt="The orrery arranged by repository: a ring per repository, named in its gap, with the repositories that have sessions waiting on you innermost."></td>
-    <td width="50%"><img src="docs/screenshots/settings.webp" alt="The settings menu open over the orrery: show, arrange the orrery, theme, and switches for replay, notifications, voice and clean view."></td>
+    <td width="50%"><img src="docs/screenshots/settings.webp" alt="The settings menu open over the orrery: show, arrange the orrery, theme, and switches for replay, notifications, voice, Hide finished, worktrees, clean view and Pause motion."></td>
   </tr>
   <tr>
     <td><sub>Or a ring per repository, the ones that need you innermost.</sub></td>
@@ -192,7 +211,7 @@ Settings you change on the page are saved by the server (in `./data`, or `AGENT_
 
 | Variable | Values |
 |---|---|
-| `AGENT_ORRERY_VIEW` | `orrery`, `graph` (Agents), `day`, `plans`, `memory` |
+| `AGENT_ORRERY_VIEW` | `orrery`, `graph` (Agents), `day`, `artifacts`, `plans`, `memory` |
 | `AGENT_ORRERY_ARRANGEMENT` | `status`, `room`, `galaxy` |
 | `AGENT_ORRERY_THEME` | `system`, `light`, `dark`, `tycho` |
 | `AGENT_ORRERY_AGENTS_LAYOUT` | `rooms`, `tree` |
