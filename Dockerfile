@@ -10,7 +10,7 @@ RUN pnpm build
 # The server has no dependencies, so the runtime image holds only its own files and the built page.
 FROM node:24.21.0-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
 WORKDIR /app
-COPY server.mjs graph.mjs library.mjs repos.mjs ./
+COPY server.mjs graph.mjs library.mjs repos.mjs store.mjs ./
 COPY --from=build /app/web/dist ./web/dist
 ENV AGENT_ORRERY_BIND=0.0.0.0 AGENT_ORRERY_PORT=4777
 # Never root. compose.yaml runs it as your own user instead, so it can read your session files.

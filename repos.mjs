@@ -43,7 +43,7 @@ const ABSOLUTE_PATH_IN_COMMAND = /(?:^|[\s'"=(])((?:~|\/)[^\s'"`;|&<>()]+)/g
 // without blocking.
 const MAX_CONFIG_BYTES = 256 * 1024
 
-function readText(path) {
+export function readText(path) {
   let fd = null
   try {
     fd = openSync(path, constants.O_RDONLY | constants.O_NONBLOCK)

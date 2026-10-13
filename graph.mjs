@@ -12,6 +12,12 @@ const HANDBACK_TOOL = 'SubagentHandback'
 const MESSAGE_TOOL = 'SendMessage'
 const SPAWN_TOOLS = new Set(['Agent', 'Task'])
 const WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit'])
+const EDIT_TOOLS = new Set([...WRITE_TOOLS, 'NotebookEdit'])
+// Two sessions editing the same file this close together are probably working over each other.
+const COLLISION_MS = 10 * 60_000
+const EDITS_LIMIT = 200
+// Times a session waited on you, kept for the day view and the "waited on you" totals.
+const YOU_WAITS_LIMIT = 200
 const TIMELINE_LIMIT = 80
 // Replay needs the state changes of the last several hours, which is far fewer than the records.
 const HISTORY_LIMIT = 400
@@ -91,7 +97,8 @@ function describeTool(name, input) {
 }
 
 export function createGraph({ resolveRepo = () => null, plansDir = null } = {}) {
-  return { nodes: new Map(), messages: new Map(), toolUseOwner: new Map(), resolveRepo, plansDir }
+  // live: what Claude Code itself says each running session is doing (see setLive); null until known.
+  return { nodes: new Map(), messages: new Map(), toolUseOwner: new Map(), resolveRepo, plansDir, live: null, seenLive: new Set() }
 }
 
 export function ensureNode(graph, id, fields) {
@@ -116,6 +123,10 @@ export function ensureNode(graph, id, fields) {
       // A background call's task id (from its result) → its tool use id, for notifications and TaskStop.
       backgroundTaskIds: new Map(),
       history: [],
+      // Files it edited lately, by path: { first, last, repo }, for spotting two agents in one file.
+      edits: new Map(),
+      // [start, end] spans in which it waited on you and you answered.
+      youWaits: [],
     }
     graph.nodes.set(id, node)
   }
@@ -211,6 +222,7 @@ function recordToolUse(graph, node, block, record, at) {
     node.repos[pathRepo] = (node.repos[pathRepo] ?? 0) + 1
     repo ??= pathRepo
   }
+  if (EDIT_TOOLS.has(name)) for (const path of pathsInToolInput(block.input, record.cwd)) recordEdit(node, path, at, graph.resolveRepo(path))
   addEvent(node, { at, activity: node.activity, text: describeTool(name, block.input), repo: repo ?? node.home ?? null })
 
   const recipient = block.input?.to
@@ -218,6 +230,25 @@ function recordToolUse(graph, node, block, record, at) {
   if (name === QUESTION_TOOL) node.waiting = { reason: 'question', since: at }
   if (SPAWN_TOOLS.has(name)) node.lastSpawnAt = at
 }
+
+function recordEdit(node, path, at, repo) {
+  const edit = node.edits.get(path)
+  // A file left alone longer than the collision window starts afresh.
+  if (edit && at - edit.last < COLLISION_MS) edit.last = Math.max(edit.last, at)
+  else node.edits.set(path, { first: at, last: at, repo })
+  if (node.edits.size > EDITS_LIMIT) {
+    for (const [key, { last }] of node.edits) if (at - last >= COLLISION_MS) node.edits.delete(key)
+  }
+}
+
+function addYouWait(node, start, end) {
+  if (!(start > 0) || end <= start) return
+  node.youWaits.push([start, end])
+  if (node.youWaits.length > YOU_WAITS_LIMIT) node.youWaits.splice(0, node.youWaits.length - YOU_WAITS_LIMIT)
+}
+
+const hasToolResult = (record) => Array.isArray(record.message?.content) && record.message.content.some((block) => block?.type === 'tool_result')
+const isHumanPrompt = (record) => record.origin?.kind === 'human' || (!record.origin && isTypedPrompt(record))
 
 function isTypedPrompt(record) {
   const content = record.message?.content
@@ -252,8 +283,7 @@ function closeTools(node, record) {
     const taskId = record.toolUseResult?.backgroundTaskId
     if (typeof taskId === 'string' && node.backgroundTasks.has(block.tool_use_id)) node.backgroundTaskIds.set(taskId, block.tool_use_id)
   }
-  const origin = record.origin
-  if (origin?.kind === 'human' || (!origin && isTypedPrompt(record))) {
+  if (isHumanPrompt(record)) {
     node.openTools.clear()
     // Only the current turn's background calls count: earlier ones may have been killed, or never
     // end at all (a dev server), and Claude Code doesn't always say when they finish.
@@ -300,6 +330,9 @@ export function applyRecord(graph, nodeId, record) {
     // takes it up, its own records follow within seconds.
     const notification = record.origin?.kind === 'task-notification'
     if (!notification && (!node.handedBack || !isToolResultOnly(record))) {
+      // You ended the wait: by prompting, or by answering its question (written only once answered).
+      const answered = isHumanPrompt(record) || (node.waiting?.reason === 'question' && hasToolResult(record))
+      if (node.waiting && answered && node.kind === 'session') addYouWait(node, node.waiting.since, at)
       node.waiting = null
       node.handedBack = false
     }
@@ -319,7 +352,7 @@ export function applyRecord(graph, nodeId, record) {
       if (!graph.nodes.has(from)) ensureNode(graph, from, { label: String(origin.name ?? from) })
       addMessage(graph, from, nodeId, at)
       addEvent(node, { at, activity: 'connecting', text: `Message from ${graph.nodes.get(from).label}`, repo: null })
-    } else if (origin?.kind === 'human' || (!origin && isTypedPrompt(record))) {
+    } else if (isHumanPrompt(record)) {
       if (node.kind === 'session') addEvent(node, { at, activity: 'listening', text: 'You replied', repo: null })
     }
   }
@@ -342,6 +375,51 @@ export function applyRecord(graph, nodeId, record) {
 }
 
 let reportedError = false
+
+// A session with no status file that has been silent this long, with no call open, has ended. Sessions
+// we saw running end as soon as their file goes; the grace is for headless runs that may write none.
+const CLOSED_GRACE_MS = 2 * 60_000
+
+// Takes what Claude Code says its running sessions are doing (~/.claude/sessions): a list of
+// { sessionId, status, waitingFor, since }, or null when it can't be read. A permission prompt or a
+// question that has ended is remembered as time spent waiting on you.
+const LIVE_STATUSES = new Set(['busy', 'shell', 'idle', 'waiting'])
+// What a waiting session needs from you, by Claude Code's waitingFor; anything else is some dialog.
+const WAIT_REASONS = { 'input needed': 'question', 'permission prompt': 'permission', 'sandbox request': 'permission' }
+
+export function setLive(graph, sessions, now) {
+  const previous = graph.live
+  const known = (sessions ?? []).filter((entry) => typeof entry.sessionId === 'string' && LIVE_STATUSES.has(entry.status))
+  graph.live =
+    sessions &&
+    new Map(
+      known.map(({ sessionId, status, waitingFor, since }) => [
+        sessionId,
+        { status, since: Number.isFinite(since) ? since : now, ...(status === 'waiting' && { reason: WAIT_REASONS[waitingFor] ?? 'dialog' }) },
+      ]),
+    )
+  sessions = known
+  for (const entry of sessions ?? []) graph.seenLive.add(entry.sessionId)
+  for (const [id, before] of previous ?? []) {
+    const after = graph.live?.get(id)
+    if (before.status !== 'waiting' || (after?.status === 'waiting' && after.since === before.since)) continue
+    const node = graph.nodes.get(id)
+    if (node) addYouWait(node, before.since, after?.since ?? now)
+  }
+}
+
+// A session's live state, or { status: 'closed' } once it has ended; a subagent only ever ends with
+// its session. Null means unknown, and the transcript has to tell.
+function liveOf(graph, node, now) {
+  if (!graph.live || now === null || node.kind === 'peer') return null
+  const id = node.kind === 'session' ? node.id : node.sessionId
+  const entry = graph.live.get(id)
+  if (entry) return node.kind === 'session' ? entry : null
+  const session = graph.nodes.get(id)
+  if (!session) return null
+  const ended = graph.seenLive.has(id) || (session.openTools.size === 0 && now - session.lastAt > CLOSED_GRACE_MS)
+  return ended ? { status: 'closed' } : null
+}
 
 export function applyLines(graph, nodeId, text) {
   for (const line of text.split('\n')) {
@@ -400,8 +478,8 @@ function oldestOpenTool(node) {
   return oldest && { name: oldest.name, since: oldest.since }
 }
 
-function publicNode(graph, node) {
-  const parentId = node.kind === 'subagent' ? (graph.toolUseOwner.get(node.spawnToolUseId) ?? node.sessionId) : null
+function publicNode(graph, node, now) {
+  const parentId = parentOf(graph, node)
   const room = node.kind === 'session' ? sessionRoom(node) : (mainRepo(node.repos) ?? graph.nodes.get(parentId)?.home ?? null)
   return {
     id: node.id,
@@ -424,29 +502,67 @@ function publicNode(graph, node) {
     sessionId: node.sessionId ?? null,
     parentId,
     plans: [...node.plans],
+    live: liveOf(graph, node, now),
+    youWaits: node.youWaits,
   }
 }
 
+const parentOf = (graph, node) => (node.kind === 'subagent' ? (graph.toolUseOwner.get(node.spawnToolUseId) ?? node.sessionId) : null)
+const sessionOf = (node) => (node.kind === 'session' ? node.id : node.sessionId)
+
+// Whether two agents' edits of one file could have crossed. A parent and the subagent it started hand
+// work to each other, so they never count. Agents of one session count while their edits overlap;
+// separate sessions don't know about each other, so editing within the window of each other counts.
+function editsCross(graph, a, b, editA, editB) {
+  if (parentOf(graph, a) === b.id || parentOf(graph, b) === a.id) return false
+  const gap = Math.max(editA.first, editB.first) - Math.min(editA.last, editB.last)
+  return sessionOf(a) === sessionOf(b) ? gap <= 0 : gap < COLLISION_MS
+}
+
+// Pairs of agents that edited the same file lately: [{ a, b, files (basenames), repo, at }].
+function collisions(graph, nodes, now) {
+  const editors = new Map()
+  for (const node of nodes) {
+    for (const [path, edit] of node.edits ?? []) if (now - edit.last < COLLISION_MS) editors.set(path, [...(editors.get(path) ?? []), [node, edit]])
+  }
+  const pairs = new Map()
+  for (const [path, list] of editors) {
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const [[a, editA], [b, editB]] = [list[i], list[j]].sort(([x], [y]) => (x.id < y.id ? -1 : 1))
+        if (!editsCross(graph, a, b, editA, editB)) continue
+        const key = `${a.id}>${b.id}`
+        const pair = pairs.get(key) ?? { a: a.id, b: b.id, files: [], repo: editA.repo ?? editB.repo ?? null, at: 0 }
+        if (!pair.files.includes(basename(path))) pair.files.push(basename(path))
+        pair.at = Math.max(pair.at, editA.last, editB.last)
+        pairs.set(key, pair)
+      }
+    }
+  }
+  return [...pairs.values()]
+}
+
 // A session waiting on you stays visible longer than everything else, so a real wait
-// doesn't silently drop off the list.
-export function snapshot(graph, since, waitingSince = since) {
+// doesn't silently drop off the list. Collisions are live only: pass now to get them.
+export function snapshot(graph, since, waitingSince = since, now = null) {
   const isVisible = (node) => node.lastAt >= since || (node.kind === 'session' && node.waiting && node.lastAt >= waitingSince)
   const visible = [...graph.nodes.values()].filter(isVisible)
   const ids = new Set(visible.map((node) => node.id))
-  const nodes = visible.map((node) => publicNode(graph, node))
+  const nodes = visible.map((node) => publicNode(graph, node, now))
   for (const node of nodes) if (!ids.has(node.parentId)) node.parentId = null
   collapseAreas(nodes)
   const messages = [...graph.messages.values()].filter((edge) => ids.has(edge.from) && ids.has(edge.to))
-  return { nodes, messages }
+  return { nodes, messages, collisions: now === null ? [] : collisions(graph, visible, now) }
 }
 
 // The state a node had at `at`: the latest history entry that is not later than it.
 function nodeAt(node, at) {
   const entry = node.history.findLast((candidate) => candidate[0] <= at)
   // Before the oldest kept entry there's nothing to show but that the node existed.
-  if (!entry) return { ...node, activity: null, lastTool: null, waiting: null, openTools: new Map(), backgroundTasks: new Map(), lastAt: Math.min(node.firstAt, at) }
+  const youWaits = node.youWaits.filter(([, end]) => end <= at)
+  if (!entry) return { ...node, activity: null, lastTool: null, waiting: null, openTools: new Map(), backgroundTasks: new Map(), youWaits, lastAt: Math.min(node.firstAt, at) }
   const [since, activity, reason, lastTool, lastAt] = entry
-  return { ...node, activity, lastTool, lastAt: Math.min(lastAt, at), waiting: reason && { reason, since }, openTools: new Map(), backgroundTasks: new Map() }
+  return { ...node, activity, lastTool, lastAt: Math.min(lastAt, at), waiting: reason && { reason, since }, openTools: new Map(), backgroundTasks: new Map(), youWaits }
 }
 
 // The graph as it was at `at`, through the same visibility rules as the live snapshot.
@@ -472,15 +588,28 @@ const probablyAsking = (node, now) => node.owesReply && !node.waiting && !node.p
 const BACKGROUND_MS = 30 * 60_000
 const runsInBackground = (node, now) => (node.background ?? []).some((task) => now - task.since < BACKGROUND_MS)
 
+// What Claude Code itself says, where it says it (the same rule as liveWait in web/src/status.ts):
+// a prompt or dialog open, or a turn over with nothing left running, is waiting on you; busy isn't.
+function liveWait(node) {
+  const { live } = node
+  if (live.status === 'waiting') return { reason: live.reason, since: live.since }
+  if (live.status === 'idle') return node.waiting ?? { reason: 'reply', since: live.since }
+  return null
+}
+
 // A session whose turn ended while its subagents or background calls still run is waiting on them, not on you.
 export function waitingSessions({ nodes }, now = Date.now()) {
   const busy = new Set(nodes.filter((node) => node.kind === 'subagent' && isRunning(node, now)).map((node) => node.sessionId))
   for (const node of nodes) if (node.kind === 'session' && runsInBackground(node, now)) busy.add(node.id)
   const asking = (node) => (probablyAsking(node, now) ? { reason: 'question', since: node.lastAt } : null)
+  const guessed = (node) => {
+    const waiting = asking(node) ?? node.waiting
+    return waiting && (waiting.reason === 'question' || !busy.has(node.id)) ? waiting : null
+  }
   return nodes
     .filter((node) => node.kind === 'session')
-    .map((node) => ({ node, waiting: asking(node) ?? node.waiting }))
-    .filter(({ node, waiting }) => waiting && (waiting.reason === 'question' || !busy.has(node.id)))
+    .map((node) => ({ node, waiting: node.live ? liveWait(node) : guessed(node) }))
+    .filter(({ waiting }) => waiting)
     .map(({ node, waiting }) => ({ id: node.id, label: node.label, room: node.room, branch: node.branch, reason: waiting.reason, since: waiting.since }))
     .sort((a, b) => a.since - b.since)
 }
@@ -490,9 +619,43 @@ export function waitingSessions({ nodes }, now = Date.now()) {
 export function forget(graph, cutoff) {
   const forgotten = new Set()
   for (const [id, node] of graph.nodes) if (node.lastAt > 0 && node.lastAt < cutoff) forgotten.add(id)
-  for (const id of forgotten) graph.nodes.delete(id)
+  for (const id of forgotten) {
+    graph.nodes.delete(id)
+    graph.seenLive.delete(id)
+  }
   for (const [key, edge] of graph.messages) if (forgotten.has(edge.from) || forgotten.has(edge.to)) graph.messages.delete(key)
   return forgotten
+}
+
+// Records closer together than this read as one stretch of work in the day view.
+const SPAN_JOIN_MS = 2 * 60_000
+
+// Joins [start, end] spans that overlap or nearly touch.
+export function joinSpans(spans, gap = 0) {
+  const joined = []
+  for (const [start, end] of [...spans].sort((a, b) => a[0] - b[0])) {
+    const last = joined.at(-1)
+    if (last && start - last[1] <= gap) last[1] = Math.max(last[1], end)
+    else joined.push([start, end])
+  }
+  return joined
+}
+
+// When an agent was working, from its history: every stretch that wasn't a wait.
+function workSpans(node, since) {
+  const spans = node.history.filter(([, , reason]) => !reason).map(([start, , , , last]) => [start, last])
+  return joinSpans(spans, SPAN_JOIN_MS).filter(([, end]) => end >= since)
+}
+
+// For the day view: per session from `since`, when it worked and when its subagents did.
+export function day(graph, since) {
+  const agentSpans = new Map()
+  for (const node of graph.nodes.values()) {
+    if (node.kind === 'subagent' && node.sessionId) agentSpans.set(node.sessionId, [...(agentSpans.get(node.sessionId) ?? []), ...workSpans(node, since)])
+  }
+  return [...graph.nodes.values()]
+    .filter((node) => node.kind === 'session' && node.lastAt >= since)
+    .map((node) => ({ id: node.id, runs: workSpans(node, since), agentRuns: joinSpans(agentSpans.get(node.id) ?? [], SPAN_JOIN_MS) }))
 }
 
 export function timeline(graph, id) {

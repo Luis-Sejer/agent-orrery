@@ -1,6 +1,7 @@
 // Serves a live graph of local Claude Code sessions, built by tailing their transcripts,
 // plus read-only views of the plans and memory notes Claude keeps.
-// Read-only and loopback-only: no hooks, no runtime dependencies, nothing written to disk.
+// Loopback-only, with no hooks and no runtime dependencies. It never writes Claude Code's files or your
+// code; the only thing it writes is its own state (settings, dismissals) in its data folder.
 
 import { createServer } from 'node:http'
 import { watch } from 'node:fs'
@@ -9,9 +10,10 @@ import { homedir } from 'node:os'
 import { extname, join, relative } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-import { applyLines, createGraph, ensureNode, forget, replay, snapshot, timeline, waitingSessions } from './graph.mjs'
+import { applyLines, createGraph, day, ensureNode, forget, replay, setLive, snapshot, timeline, waitingSessions } from './graph.mjs'
 import { createLibrary } from './library.mjs'
-import { createRepoResolver } from './repos.mjs'
+import { createRepoResolver, readText } from './repos.mjs'
+import { createStore, settingDefaults } from './store.mjs'
 
 const PORT = Number(process.env.AGENT_ORRERY_PORT ?? 4777)
 // Inside Docker the server must listen on all interfaces; compose publishes it on 127.0.0.1 only.
@@ -21,6 +23,12 @@ const WINDOW_MS = Number(process.env.AGENT_ORRERY_WINDOW_HOURS ?? 6) * HOUR_MS
 const WAITING_WINDOW_MS = Number(process.env.AGENT_ORRERY_WAITING_HOURS ?? 24) * HOUR_MS
 const CLAUDE_DIR = process.env.AGENT_ORRERY_CLAUDE_DIR ?? join(homedir(), '.claude')
 const PROJECTS_DIR = join(CLAUDE_DIR, 'projects')
+// Where Agent Orrery keeps its own state. compose.yaml mounts a folder here; it's the only one it writes.
+const DATA_DIR = process.env.AGENT_ORRERY_DATA_DIR ?? join(homedir(), '.config', 'agent-orrery')
+// Claude Code keeps a small status file per running session here, named by its process id.
+const SESSIONS_DIR = join(CLAUDE_DIR, 'sessions')
+// Only these names are opened; the folder also holds each session's secret key file.
+const STATUS_FILE = /^\d{1,10}\.json$/
 const WEB_DIR = fileURLToPath(new URL('./web/dist/', import.meta.url))
 // File events trigger a read straight away; the slower check catches events that get lost,
 // which happens with Docker's file sharing.
@@ -108,6 +116,40 @@ async function readAppended(path, entry) {
   }
 }
 
+// Whether a process is still running. Errors other than "no such process" (EPERM) mean it is.
+function isAlive(pid) {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    return error.code !== 'ESRCH'
+  }
+}
+
+// What each running session is doing, in Claude Code's own words: busy, shell, idle or waiting, and
+// for a wait what it waits for. Null when the folder can't be read (an older Claude Code, or not
+// shared with Docker), which means unknown, not that every session has ended.
+async function readLiveSessions() {
+  const names = await readdir(SESSIONS_DIR).catch(() => null)
+  if (!names) return null
+  const sessions = []
+  for (const name of names) {
+    if (!STATUS_FILE.test(name)) continue
+    let file
+    try {
+      file = JSON.parse(readText(join(SESSIONS_DIR, name)))
+    } catch {
+      continue
+    }
+    // A crash leaves its file behind until the next Claude Code starts. Process ids can only be
+    // checked on the same system; inside Docker the file has to be believed.
+    if (file.pidDomain === process.platform && Number.isInteger(file.pid) && !isAlive(file.pid)) continue
+    const waitingFor = typeof file.waitingFor === 'string' ? file.waitingFor : null
+    sessions.push({ sessionId: file.sessionId, status: file.status, waitingFor, since: file.statusUpdatedAt })
+  }
+  return sessions
+}
+
 const clients = new Set()
 let lastPayload = ''
 let lastPushAt = 0
@@ -149,7 +191,8 @@ async function tick(discover, paths) {
   }
   for (const [path, entry] of tracked) if (!paths || paths.has(path)) await readAppended(path, entry)
   const now = Date.now()
-  const payload = JSON.stringify(snapshot(graph, now - WINDOW_MS, now - WAITING_WINDOW_MS))
+  setLive(graph, await readLiveSessions(), now)
+  const payload = JSON.stringify(snapshot(graph, now - WINDOW_MS, now - WAITING_WINDOW_MS, now))
   if (payload !== lastPayload) push(payload)
 }
 
@@ -208,10 +251,19 @@ function startWatching(scheduler) {
       const path = join(PROJECTS_DIR, name)
       scheduler.soon({ discover: !tracked.has(path), path })
     })
+    // A permission prompt changes a session's status file, not its transcript.
+    let statusWatcher = null
+    try {
+      statusWatcher = watch(SESSIONS_DIR, (_event, name) => name && STATUS_FILE.test(name) && scheduler.soon())
+      statusWatcher.on('error', () => statusWatcher.close())
+    } catch {
+      // No sessions folder (yet): the fallback check reads it once it exists.
+    }
     const fallback = setInterval(scheduler.now, FALLBACK_INTERVAL_MS)
     watcher.on('error', (error) => {
       console.warn('agent-orrery: file events stopped, polling instead', error.message)
       watcher.close()
+      statusWatcher?.close()
       clearInterval(fallback)
       poll()
     })
@@ -231,6 +283,14 @@ const SECURITY_HEADERS = {
   'Referrer-Policy': 'no-referrer',
   'Cache-Control': 'no-store',
 }
+const escapeAttribute = (text) => text.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+// The page starts from its state in a meta tag, so it draws with the right settings at once; a script
+// tag would need the CSP loosened.
+export function withState(html, state) {
+  return html.replace('<head>', `<head><meta name="agent-orrery-state" content="${escapeAttribute(JSON.stringify(state))}">`)
+}
+
 const CONTENT_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -249,6 +309,30 @@ export function isTrustedRequest(headers) {
   const site = headers['sec-fetch-site']
   if (site === undefined || site === 'same-origin' || site === 'none') return true
   return headers['sec-fetch-mode'] === 'navigate' && headers['sec-fetch-dest'] === 'document'
+}
+
+// Writes come only from the page itself: on top of the checks for every request, a write must say it
+// came from our own origin, as a browser always does for a fetch that changes something, and send JSON,
+// which a form on another site can't.
+export function isTrustedWrite(headers) {
+  return isTrustedRequest(headers) && ALLOWED_ORIGINS.has(headers.origin) && headers['sec-fetch-site'] !== 'cross-site' && headers['content-type']?.split(';')[0].trim() === 'application/json'
+}
+
+const MAX_BODY_BYTES = 64 * 1024
+
+async function readJsonBody(request) {
+  let size = 0
+  const chunks = []
+  for await (const chunk of request) {
+    size += chunk.length
+    if (size > MAX_BODY_BYTES) return null
+    chunks.push(chunk)
+  }
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'))
+  } catch {
+    return null
+  }
 }
 
 // The built page is served from a fixed list made at start-up, so a URL can never name another file.
@@ -272,7 +356,7 @@ function sendJson(response, body) {
 const API_ROUTES = {
   '/api/waiting': () => {
     const now = Date.now()
-    return waitingSessions(snapshot(graph, now - WINDOW_MS, now - WAITING_WINDOW_MS))
+    return waitingSessions(snapshot(graph, now - WINDOW_MS, now - WAITING_WINDOW_MS, now), now)
   },
   '/api/timeline': (query) => timeline(graph, query.get('id') ?? ''),
   '/api/replay': (query) => {
@@ -280,6 +364,10 @@ const API_ROUTES = {
     return Number.isFinite(at) && query.get('at') ? replay(graph, at, WINDOW_MS, WAITING_WINDOW_MS) : null
   },
   '/api/window': () => ({ windowMs: WINDOW_MS }),
+  '/api/day': (query) => {
+    const since = Number(query.get('since'))
+    return Number.isFinite(since) && query.get('since') ? day(graph, since) : null
+  },
   '/api/plans': () => library.listPlans(),
   '/api/plan': (query) => library.readPlan(query.get('name') ?? ''),
   '/api/memory': () => library.listMemory(),
@@ -287,8 +375,30 @@ const API_ROUTES = {
   '/api/search': (query) => library.search(query.get('q') ?? ''),
 }
 
-function createHandler(webFiles) {
+// Every open page hears about a change made in another, so a dismissal shows everywhere at once.
+function sendState(state, to = clients) {
+  for (const response of to) response.write(`event: state\ndata: ${JSON.stringify(state)}\n\n`)
+}
+
+const WRITE_ROUTES = {
+  '/api/settings': (store, body) => store.changeSettings(body),
+  '/api/dismissals': (store, body) => store.changeDismissals(body),
+}
+
+function createHandler(webFiles, store) {
   return async function handle(request, response) {
+    const write = WRITE_ROUTES[new URL(request.url, 'http://localhost').pathname]
+    if (request.method === 'PATCH' && write && isTrustedWrite(request.headers)) {
+      const body = await readJsonBody(request)
+      if (body === null) {
+        response.writeHead(400, SECURITY_HEADERS).end()
+        return
+      }
+      await write(store, body)
+      sendState(store.get())
+      response.writeHead(204, SECURITY_HEADERS).end()
+      return
+    }
     if (!isTrustedRequest(request.headers) || request.method !== 'GET') {
       const { host, origin } = request.headers
       console.warn(`agent-orrery: refused ${request.method} host=${host} origin=${origin} site=${request.headers['sec-fetch-site']}`)
@@ -299,6 +409,8 @@ function createHandler(webFiles) {
     if (url.pathname === '/events') {
       response.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': 'text/event-stream' })
       response.write(`data: ${lastPayload || '{"nodes":[],"messages":[]}'}\n\n`)
+      // A page that reconnects may have missed changes made while it was away.
+      sendState(store.get(), [response])
       clients.add(response)
       request.on('close', () => clients.delete(response))
       return
@@ -313,7 +425,7 @@ function createHandler(webFiles) {
       response.writeHead(404, SECURITY_HEADERS).end()
       return
     }
-    const body = await readFile(file)
+    const body = file.endsWith('index.html') ? withState(await readFile(file, 'utf8'), store.get()) : await readFile(file)
     response.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': CONTENT_TYPES[extname(file)] }).end(body)
   }
 }
@@ -321,7 +433,7 @@ function createHandler(webFiles) {
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const webFiles = await listWebFiles(WEB_DIR)
   if (!webFiles.has('/index.html')) console.warn('agent-orrery: no built page in web/dist; run `pnpm build` first')
-  const handle = createHandler(webFiles)
+  const handle = createHandler(webFiles, createStore({ dir: DATA_DIR, defaults: settingDefaults() }))
   createServer((request, response) => {
     handle(request, response).catch(() => response.writeHead(500, SECURITY_HEADERS).end())
   }).listen(PORT, BIND_HOST, () => console.log(`agent-orrery: http://127.0.0.1:${PORT}`))

@@ -17,9 +17,27 @@ services:
       AGENT_ORRERY_PORT: ${AGENT_ORRERY_PORT:-4777}
       AGENT_ORRERY_WINDOW_HOURS: ${AGENT_ORRERY_WINDOW_HOURS:-6}
       AGENT_ORRERY_WAITING_HOURS: ${AGENT_ORRERY_WAITING_HOURS:-24}
+      # Its own state (settings, dismissed sessions): the one folder it writes to.
+      AGENT_ORRERY_DATA_DIR: /data
+      # Defaults for settings nobody has changed yet; Settings → "Copy these settings for .env" writes them.
+      AGENT_ORRERY_NOTIFICATIONS: ${AGENT_ORRERY_NOTIFICATIONS:-}
+      AGENT_ORRERY_VIEW: ${AGENT_ORRERY_VIEW:-}
+      AGENT_ORRERY_ARRANGEMENT: ${AGENT_ORRERY_ARRANGEMENT:-}
+      AGENT_ORRERY_THEME: ${AGENT_ORRERY_THEME:-}
+      AGENT_ORRERY_AGENTS_LAYOUT: ${AGENT_ORRERY_AGENTS_LAYOUT:-}
+      AGENT_ORRERY_HIDE_FINISHED: ${AGENT_ORRERY_HIDE_FINISHED:-}
+      AGENT_ORRERY_WORKTREE_ROOMS: ${AGENT_ORRERY_WORKTREE_ROOMS:-}
+      AGENT_ORRERY_CLEAN_VIEW: ${AGENT_ORRERY_CLEAN_VIEW:-}
+      AGENT_ORRERY_PAUSE_MOTION: ${AGENT_ORRERY_PAUSE_MOTION:-}
+      AGENT_ORRERY_VOICE: ${AGENT_ORRERY_VOICE:-}
     volumes:
+      # Settings and dismissed sessions, shared by every browser. Everything else is mounted read-only.
+      - ${AGENT_ORRERY_DATA:-./data}:/data
       - ${HOME}/.claude/projects:${HOME}/.claude/projects:ro
       - ${HOME}/.claude/plans:${HOME}/.claude/plans:ro
+      # What each running session is doing, in Claude Code's own words. Only its <pid>.json files are
+      # opened; the folder's key files are never read.
+      - ${HOME}/.claude/sessions:${HOME}/.claude/sessions:ro
       # Only read to tell which folders are git repositories.
       - ${AGENT_ORRERY_CODE_DIR:-${HOME}/Documents/GitHub}:${AGENT_ORRERY_CODE_DIR:-${HOME}/Documents/GitHub}:ro
     read_only: true

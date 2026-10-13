@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 
-import { applyLines, createGraph, ensureNode, forget, replay, shellActivity, snapshot, timeline, waitingSessions } from './graph.mjs'
+import { applyLines, createGraph, day, ensureNode, forget, joinSpans, replay, setLive, shellActivity, snapshot, timeline, waitingSessions } from './graph.mjs'
 import { createLibrary, snippetAround } from './library.mjs'
 import { createRepoResolver, pathsInToolInput } from './repos.mjs'
 import { isTrustedRequest } from './server.mjs'
@@ -552,4 +552,150 @@ test('background shells count only for the current turn, and close by task id or
   applyLines(graph, 's', line({ type: 'user', timestamp: at(6), origin: { kind: 'task-notification' }, message: { content: '<task-notification><task-id>b-one</task-id><status>completed</status></task-notification>' } }))
   applyLines(graph, 's', line({ type: 'assistant', timestamp: at(7), message: { content: [toolUse('stop', 'TaskStop', { task_id: 'b-two' })] } }))
   assert.deepEqual(snapshot(graph, 0).nodes[0].background, [{ name: 'Bash', since: Date.parse(at(5)) }])
+})
+
+const MINUTE = 60_000
+const edit = (second, file) => line({ type: 'assistant', timestamp: at(second), message: { stop_reason: 'tool_use', content: [toolUse(`e${second}${file}`, 'Edit', { file_path: file, new_string: 'SECRET' })] } })
+
+test('two sessions editing one file collide; a parent and its subagent, or agents taking turns, do not', () => {
+  const graph = createGraph({ resolveRepo })
+  ensureNode(graph, 's1', { kind: 'session', label: 'one', sessionId: 's1' })
+  ensureNode(graph, 's2', { kind: 'session', label: 'two', sessionId: 's2' })
+  ensureNode(graph, 'a1', { kind: 'subagent', label: 'child', sessionId: 's1', spawnToolUseId: 'spawn' })
+  ensureNode(graph, 'a2', { kind: 'subagent', label: 'sibling', sessionId: 's1', spawnToolUseId: 'spawn-2' })
+  applyLines(graph, 's1', edit(1, '/code/shop/cart.ts') + edit(2, '/code/shop/other.ts'))
+  applyLines(graph, 's2', edit(30, '/code/shop/cart.ts') + edit(31, '/code/shop/other.ts'))
+  applyLines(graph, 'a1', edit(10, '/code/shop/cart.ts'))
+  // a2 edits after a1 has finished with the file: one session's agents taking turns.
+  applyLines(graph, 'a2', edit(20, '/code/shop/cart.ts'))
+  const now = Date.parse(at(40))
+  const { collisions } = snapshot(graph, 0, 0, now)
+  const pairs = collisions.map(({ a, b, files }) => `${a}>${b}:${files.join(',')}`).sort()
+  assert.deepEqual(pairs, ['a1>s2:cart.ts', 'a2>s2:cart.ts', 's1>s2:cart.ts,other.ts'])
+  assert.equal(collisions.find(({ a }) => a === 's1').repo, 'shop')
+  // Ten minutes on, it's history.
+  assert.deepEqual(snapshot(graph, 0, 0, now + 10 * MINUTE).collisions, [])
+  // A replay has no collisions.
+  assert.deepEqual(snapshot(graph, 0).collisions, [])
+})
+
+test('agents of one session collide while their edits of a file overlap', () => {
+  const graph = createGraph({ resolveRepo })
+  ensureNode(graph, 's1', { kind: 'session', label: 'one', sessionId: 's1' })
+  ensureNode(graph, 'a1', { kind: 'subagent', label: 'one', sessionId: 's1', spawnToolUseId: 'x' })
+  ensureNode(graph, 'a2', { kind: 'subagent', label: 'two', sessionId: 's1', spawnToolUseId: 'y' })
+  applyLines(graph, 'a1', edit(1, '/code/shop/cart.ts') + edit(9, '/code/shop/cart.ts'))
+  applyLines(graph, 'a2', edit(5, '/code/shop/cart.ts'))
+  assert.deepEqual(snapshot(graph, 0, 0, Date.parse(at(10))).collisions.map(({ a, b }) => `${a}>${b}`), ['a1>a2'])
+})
+
+test('a wait counts as time on you once you answer it: a prompt, or the answer to a held-back question', () => {
+  const graph = createGraph({ resolveRepo })
+  ensureNode(graph, 's1', { kind: 'session', label: 'one', sessionId: 's1' })
+  applyLines(
+    graph,
+    's1',
+    line({ type: 'assistant', timestamp: at(1), message: { stop_reason: 'end_turn', content: [] } }) +
+      // News from a background task isn't you.
+      line({ type: 'user', timestamp: at(5), origin: { kind: 'task-notification' }, message: { content: 'done' } }) +
+      line({ type: 'user', timestamp: at(10), message: { content: 'SECRET' } }) +
+      line({ type: 'assistant', timestamp: at(20), message: { stop_reason: 'tool_use', content: [toolUse('q', 'AskUserQuestion', { questions: [] })] } }) +
+      line({ type: 'user', timestamp: at(45), message: { content: [{ type: 'tool_result', tool_use_id: 'q', content: 'SECRET' }] } }),
+  )
+  const [node] = snapshot(graph, 0).nodes
+  assert.deepEqual(node.youWaits, [
+    [Date.parse(at(1)), Date.parse(at(10))],
+    [Date.parse(at(20)), Date.parse(at(45))],
+  ])
+  // A replay knows only the waits that had ended by then.
+  assert.equal(replay(graph, Date.parse(at(30)), 3_600_000).nodes[0].youWaits.length, 1)
+})
+
+test('Claude Code\'s own status decides: a prompt waits on you, busy does not, and a closed session is over', () => {
+  const graph = createGraph({ resolveRepo })
+  for (const id of ['s1', 's2', 's3', 's4']) ensureNode(graph, id, { kind: 'session', label: id, sessionId: id })
+  ensureNode(graph, 'a3', { kind: 'subagent', label: 'child', sessionId: 's3', spawnToolUseId: 'x' })
+  const ended = line({ type: 'assistant', timestamp: at(1), message: { stop_reason: 'end_turn', content: [] } })
+  for (const id of ['s1', 's2', 's3', 's4']) applyLines(graph, id, ended)
+  applyLines(graph, 'a3', edit(2, '/code/shop/a.ts'))
+  const now = Date.parse(at(50))
+  // Before any status is known, the transcripts decide.
+  assert.equal(snapshot(graph, 0, 0, now).nodes[0].live, null)
+  setLive(
+    graph,
+    [
+      { sessionId: 's1', status: 'waiting', waitingFor: 'permission prompt', since: now - 1000 },
+      // Busy after its turn ended: background agents still run.
+      { sessionId: 's2', status: 'busy', since: now - 1000 },
+      { sessionId: 's3', status: 'idle', since: now - 1000 },
+      { sessionId: 's4', status: 'waiting', waitingFor: 'something new', since: now - 1000 },
+      { sessionId: 'x', status: 'nonsense' },
+    ],
+    now,
+  )
+  const live = Object.fromEntries(snapshot(graph, 0, 0, now).nodes.map((node) => [node.id, node.live]))
+  assert.deepEqual(live.s1, { status: 'waiting', since: now - 1000, reason: 'permission' })
+  assert.deepEqual(live.s4.reason, 'dialog')
+  assert.equal(live.a3, null)
+  const waiting = waitingSessions(snapshot(graph, 0, 0, now), now)
+  assert.deepEqual(waiting.map(({ id, reason }) => `${id}:${reason}`), ['s3:reply', 's1:permission', 's4:dialog'])
+
+  // s1's prompt is answered and s3 is closed: the prompt was time on you, and s3's subagent ends with it.
+  setLive(graph, [{ sessionId: 's1', status: 'busy', since: now + 5000 }], now + 6000)
+  const after = Object.fromEntries(snapshot(graph, 0, 0, now + 6000).nodes.map((node) => [node.id, node]))
+  assert.deepEqual(after.s1.youWaits.at(-1), [now - 1000, now + 5000])
+  assert.deepEqual(after.s3.live, { status: 'closed' })
+  assert.deepEqual(after.a3.live, { status: 'closed' })
+  assert.deepEqual(waitingSessions(snapshot(graph, 0, 0, now + 6000), now + 6000).map(({ id }) => id), [])
+})
+
+test('a session never seen running counts as closed only once it has been silent a while with nothing open', () => {
+  const graph = createGraph({ resolveRepo })
+  ensureNode(graph, 's1', { kind: 'session', label: 'one', sessionId: 's1' })
+  applyLines(graph, 's1', line({ type: 'assistant', timestamp: at(1), message: { stop_reason: 'tool_use', content: [toolUse('b', 'Bash', { command: 'pnpm test' })] } }))
+  setLive(graph, [], Date.parse(at(1)))
+  const start = Date.parse(at(1))
+  // A headless run may write no status file, so a long call keeps it running.
+  assert.equal(snapshot(graph, 0, 0, start + 10 * MINUTE).nodes[0].live, null)
+  applyLines(graph, 's1', line({ type: 'user', timestamp: at(2), message: { content: [{ type: 'tool_result', tool_use_id: 'b', content: '' }] } }))
+  assert.equal(snapshot(graph, 0, 0, start + 60_000).nodes[0].live, null)
+  assert.deepEqual(snapshot(graph, 0, 0, start + 3 * MINUTE).nodes[0].live, { status: 'closed' })
+})
+
+test('the day view joins a session\'s work into stretches and keeps its subagents\' apart', () => {
+  assert.deepEqual(joinSpans([[5, 8], [1, 3], [3, 4], [20, 30]]), [[1, 4], [5, 8], [20, 30]])
+  assert.deepEqual(joinSpans([[1, 4], [5, 8]], 1), [[1, 8]])
+  const graph = createGraph({ resolveRepo })
+  ensureNode(graph, 's1', { kind: 'session', label: 'one', sessionId: 's1' })
+  ensureNode(graph, 'a1', { kind: 'subagent', label: 'child', sessionId: 's1', spawnToolUseId: 'x' })
+  applyLines(
+    graph,
+    's1',
+    line({ type: 'user', timestamp: at(0), message: { content: 'go' } }) +
+      line({ type: 'assistant', timestamp: at(4), message: { stop_reason: 'end_turn', content: [] } }),
+  )
+  applyLines(graph, 'a1', edit(2, '/code/shop/a.ts') + edit(3, '/code/shop/a.ts'))
+  const [row] = day(graph, 0)
+  assert.equal(row.id, 's1')
+  assert.deepEqual(row.runs, [[Date.parse(at(0)), Date.parse(at(0))]])
+  assert.deepEqual(row.agentRuns, [[Date.parse(at(2)), Date.parse(at(3))]])
+})
+
+test('a forked subagent does not take over the parent message it starts with, so its parent stays its parent', () => {
+  const graph = createGraph({ resolveRepo })
+  ensureNode(graph, 's1', { kind: 'session', label: 'one', sessionId: 's1' })
+  ensureNode(graph, 'f1', { kind: 'subagent', label: 'fork one', sessionId: 's1', spawnToolUseId: 'spawn-1' })
+  ensureNode(graph, 'f2', { kind: 'subagent', label: 'fork two', sessionId: 's1', spawnToolUseId: 'spawn-2' })
+  const spawning = {
+    type: 'assistant',
+    timestamp: at(1),
+    message: { id: 'm1', usage: { input_tokens: 100, output_tokens: 10 }, stop_reason: 'tool_use', content: [toolUse('spawn-1', 'Agent', { description: 'one' }), toolUse('spawn-2', 'Agent', { description: 'two' })] },
+  }
+  applyLines(graph, 's1', line(spawning))
+  // Each fork's transcript repeats the message that started it.
+  for (const id of ['f1', 'f2']) applyLines(graph, id, line({ ...spawning, isSidechain: true }) + edit(5, '/code/shop/a.ts'))
+  const nodes = Object.fromEntries(snapshot(graph, 0).nodes.map((node) => [node.id, node]))
+  assert.equal(nodes.f1.parentId, 's1')
+  assert.equal(nodes.f2.parentId, 's1')
+  assert.deepEqual(Object.keys(nodes.f1.usage), [])
 })

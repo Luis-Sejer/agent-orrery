@@ -5,3 +5,4 @@ web/dist
 docs
 *.log
 .env
+data
