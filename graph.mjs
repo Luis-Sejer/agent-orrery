@@ -335,13 +335,24 @@ export function applyRecord(graph, nodeId, record) {
   if (isActivity(record) && at > 0) recordHistory(node, at)
 }
 
+let reportedError = false
+
 export function applyLines(graph, nodeId, text) {
   for (const line of text.split('\n')) {
     if (!line) continue
+    let record
     try {
-      applyRecord(graph, nodeId, JSON.parse(line))
+      record = JSON.parse(line)
     } catch {
       // A malformed line is skipped; one bad record must not stop the rest of the file.
+      continue
+    }
+    try {
+      applyRecord(graph, nodeId, record)
+    } catch (error) {
+      // A record we fail on is skipped too, but that's a bug of ours, so say so (once).
+      if (!reportedError) console.error('agent-orrery: skipped a record it could not read', error)
+      reportedError = true
     }
   }
 }

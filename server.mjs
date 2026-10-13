@@ -9,7 +9,7 @@ import { homedir } from 'node:os'
 import { extname, join, relative } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-import { applyLines, createGraph, ensureNode, replay, snapshot, timeline, waitingSessions } from './graph.mjs'
+import { applyLines, createGraph, ensureNode, forget, replay, snapshot, timeline, waitingSessions } from './graph.mjs'
 import { createLibrary } from './library.mjs'
 import { createRepoResolver } from './repos.mjs'
 
@@ -28,6 +28,8 @@ const EVENT_DEBOUNCE_MS = 150
 const FALLBACK_INTERVAL_MS = 5_000
 const POLL_INTERVAL_MS = 1_000
 const DISCOVER_EVERY_MS = 30_000
+const READ_CHUNK_BYTES = 4 * 1024 * 1024
+const MIN_PUSH_MS = 1_000
 
 const library = createLibrary({ claudeDir: CLAUDE_DIR })
 const graph = createGraph({ resolveRepo: createRepoResolver(), plansDir: library.plansDir })
@@ -88,14 +90,19 @@ async function readAppended(path, entry) {
   if (info.size < entry.offset) entry.offset = 0
   const handle = await open(path, 'r')
   try {
-    const chunk = Buffer.alloc(info.size - entry.offset)
-    await handle.read(chunk, 0, chunk.length, entry.offset)
-    entry.offset = info.size
-    // Keep the unfinished last line as bytes, so a UTF-8 character split across reads stays intact.
-    const data = Buffer.concat([entry.rest, chunk])
-    const end = data.lastIndexOf(0x0a) + 1
-    entry.rest = data.subarray(end)
-    applyLines(graph, entry.nodeId, data.subarray(0, end).toString('utf8'))
+    // In chunks, so a large transcript's first read never needs it all in memory at once.
+    while (entry.offset < info.size) {
+      const chunk = Buffer.alloc(Math.min(READ_CHUNK_BYTES, info.size - entry.offset))
+      const { bytesRead } = await handle.read(chunk, 0, chunk.length, entry.offset)
+      if (bytesRead === 0) break
+      entry.offset += bytesRead
+      // Keep the unfinished last line as bytes, so a UTF-8 character split across reads stays intact.
+      // It's copied: a view would keep the whole chunk alive for as long as the file is tracked.
+      const data = Buffer.concat([entry.rest, chunk.subarray(0, bytesRead)])
+      const end = data.lastIndexOf(0x0a) + 1
+      entry.rest = Buffer.from(data.subarray(end))
+      applyLines(graph, entry.nodeId, data.subarray(0, end).toString('utf8'))
+    }
   } finally {
     await handle.close()
   }
@@ -103,18 +110,47 @@ async function readAppended(path, entry) {
 
 const clients = new Set()
 let lastPayload = ''
+let lastPushAt = 0
+let pushTimer = null
 
-async function tick(discover) {
+// At most one push a second: the page redraws on each one, and busy agents write many times a second.
+function push(payload) {
+  lastPayload = payload
+  const wait = lastPushAt + MIN_PUSH_MS - Date.now()
+  if (wait > 0) {
+    pushTimer ??= setTimeout(() => {
+      pushTimer = null
+      send()
+    }, wait)
+    return
+  }
+  send()
+}
+
+function send() {
+  lastPushAt = Date.now()
+  for (const response of clients) response.write(`data: ${lastPayload}\n\n`)
+}
+
+// Transcripts and nodes older than discovery would pick up are dropped; a new line brings them back.
+function forgetOld() {
+  const cutoff = Date.now() - Math.max(WINDOW_MS, WAITING_WINDOW_MS)
+  const forgotten = forget(graph, cutoff)
+  for (const [path, entry] of tracked) if (forgotten.has(entry.nodeId)) tracked.delete(path)
+  for (const id of forgotten) sessionDirs.delete(id)
+}
+
+// Reads the files named by file events, or every tracked file when none are named.
+async function tick(discover, paths) {
   if (discover) {
+    forgetOld()
     await discoverSessions()
     await discoverSubagents()
   }
-  for (const [path, entry] of tracked) await readAppended(path, entry)
+  for (const [path, entry] of tracked) if (!paths || paths.has(path)) await readAppended(path, entry)
   const now = Date.now()
   const payload = JSON.stringify(snapshot(graph, now - WINDOW_MS, now - WAITING_WINDOW_MS))
-  if (payload === lastPayload) return
-  lastPayload = payload
-  for (const response of clients) response.write(`data: ${payload}\n\n`)
+  if (payload !== lastPayload) push(payload)
 }
 
 // Runs one tick at a time; a request during a tick runs another straight after it.
@@ -123,6 +159,9 @@ function createScheduler() {
   let again = false
   let discoverNext = true
   let lastDiscovery = 0
+  // Files named by file events since the last read; null means read them all.
+  let named = null
+  let everything = true
   async function run() {
     if (running) {
       again = true
@@ -134,18 +173,29 @@ function createScheduler() {
       const discover = discoverNext || Date.now() - lastDiscovery >= DISCOVER_EVERY_MS
       discoverNext = false
       if (discover) lastDiscovery = Date.now()
-      await tick(discover).catch((error) => console.error('agent-orrery: read failed', error))
+      const paths = everything || discover ? null : named
+      named = null
+      everything = false
+      await tick(discover, paths).catch((error) => console.error('agent-orrery: read failed', error))
     } while (again)
     running = false
   }
   let timer = null
   return {
-    soon({ discover = false } = {}) {
+    // A burst of events reads once, 150 ms after the first; waiting for a pause would put a busy
+    // agent's updates off until the fallback check.
+    soon({ discover = false, path = null } = {}) {
       discoverNext ||= discover
-      clearTimeout(timer)
-      timer = setTimeout(run, EVENT_DEBOUNCE_MS)
+      if (path && !everything) (named ??= new Set()).add(path)
+      timer ??= setTimeout(() => {
+        timer = null
+        run()
+      }, EVENT_DEBOUNCE_MS)
     },
-    now: run,
+    now() {
+      everything = true
+      return run()
+    },
   }
 }
 
@@ -155,7 +205,8 @@ function startWatching(scheduler) {
     const watcher = watch(PROJECTS_DIR, { recursive: true }, (_event, name) => {
       if (!name || !name.endsWith('.jsonl')) return
       // A transcript we don't track yet means a new session or subagent.
-      scheduler.soon({ discover: !tracked.has(join(PROJECTS_DIR, name)) })
+      const path = join(PROJECTS_DIR, name)
+      scheduler.soon({ discover: !tracked.has(path), path })
     })
     const fallback = setInterval(scheduler.now, FALLBACK_INTERVAL_MS)
     watcher.on('error', (error) => {
