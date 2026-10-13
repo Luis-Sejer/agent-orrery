@@ -1,7 +1,7 @@
-import type { Edge, Node } from '@xyflow/react'
+import { Position, type Edge, type Node, type NodeHandle } from '@xyflow/react'
 
 import { describeCost, mergeUsage } from './pricing'
-import { roomOf, statusOf } from './status'
+import { describeStatus, FRESH_MS, roomOf, statusOf } from './status'
 import type { AgentNode, Filter, GraphSnapshot } from './types'
 
 export const SESSION_SIZE = { width: 300, height: 100 }
@@ -27,12 +27,32 @@ export const Z_RELATED = 10
 const Z_LIT_EDGE = 30
 export const Z_FOCUSED = 40
 
+export const HANDLE_PX = 6
+
+type Size = { width: number; height: number }
+type HandleAt = { position: Position; x: number; y: number }
+
+// React Flow re-measures a node it is handed without a size, and drops its edges until then, so they
+// flicker whenever the layout rebuilds (selecting, the clock, the orbit 30 times a second). Nodes get
+// their size and handles up front instead, where the stylesheet draws them.
+export function fixedFrame(size: Size, source: HandleAt, target: HandleAt) {
+  const handle = (type: NodeHandle['type'], at: HandleAt): NodeHandle => ({ type, ...at, width: HANDLE_PX, height: HANDLE_PX })
+  return { measured: size, handles: [handle('source', source), handle('target', target)] }
+}
+
+// The grid's cards: edges leave from the right and arrive on the left, halfway down.
+export function sideFrame(size: Size) {
+  const y = size.height / 2 - HANDLE_PX / 2
+  return fixedFrame(size, { position: Position.Right, x: size.width - HANDLE_PX / 2, y }, { position: Position.Left, x: -HANDLE_PX / 2, y })
+}
+
 // React Flow requires node data to be assignable to Record<string, unknown>, which interfaces are not.
 export type CardData = { node: AgentNode; now: number; dimmed: boolean; focused: boolean; related: boolean; alsoIn: string[] }
 export type FoldData = { room: string; count: number; dimmed: boolean; related: boolean; onExpand: (room: string) => void }
 // foldable: the room is open and has enough finished agents to fold back into a pile.
 export type RoomData = { name: string; summary: string; dimmed: boolean; foldable: boolean; onCollapse: (room: string) => void }
-export type MessageData = { recent: boolean; count: number }
+// recent: a pulse travels along it; fresh: its dashes still flow.
+export type MessageData = { recent: boolean; fresh: boolean; count: number }
 
 export type CardNode = Node<CardData, 'session' | 'agent'>
 export type FoldNode = Node<FoldData, 'fold'>
@@ -85,6 +105,11 @@ export function relatedTo(graph: GraphSnapshot, selectedId: string | null): Set<
   return related
 }
 
+// An agent's node is a button that opens its details, named for the agent and what it's doing.
+export function opensDetails(node: AgentNode, now: number) {
+  return { ariaRole: 'button' as const, ariaLabel: `${node.label}, ${describeStatus(node, now)}` }
+}
+
 export function matches(node: AgentNode, filter: Filter, now: number): boolean {
   return filter === 'all' || statusOf(node, now) === filter
 }
@@ -120,10 +145,10 @@ export function groupIntoRooms(graph: GraphSnapshot, options: FlowOptions): Room
     room.folded = foldable
     room.agents = room.agents.filter((node) => !foldable.includes(node))
   }
-  // Rooms with sessions come first; within that, alphabetical, so rooms keep their place.
-  return [...rooms.values()].sort(
-    (a, b) => Number(b.sessions.length > 0) - Number(a.sessions.length > 0) || a.name.localeCompare(b.name),
-  )
+  // Rooms waiting on you come first, then rooms with sessions; within that, alphabetical, so rooms keep their place.
+  const waits = (room: Room) => Number(room.sessions.some((node) => statusOf(node, options.now) === 'waiting'))
+  const hasSessions = (room: Room) => Number(room.sessions.length > 0)
+  return [...rooms.values()].sort((a, b) => waits(b) - waits(a) || hasSessions(b) - hasSessions(a) || a.name.localeCompare(b.name))
 }
 
 function layoutRoom(room: Room): { placements: Placement[]; width: number; height: number } {
@@ -199,8 +224,11 @@ export function buildFlow(graph: GraphSnapshot, options: FlowOptions): { nodes: 
       width,
       height,
       style: { width, height },
+      measured: { width, height },
       zIndex: Z_ROOM,
       selectable: false,
+      // Only its "Hide finished" button takes focus.
+      focusable: false,
       data: { name: room.name, summary: summarise(room, now), dimmed: members.every(isDimmed), foldable: room.foldable, onCollapse: options.onCollapse },
     })
     const byId = new Map(members.map((node) => [node.id, node]))
@@ -213,7 +241,10 @@ export function buildFlow(graph: GraphSnapshot, options: FlowOptions): { nodes: 
           type: 'fold',
           position,
           ...FOLD_SIZE,
+          ...sideFrame(FOLD_SIZE),
           zIndex: Z_CARD,
+          // The pile is a button of its own; the node around it needn't be a second stop.
+          focusable: false,
           data: {
             room: room.name,
             count: room.folded.length,
@@ -232,7 +263,9 @@ export function buildFlow(graph: GraphSnapshot, options: FlowOptions): { nodes: 
         position,
         // Known sizes let the minimap and fit-to-view work without measuring the DOM.
         ...(node.kind === 'session' ? SESSION_SIZE : AGENT_SIZE),
+        ...sideFrame(node.kind === 'session' ? SESSION_SIZE : AGENT_SIZE),
         zIndex: focused ? Z_FOCUSED : related.has(node.id) ? Z_RELATED : Z_CARD,
+        ...opensDetails(node, now),
         data: { node, now, dimmed: isDimmed(node), focused, related: related.has(node.id), alsoIn },
       })
     }
@@ -243,6 +276,9 @@ export function buildFlow(graph: GraphSnapshot, options: FlowOptions): { nodes: 
 
   return { nodes, edges: buildEdges(graph, foldedInto, selectedId, now) }
 }
+
+// Lines would be read out as "Edge from <id> to <id>"; the drawer already says who is connected to whom.
+const UNSPOKEN = { domAttributes: { 'aria-hidden': true } } as const
 
 export function buildEdges(graph: GraphSnapshot, foldedInto: Map<string, string>, selectedId: string | null, now: number): Edge[] {
   const edges = new Map<string, Edge>()
@@ -264,7 +300,7 @@ export function buildEdges(graph: GraphSnapshot, foldedInto: Map<string, string>
     const { className, zIndex } = style(node.parentId, node.id)
     // A fold stands in for several agents; keep it lit if any of them is.
     if (edges.has(id) && !className.includes('lit')) continue
-    edges.set(id, { id, source, target, className: `spawn ${className}`, zIndex })
+    edges.set(id, { id, source, target, className: `spawn ${className}`, zIndex, ...UNSPOKEN })
   }
   for (const message of graph.messages) {
     const source = endpoint(message.from)
@@ -279,7 +315,8 @@ export function buildEdges(graph: GraphSnapshot, foldedInto: Map<string, string>
       type: 'message',
       className,
       zIndex,
-      data: { recent: now - message.lastAt < RECENT_MESSAGE_MS, count: message.count },
+      ...UNSPOKEN,
+      data: { recent: now - message.lastAt < RECENT_MESSAGE_MS, fresh: now - message.lastAt < FRESH_MS, count: message.count },
     })
   }
   return [...edges.values()]

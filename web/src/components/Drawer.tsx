@@ -90,7 +90,10 @@ export function Drawer({ node, parent, children, now, onClose, onSelect, onOpenP
       <header>
         <Orb state={orbStateOf(node, now)} size={64} ring={node.kind === 'session'} />
         <div>
-          <h3 className="serif">{node.label}</h3>
+          {/* Focused when the drawer opens, so a keyboard or screen reader lands on what was opened. */}
+          <h2 className="serif" tabIndex={-1}>
+            {node.label}
+          </h2>
           <p className="meta">{describeStatus(node, now)}</p>
         </div>
       </header>
@@ -173,12 +176,15 @@ export function Drawer({ node, parent, children, now, onClose, onSelect, onOpenP
             )}
           </div>
           <code className="command">{resumeCommand}</code>
+          <span className="visually-hidden" role="status">
+            {copied ? 'Copied the resume command' : ''}
+          </span>
         </div>
       )}
 
       {children.length > 0 && (
         <>
-          <h4 className="serif">Subagents</h4>
+          <h3 className="serif">Subagents</h3>
           <ol className="subagents">
             {[...children]
               .sort((a, b) => STATUS_RANK[statusOf(a, now)] - STATUS_RANK[statusOf(b, now)] || b.lastAt - a.lastAt)
@@ -199,7 +205,7 @@ export function Drawer({ node, parent, children, now, onClose, onSelect, onOpenP
         </>
       )}
 
-      <h4 className="serif">What it has done</h4>
+      <h3 className="serif">What it has done</h3>
       {events.length === 0 ? (
         <p className="empty-note">Nothing recorded yet.</p>
       ) : (

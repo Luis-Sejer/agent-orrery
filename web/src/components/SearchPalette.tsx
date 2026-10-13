@@ -120,7 +120,7 @@ export function SearchPalette({ open, nodes, now, onClose, onSelectNode, onOpenP
       key: `agent:${node.id}`,
       group: 'Agents' as const,
       title: node.label,
-      detail: [node.kind === 'session' ? 'Session' : node.agentType, node.room, node.branch].filter(Boolean).join(', '),
+      detail: [node.kind === 'session' ? 'session' : node.agentType, node.room, node.branch].filter(Boolean).join(', '),
       node,
       open: () => onSelectNode(node.id),
     }))
@@ -142,6 +142,9 @@ export function SearchPalette({ open, nodes, now, onClose, onSelectNode, onOpenP
   }, [needle, nodes, now, library, onSelectNode, onOpenPlan, onOpenNote])
 
   useEffect(() => setActive(0), [needle])
+
+  const groups = [...results.reduce((byGroup, result) => byGroup.set(result.group, [...(byGroup.get(result.group) ?? []), result]), new Map<Result['group'], Result[]>())]
+  const searched = needle.length >= MIN_QUERY
 
   function choose(result: Result | undefined) {
     if (!result) return
@@ -173,6 +176,10 @@ export function SearchPalette({ open, nodes, now, onClose, onSelectNode, onOpenP
         <Icon name="search" />
         <input
           type="search"
+          role="combobox"
+          aria-label="Search agents, plans and memory"
+          aria-expanded={results.length > 0}
+          aria-autocomplete="list"
           placeholder="Search agents, plans and memory"
           value={query}
           autoFocus
@@ -183,34 +190,46 @@ export function SearchPalette({ open, nodes, now, onClose, onSelectNode, onOpenP
         />
         <kbd>esc</kbd>
       </div>
-      <ul id="palette-results" className="palette-results" role="listbox">
-        {needle.length < MIN_QUERY && <li className="palette-hint">Type to search agents by name, repo or branch, and the text of plans and memory notes.</li>}
-        {needle.length >= MIN_QUERY && results.length === 0 && <li className="palette-hint">Nothing matches “{query.trim()}”.</li>}
-        {results.map((result, index) => (
-          <li key={result.key} role="presentation">
-            {(index === 0 || results[index - 1].group !== result.group) && <span className="palette-group">{result.group}</span>}
-            <button
-              type="button"
-              id={`result-${index}`}
-              role="option"
-              aria-selected={index === active}
-              className={index === active ? 'active' : ''}
-              onMouseMove={() => setActive(index)}
-              onClick={() => choose(result)}
-            >
-              {result.node && <Orb state={orbStateOf(result.node, now)} size={20} />}
-              <span className="palette-text">
-                <strong>
-                  <Highlight text={result.title} needle={needle} />
-                </strong>
-                <span>
-                  <Highlight text={result.detail} needle={needle} />
-                </span>
-              </span>
-            </button>
-          </li>
+      {!searched && <p className="palette-hint">Type to search agents by name, repo or branch, and the text of plans and memory notes.</p>}
+      {searched && results.length === 0 && <p className="palette-hint">Nothing matches “{query.trim()}”.</p>}
+      <p className="visually-hidden" role="status">
+        {searched ? (results.length === 0 ? 'No results' : `${results.length} ${results.length === 1 ? 'result' : 'results'}`) : ''}
+      </p>
+      <div id="palette-results" className="palette-results" role="listbox" aria-label="Results">
+        {groups.map(([group, members]) => (
+          <div key={group} role="group" aria-label={group}>
+            <span className="palette-group" aria-hidden="true">
+              {group}
+            </span>
+            {members.map((result) => {
+              const index = results.indexOf(result)
+              return (
+                <button
+                  key={result.key}
+                  type="button"
+                  id={`result-${index}`}
+                  role="option"
+                  tabIndex={-1}
+                  aria-selected={index === active}
+                  className={index === active ? 'active' : ''}
+                  onMouseMove={() => setActive(index)}
+                  onClick={() => choose(result)}
+                >
+                  {result.node && <Orb state={orbStateOf(result.node, now)} size={20} />}
+                  <span className="palette-text">
+                    <strong>
+                      <Highlight text={result.title} needle={needle} />
+                    </strong>
+                    <span>
+                      <Highlight text={result.detail} needle={needle} />
+                    </span>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
         ))}
-      </ul>
+      </div>
     </dialog>
   )
 }

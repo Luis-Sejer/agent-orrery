@@ -50,10 +50,12 @@ Transcripts hold people's code, prompts and secrets, and local dashboards are a 
 - **Messages** between agents come from `SendMessage` tool calls (outgoing) and user records with `origin.kind === 'peer'` (incoming).
 - **Orb states** come from the last tool an agent used (`ACTIVITY_BY_TOOL` in `graph.mjs`). Shell commands are classified by `shellActivity`: readers turn blue, writers violet, everything else green. Only the state is kept.
 - **Search** (`/api/search`) scans plan and memory-note text on the server and returns short snippets; agents are matched in the browser.
-- **Dismissals, theme and the notifications and voice switches** live in the browser's localStorage only. Voice uses on-device speech voices only, so titles never reach a speech service. Notifications come from the open tab, never a service worker, and only for waits that start after the page loaded.
+- **Dismissals, theme and the notifications, voice and Pause motion switches** live in the browser's localStorage only. Voice uses on-device speech voices only, so titles never reach a speech service. Notifications come from the open tab, never a service worker, and only for waits that start after the page loaded.
 
 ## Style
 
 Match the code around you: small functions, constants for magic numbers, and comments only for why. The look: Instrument Serif for headings, Inter for text, green `#34955f` and ink `#162925`, tonal surfaces without borders, an 8 px radius (3 px for chips), and dashed orbit rings for sessions. The T.Y.C.H.O. theme sets `data-theme="dark"` plus `data-hud` on `<html>`, so it inherits every dark style; its overrides live under `:root[data-hud]`. Check UI changes in a real browser before calling them done; `pnpm demo` gives you data to look at.
+
+Motion and keyboard: anything that moves asks `prefersStill()` (`web/src/motion.ts`), which is true under reduced motion or Pause motion (`data-still` on `<html>`), and CSS animations go in the stylesheet, where both stop them. Waits and messages animate only while they are fresh (`FRESH_MS`, two minutes). Agents on the canvas are buttons (`opensDetails` in `layout.ts`) that open on Enter or Space; rooms, piles and the backdrop are not focus stops, only their own buttons are. When a control disappears, move focus to where the user expects it (the drawer heading, the next card, the pile's "Hide finished").
 
 Never commit real transcripts, session names or screenshots of real sessions. Use the demo data (`scripts/demo.mjs`) for examples, tests and screenshots.

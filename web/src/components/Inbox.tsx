@@ -1,5 +1,7 @@
+import { useEffect, useRef } from 'react'
+
 import { describeSpend, mergeUsage } from '../pricing'
-import { ago, describeStatus, isQuiet, orbStateOf, statusOf, verbFor } from '../status'
+import { ago, describeStatus, isFreshWait, isQuiet, orbStateOf, statusOf, verbFor, waitingLine } from '../status'
 import type { Connection } from '../useGraph'
 import type { AgentNode } from '../types'
 import { beamStyle } from '../rhythm'
@@ -7,6 +9,7 @@ import { Orb } from './Orb'
 import { Wordmark } from './Wordmark'
 
 const RUNNING_SHOWN = 8
+const RESTORE = 'restore'
 
 interface InboxProps {
   nodes: AgentNode[]
@@ -20,11 +23,6 @@ interface InboxProps {
   onRestoreDismissed: () => void
 }
 
-function waitingLine(node: AgentNode, now: number): string {
-  const what = node.waiting?.reason === 'question' ? 'Asked you a question' : 'Finished'
-  return `${what}, ${ago(node.waiting?.since ?? node.lastAt, now)} ago`
-}
-
 const COUNT_WORDS = ['No agents are', 'One agent is', 'Two agents are', 'Three agents are', 'Four agents are', 'Five agents are']
 
 function waitingLede(count: number): string {
@@ -33,45 +31,80 @@ function waitingLede(count: number): string {
 
 const CONNECTION_LABELS = { connecting: 'Reconnecting', reconnecting: 'Reconnecting', live: 'Live', replay: 'Replay' }
 
+// Listed under Quiet already, so the line says what is open, or how long it has been silent.
+function quietLine(node: AgentNode, now: number): string {
+  return node.pendingTool ? describeStatus(node, now) : `Silent for ${ago(node.lastAt, now)}`
+}
+
+export function waitingOn(nodes: AgentNode[], now: number): AgentNode[] {
+  return nodes.filter((node) => statusOf(node, now) === 'waiting').sort((a, b) => (a.waiting?.since ?? 0) - (b.waiting?.since ?? 0))
+}
+
+const beamClass = (node: AgentNode, now: number) => (isFreshWait(node, now) ? 'beam fresh' : 'beam')
+
+// Dismissing a card takes its buttons away; focus moves to the next card, or to "Show dismissed".
+function useFocusAfterDismiss(waiting: AgentNode[], onDismiss?: (node: AgentNode) => void) {
+  const next = useRef<string | null>(null)
+  useEffect(() => {
+    if (!next.current) return
+    const selector = next.current === RESTORE ? '.inbox .restore' : `.inbox .turn[data-id="${CSS.escape(next.current)}"]`
+    next.current = null
+    document.querySelector<HTMLElement>(selector)?.focus()
+  })
+  if (!onDismiss) return undefined
+  return (node: AgentNode) => {
+    const at = waiting.indexOf(node)
+    next.current = (waiting[at + 1] ?? waiting[at - 1])?.id ?? RESTORE
+    onDismiss(node)
+  }
+}
+
 export function Inbox({ nodes, now, connection, selectedId, dismissedCount, onSelect, onDismiss, onRestoreDismissed }: InboxProps) {
-  const waiting = nodes
-    .filter((node) => statusOf(node, now) === 'waiting')
-    .sort((a, b) => (a.waiting?.since ?? 0) - (b.waiting?.since ?? 0))
+  const waiting = waitingOn(nodes, now)
   const runningNow = nodes
     .filter((node) => node.kind !== 'peer' && statusOf(node, now) === 'running')
     .sort((a, b) => b.lastAt - a.lastAt)
   const running = runningNow.filter((node) => !isQuiet(node, now))
   const quiet = runningNow.filter((node) => isQuiet(node, now))
   const spend = describeSpend(mergeUsage(nodes.map((node) => node.usage)))
+  const dismiss = useFocusAfterDismiss(waiting, onDismiss)
 
   return (
-    <aside className="inbox">
+    <aside className="inbox" aria-label="Your turn">
       <div className="inbox-top">
         <Wordmark />
-        <span className={`connection connection-${connection}`}>{CONNECTION_LABELS[connection]}</span>
+        <span className={`connection connection-${connection}`} role="status">
+          {CONNECTION_LABELS[connection]}
+        </span>
       </div>
       <h1 className="serif">Your turn</h1>
-      <p className="lede">{waitingLede(waiting.length)}</p>
+      <p className="lede" role="status">
+        {waitingLede(waiting.length)}
+      </p>
       <ol className="turns">
         {waiting.map((node) => (
           <li key={node.id} className="turn-item">
-            <button type="button" className={`turn beam${node.id === selectedId ? ' selected' : ''}`} style={beamStyle(node.id)} onClick={() => onSelect(node.id)}>
+            <button
+              type="button"
+              data-id={node.id}
+              className={`turn ${beamClass(node, now)}${node.id === selectedId ? ' selected' : ''}`}
+              style={beamStyle(node.id)}
+              onClick={() => onSelect(node.id)}
+            >
               <Orb state="listening" size={20} seed={node.id} />
               <strong className="serif">{node.label}</strong>
               <span className="where">
-                {node.room}
+                {node.room && (
+                  <span className="repo-name" title={node.room}>
+                    {node.room}
+                  </span>
+                )}
                 {node.branch && <span className="branch">{node.branch}</span>}
               </span>
               <span className="why">{waitingLine(node, now)}</span>
             </button>
-            {onDismiss && (
-              <button
-                type="button"
-                className="dismiss"
-                aria-label={`Dismiss ${node.label}`}
-                title="Dismiss until it does something new"
-                onClick={() => onDismiss(node)}
-              >
+            {dismiss && (
+              <button type="button" className="dismiss" aria-label={`Dismiss ${node.label}`} title="Dismiss until it does something new" onClick={() => dismiss(node)}>
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M7 7l10 10M17 7L7 17" />
                 </svg>
@@ -80,11 +113,29 @@ export function Inbox({ nodes, now, connection, selectedId, dismissedCount, onSe
           </li>
         ))}
       </ol>
-      {waiting.length === 0 && <p className="empty-note">Nothing needs you right now.</p>}
       {dismissedCount > 0 && (
         <button type="button" className="link restore" onClick={onRestoreDismissed}>
           Show {dismissedCount} dismissed
         </button>
+      )}
+
+      {/* Quiet agents may be waiting on an approval, so they come before the busy ones. */}
+      {quiet.length > 0 && (
+        <>
+          <h2 className="quiet-heading">Quiet</h2>
+          <ol className="running quiet-list">
+            {quiet.map((node) => (
+              <li key={node.id}>
+                <button type="button" onClick={() => onSelect(node.id)}>
+                  <Orb state={orbStateOf(node, now)} size={20} seed={node.id} />
+                  <span>
+                    <b>{node.label}</b> {quietLine(node, now)}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        </>
       )}
 
       <h2 className="serif">Running now</h2>
@@ -102,24 +153,28 @@ export function Inbox({ nodes, now, connection, selectedId, dismissedCount, onSe
       </ol>
       {running.length > RUNNING_SHOWN && <p className="empty-note">And {running.length - RUNNING_SHOWN} more.</p>}
       {running.length === 0 && <p className="empty-note">No agents are running.</p>}
-      {quiet.length > 0 && (
-        <>
-          <h3 className="quiet-heading">Quiet</h3>
-          <ol className="running quiet-list">
-            {quiet.map((node) => (
-              <li key={node.id}>
-                <button type="button" onClick={() => onSelect(node.id)}>
-                  <Orb state={orbStateOf(node, now)} size={20} seed={node.id} />
-                  <span>
-                    <b>{node.label}</b> {describeStatus(node, now)}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ol>
-        </>
-      )}
       {spend && <p className="spend-note">Everything in view: {spend}</p>}
     </aside>
+  )
+}
+
+// The clean view hides the side panel, but not who is waiting on you: a small list in the corner.
+export function TurnOverlay({ nodes, now, onSelect }: { nodes: AgentNode[]; now: number; onSelect: (id: string) => void }) {
+  const waiting = waitingOn(nodes, now)
+  if (waiting.length === 0) return null
+  return (
+    <nav className="turn-overlay" aria-label="Your turn">
+      <ol>
+        {waiting.map((node) => (
+          <li key={node.id}>
+            <button type="button" className={beamClass(node, now)} style={beamStyle(node.id)} onClick={() => onSelect(node.id)}>
+              <Orb state="listening" size={20} seed={node.id} />
+              <strong>{node.label}</strong>
+              <span className="why">{waitingLine(node, now)}</span>
+            </button>
+          </li>
+        ))}
+      </ol>
+    </nav>
   )
 }

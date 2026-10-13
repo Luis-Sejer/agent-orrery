@@ -20,10 +20,12 @@ export function replayLabel(at: number, now: number): string {
   return `${time}, ${ago(at, now)} ago`
 }
 
-function ReplayBanner({ at, now }: { at: number; now: number }) {
+// Said once when replay starts; the slider carries the moment shown, so the banner doesn't
+// announce every tick.
+function ReplayBanner() {
   return (
     <p className="replay-banner" role="status">
-      Replay: this is {replayLabel(at, now)}. Notifications are paused.
+      Replaying. Notifications are paused.
     </p>
   )
 }
@@ -32,7 +34,7 @@ export function ReplayBar({ at, now, windowMs, playing, onSeek, onTogglePlay, on
   const label = playing ? 'Pause' : 'Play'
   return (
     <div className="replay">
-      <ReplayBanner at={at} now={now} />
+      <ReplayBanner />
       <div className="replay-bar" role="group" aria-label="Replay">
         <button type="button" className="icon-button" aria-label={label} title={label} onClick={onTogglePlay}>
           <svg className="icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -42,6 +44,7 @@ export function ReplayBar({ at, now, windowMs, playing, onSeek, onTogglePlay, on
         <input
           type="range"
           aria-label="Time to show"
+          aria-valuetext={replayLabel(at, now)}
           min={now - windowMs}
           max={now}
           step={STEP_MS}

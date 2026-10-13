@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { FlowOptions } from './layout'
-import { buildOrrery, ORB_CENTRE_Y, ORBIT_SIZE, turnsAt, type BackdropNode, type OrreryNode, type System } from './radial'
+import { galaxyView, buildOrrery, ORB_CENTRE_Y, ORBIT_SIZE, turnsAt, type BackdropNode, type OrreryNode, type System } from './radial'
 import { phaseOf } from './rhythm'
 import type { AgentNode, GraphSnapshot } from './types'
 
@@ -251,5 +251,20 @@ describe('buildOrrery as a galaxy', () => {
     expect(sectors.filter((sector) => sector.system === 'shop').map((sector) => sector.label)).toEqual(['root', 'apps/api', 'apps/web'])
     expect(sectors.find((sector) => sector.system === 'docs')?.label).toBeNull()
     expect(systems.find((system) => system.name === 'shop')).toMatchObject({ waiting: 1, running: 2, tone: 'waiting' })
+  })
+})
+
+describe('galaxyView', () => {
+  it('centres on you when the screen has room to spare, and never cuts a system off', () => {
+    // Systems to your right and below; a wide screen has room to put you in the middle.
+    const box = { x: -260, y: -260, width: 1000, height: 600 }
+    const wide = galaxyView(box, 2200, 660, 0.1, 2)
+    expect(wide.zoom).toBeCloseTo(1)
+    expect(wide.x).toBe(0)
+    // Height is the limit, so it can only move as far towards you as keeps the box in view.
+    expect(wide.y).toBeCloseTo(-260 + 300)
+    // A narrow screen can't centre you at all without cutting systems off.
+    const narrow = galaxyView(box, 1100, 2000, 0.1, 2)
+    expect(narrow.x).toBeCloseTo(-260 + 500)
   })
 })

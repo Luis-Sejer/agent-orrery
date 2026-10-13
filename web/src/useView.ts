@@ -74,3 +74,7 @@ export const useCleanView = () => useStored<'off' | 'on'>('agent-orrery:clean', 
 
 // Worktrees fold into their repository unless you ask for a room per worktree.
 export const useWorktreeRooms = () => useStored<'off' | 'on'>('agent-orrery:worktrees', ['off', 'on'])
+
+// Pause motion holds every ring, orb, beam and glide still, as reduced motion does, for anyone who
+// wants a still page without changing their system setting.
+export const usePauseMotion = () => useStored<'off' | 'on'>('agent-orrery:still', ['off', 'on'])

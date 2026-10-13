@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
 
 import { Drawer } from './components/Drawer'
 import { GraphCanvas } from './components/GraphCanvas'
 import { Icon } from './components/Icon'
-import { Inbox } from './components/Inbox'
+import { Inbox, TurnOverlay } from './components/Inbox'
 import { Library } from './components/Library'
 import { ReplayBar } from './components/ReplayBar'
 import { SearchPalette } from './components/SearchPalette'
@@ -17,7 +17,7 @@ import { useGraph, useNow } from './useGraph'
 import { useNotifications } from './useNotifications'
 import { useReplay } from './useReplay'
 import { HudContext, useTheme } from './useTheme'
-import { useArrangement, useCleanView, useView, useWorktreeRooms } from './useView'
+import { useArrangement, useCleanView, usePauseMotion, useView, useWorktreeRooms } from './useView'
 import { useVoice } from './useVoice'
 
 const VIEWS: { value: View; label: string }[] = [
@@ -28,10 +28,23 @@ const VIEWS: { value: View; label: string }[] = [
 ]
 
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform)
+// A control appears once React and React Flow have drawn it; look for it this often, this many times.
+const FOCUS_RETRY_MS = 30
+const FOCUS_TRIES = 15
 
-function isTyping(target: EventTarget | null): boolean {
-  return target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+// Moves focus to whatever the selector finds, once it exists. preventScroll keeps the canvas from
+// scrolling its overflow to the element, which would throw it out of line with React Flow. A timer,
+// not an animation frame: a page with nothing to repaint may not get a frame for a while.
+function focusSoon(selector: string, tries = FOCUS_TRIES) {
+  setTimeout(() => {
+    const element = document.querySelector<HTMLElement>(selector)
+    if (element) element.focus({ preventScroll: true })
+    else if (tries > 1) focusSoon(selector, tries - 1)
+  }, FOCUS_RETRY_MS)
 }
+
+const byRoom = (selector: string, room: string) => `${selector}[data-room="${CSS.escape(room)}"]`
+const isShown = (element: HTMLElement | null): element is HTMLElement => !!element?.isConnected && element.getClientRects().length > 0
 
 export function App() {
   const { graph: liveGraph, connection, loaded } = useGraph()
@@ -60,18 +73,59 @@ export function App() {
 
   const nodesById = useMemo(() => new Map(graph.nodes.map((node) => [node.id, node])), [graph])
   const selected = selectedId ? (nodesById.get(selectedId) ?? null) : null
+  const selectedRef = useRef(selected)
+  selectedRef.current = selected
   const waitingCount = graph.nodes.filter((node) => statusOf(node, now) === 'waiting').length
 
   useEffect(() => {
     document.title = waitingCount > 0 ? `(${waitingCount}) Agent Orrery` : 'Agent Orrery'
   }, [waitingCount])
 
-  // Selecting from a list or a notification also moves the canvas to the agent, on the canvas you used last.
-  const selectAndFocus = useCallback((id: string) => {
-    toCanvas()
+  // Every motion check reads data-still (see motion.ts), so Pause motion holds the page still.
+  useEffect(() => {
+    document.documentElement.toggleAttribute('data-still', pauseMotion === 'on')
+  }, [pauseMotion])
+
+  // Opening the drawer moves focus to its heading; closing it gives focus back to what opened it.
+  const opener = useRef<HTMLElement | null>(null)
+  const [drawerOpened, setDrawerOpened] = useState(0)
+  const select = useCallback((id: string) => {
+    const from = document.activeElement
+    if (from instanceof HTMLElement && !from.closest('.drawer')) opener.current = from
     setSelectedId(id)
-    setFocusRequest({ id, at: Date.now() })
+    setDrawerOpened((count) => count + 1)
   }, [])
+  const returnTo = useRef<HTMLElement | null>(null)
+  const closeDrawer = useCallback(() => {
+    returnTo.current = opener.current
+    opener.current = null
+    setSelectedId(null)
+  }, [])
+  // After the drawer has gone, so focus doesn't land on a button that is about to disappear.
+  useEffect(() => {
+    if (selectedId) return
+    const back = returnTo.current
+    returnTo.current = null
+    if (isShown(back)) back.focus({ preventScroll: true })
+  }, [selectedId])
+  useEffect(() => {
+    if (drawerOpened === 0) return
+    const heading = document.querySelector<HTMLElement>('.drawer h2')
+    heading?.focus({ preventScroll: true })
+    heading?.scrollIntoView({ block: 'start' })
+  }, [drawerOpened])
+  // Clicking the empty canvas deselects without moving focus.
+  const selectOnCanvas = useCallback((id: string | null) => (id ? select(id) : setSelectedId(null)), [select])
+
+  // Selecting from a list or a notification also moves the canvas to the agent, on the canvas you used last.
+  const selectAndFocus = useCallback(
+    (id: string) => {
+      toCanvas()
+      select(id)
+      setFocusRequest({ id, at: Date.now() })
+    },
+    [select],
+  )
 
   // The menu bar companion opens the dashboard at #agent=<id>.
   useEffect(() => {
@@ -92,26 +146,32 @@ export function App() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const searchShortcut = (event.key === 'k' && (event.metaKey || event.ctrlKey)) || (event.key === '/' && !isTyping(event.target))
-      if (searchShortcut) {
+      if (event.key === 'k' && (event.metaKey || event.ctrlKey)) {
         event.preventDefault()
         setSearching(true)
-      } else if (event.key === 'Escape') setSelectedId(null)
+      } else if (event.key === 'Escape' && selectedRef.current && !(event.target instanceof Element && event.target.closest('dialog, [popover]'))) {
+        // Escape in the search palette or the settings closes those, not the drawer behind them.
+        closeDrawer()
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [closeDrawer])
 
-  const expandRoom = useCallback((room: string) => setExpandedRooms((rooms) => new Set(rooms).add(room)), [])
-  const collapseRoom = useCallback(
-    (room: string) =>
-      setExpandedRooms((rooms) => {
-        const next = new Set(rooms)
-        next.delete(room)
-        return next
-      }),
-    [],
-  )
+  // Opening a pile focuses its room's "Hide finished", and hiding them focuses the pile, so focus
+  // never falls off a button that is gone.
+  const expandRoom = useCallback((room: string) => {
+    setExpandedRooms((rooms) => new Set(rooms).add(room))
+    focusSoon(byRoom('.room-fold', room))
+  }, [])
+  const collapseRoom = useCallback((room: string) => {
+    setExpandedRooms((rooms) => {
+      const next = new Set(rooms)
+      next.delete(room)
+      return next
+    })
+    focusSoon(byRoom(':is(.fold, .pile)', room))
+  }, [])
 
   const openInLibrary = useCallback((kind: 'plans' | 'memory', key: string) => {
     setOpenRequest({ key, at: Date.now() })
@@ -124,6 +184,8 @@ export function App() {
     setOpenRequest(null)
     setView(next)
   }
+
+  const empty = loaded && graph.nodes.length === 0
 
   return (
     <HudContext.Provider value={hud}>
@@ -139,39 +201,42 @@ export function App() {
           onRestoreDismissed={restoreAll}
         />
 
-        <main className="stage">
-          <div className="toolbar">
-            <button type="button" className="search-button" onClick={() => setSearching(true)}>
-              <Icon name="search" />
-              <span>Search everything</span>
-              <kbd>{IS_MAC ? '⌘K' : 'Ctrl K'}</kbd>
-            </button>
-            <div className="tabs views" role="group" aria-label="View">
-              {VIEWS.map((option) => (
-                <button key={option.value} type="button" className={view === option.value ? 'on' : ''} aria-pressed={view === option.value} onClick={() => switchView(option.value)}>
-                  {option.label}
-                </button>
-              ))}
-            </div>
-            <SettingsMenu
-              onCanvas={onCanvas}
-              inOrrery={view === 'orrery'}
-              filter={filter}
-              onFilter={setFilter}
-              arrangement={arrangement}
-              onArrange={arrange}
-              replaying={replay.open}
-              onReplay={replay.open ? replay.stop : replay.start}
-              notifications={notifications}
-              voice={voice}
-              theme={preference}
-              onTheme={chooseTheme}
-              clean={clean === 'on'}
-              onClean={(on) => setClean(on ? 'on' : 'off')}
-              worktreeRooms={worktreeRooms === 'on'}
-              onWorktreeRooms={(on) => setWorktreeRooms(on ? 'on' : 'off')}
-            />
+        <div className="toolbar">
+          <button type="button" className="search-button" aria-label="Search everything" aria-keyshortcuts={IS_MAC ? 'Meta+K' : 'Control+K'} onClick={() => setSearching(true)}>
+            <Icon name="search" />
+            <span>Search everything</span>
+            <kbd>{IS_MAC ? '⌘K' : 'Ctrl K'}</kbd>
+          </button>
+          <div className="tabs views" role="group" aria-label="View">
+            {VIEWS.map((option) => (
+              <button key={option.value} type="button" className={view === option.value ? 'on' : ''} aria-pressed={view === option.value} onClick={() => switchView(option.value)}>
+                {option.label}
+              </button>
+            ))}
           </div>
+          <SettingsMenu
+            onCanvas={onCanvas}
+            inOrrery={view === 'orrery'}
+            filter={filter}
+            onFilter={setFilter}
+            arrangement={arrangement}
+            onArrange={arrange}
+            replaying={replay.open}
+            onReplay={replay.open ? replay.stop : replay.start}
+            notifications={notifications}
+            voice={voice}
+            pauseMotion={pauseMotion === 'on'}
+            onPauseMotion={(on) => setPauseMotion(on ? 'on' : 'off')}
+            theme={preference}
+            onTheme={chooseTheme}
+            clean={clean === 'on'}
+            onClean={(on) => setClean(on ? 'on' : 'off')}
+            worktreeRooms={worktreeRooms === 'on'}
+            onWorktreeRooms={(on) => setWorktreeRooms(on ? 'on' : 'off')}
+          />
+        </div>
+
+        <main className={`stage${onCanvas ? '' : ' reading'}${empty && onCanvas ? ' empty' : ''}`}>
 
           {onCanvas && (
             <>
@@ -189,12 +254,11 @@ export function App() {
                   onExpand={expandRoom}
                   onCollapse={collapseRoom}
                   focusRequest={focusRequest}
-                  onSelect={setSelectedId}
+                  onSelect={selectOnCanvas}
                 />
               </ReactFlowProvider>
-              {loaded && graph.nodes.length === 0 && (
-                <p className="canvas-empty">No Claude Code activity in the last few hours. Start a session and it appears here.</p>
-              )}
+              {empty && <p className="canvas-empty">No Claude Code activity in the last few hours. Start a session and it appears here.</p>}
+              {clean === 'on' && <TurnOverlay nodes={graph.nodes} now={now} onSelect={selectAndFocus} />}
             </>
           )}
           {replay.open && (
@@ -209,10 +273,17 @@ export function App() {
             parent={selected.parentId ? (nodesById.get(selected.parentId) ?? null) : null}
             children={graph.nodes.filter((node) => node.parentId === selected.id)}
             now={now}
-            onClose={() => setSelectedId(null)}
+            onClose={closeDrawer}
             onSelect={selectAndFocus}
             onOpenPlan={openPlan}
-            onDismiss={replay.open ? undefined : dismiss}
+            onDismiss={
+              replay.open
+                ? undefined
+                : (node) => {
+                    dismiss(node)
+                    closeDrawer()
+                  }
+            }
           />
         )}
 

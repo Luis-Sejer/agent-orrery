@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useId, type FocusEvent, type ReactNode } from 'react'
 
 import type { Arrangement } from '../radial'
 import type { Filter } from '../types'
@@ -37,6 +37,8 @@ interface SettingsMenuProps {
   onReplay: () => void
   notifications: Switch
   voice: Switch
+  pauseMotion: boolean
+  onPauseMotion: (on: boolean) => void
   theme: ThemePreference
   onTheme: (theme: ThemePreference) => void
   clean: boolean
@@ -60,16 +62,36 @@ function Choice<T extends string>({ label, options, value, onChange }: { label: 
   )
 }
 
-function Toggle({ label, detail, on, disabled, onChange }: { label: string; detail?: ReactNode; on: boolean; disabled?: boolean; onChange: () => void }) {
+// The whole row toggles the switch, but only the name names it; the detail describes it. A blocked
+// switch stays focusable, so its reason can still be heard.
+function Toggle({ label, detail, on, disabled = false, onChange }: { label: string; detail?: ReactNode; on: boolean; disabled?: boolean; onChange: () => void }) {
+  const id = useId()
   return (
     <label className="setting toggle">
       <span>
-        <span className="setting-name">{label}</span>
-        {detail && <small>{detail}</small>}
+        <span className="setting-name" id={`${id}-name`}>
+          {label}
+        </span>
+        {detail && <small id={`${id}-detail`}>{detail}</small>}
       </span>
-      <input type="checkbox" role="switch" checked={on} disabled={disabled} onChange={onChange} />
+      <input
+        type="checkbox"
+        role="switch"
+        className="switch"
+        checked={on}
+        aria-labelledby={`${id}-name`}
+        aria-describedby={detail ? `${id}-detail` : undefined}
+        aria-disabled={disabled || undefined}
+        onChange={disabled ? () => {} : onChange}
+      />
     </label>
   )
+}
+
+// Light dismiss closes the popover on a click outside; tabbing out of it should close it too.
+function hideWhenFocusLeaves(event: FocusEvent<HTMLDivElement>) {
+  const next = event.relatedTarget
+  if (next instanceof Node && !event.currentTarget.contains(next) && !(next instanceof Element && next.closest('.settings-button'))) event.currentTarget.hidePopover()
 }
 
 // Everything that isn't search or a view, behind one button, so the dashboard stays clean.
@@ -82,8 +104,11 @@ export function SettingsMenu(props: SettingsMenuProps) {
     <>
       <button type="button" className={`icon-button settings-button${narrowed ? ' narrowed' : ''}`} popoverTarget="settings" aria-label="Settings" title="Settings">
         <Icon name="settings" />
+        <span className="settings-text" aria-hidden="true">
+          Settings
+        </span>
       </button>
-      <div id="settings" popover="auto" className="settings" role="dialog" aria-label="Settings">
+      <div id="settings" popover="auto" className="settings" role="dialog" aria-label="Settings" onBlur={hideWhenFocusLeaves}>
         {props.onCanvas && <Choice label="Show" options={FILTERS} value={props.filter} onChange={props.onFilter} />}
         {props.inOrrery && <Choice label="Arrange the orrery" options={ARRANGEMENTS} value={props.arrangement} onChange={props.onArrange} />}
         <Choice label="Theme" options={THEMES} value={props.theme} onChange={props.onTheme} />
@@ -102,7 +127,8 @@ export function SettingsMenu(props: SettingsMenuProps) {
           {props.onCanvas && (
             <Toggle label="Worktrees as their own rooms" detail="Each worktree's branch gets a room" on={props.worktreeRooms} onChange={() => props.onWorktreeRooms(!props.worktreeRooms)} />
           )}
-          <Toggle label="Clean view" detail="Hide the side panel, minimap and zoom" on={props.clean} onChange={() => props.onClean(!props.clean)} />
+          <Toggle label="Clean view" detail="Only the canvas, with who's waiting on you in a corner" on={props.clean} onChange={() => props.onClean(!props.clean)} />
+          <Toggle label="Pause motion" detail="Hold the rings, orbs and glows still" on={props.pauseMotion} onChange={() => props.onPauseMotion(!props.pauseMotion)} />
         </div>
       </div>
     </>

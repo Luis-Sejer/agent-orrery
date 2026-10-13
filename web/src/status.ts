@@ -79,13 +79,25 @@ export function ago(timestamp: number, now: number): string {
   return hours < 48 ? `${hours} h` : `${Math.round(hours / 24)} days`
 }
 
+const waitingSince = (node: AgentNode) => node.waiting?.since ?? node.lastAt
+
+export function isFreshWait(node: AgentNode, now: number): boolean {
+  return statusOf(node, now) === 'waiting' && now - waitingSince(node) < FRESH_MS
+}
+
+// A waiting session's line where it is already listed as waiting on you: Your turn, or a red card.
+export function waitingLine(node: AgentNode, now: number): string {
+  const what = node.waiting?.reason !== 'question' ? 'Finished' : node.waiting.probably ? 'Probably asking you a question' : 'Asked you a question'
+  return `${what}, ${ago(waitingSince(node), now)} ago`
+}
+
 export function describeStatus(node: AgentNode, now: number): string {
   const status = statusOf(node, now)
   if (status === 'waiting') {
-    const what = node.waiting?.reason === 'question' ? 'Asked you a question' : 'Finished, waiting for you'
-    return `${what}, ${ago(node.waiting?.since ?? node.lastAt, now)} ago`
+    if (node.waiting?.reason === 'question') return waitingLine(node, now)
+    return `Finished, waiting on you, ${ago(waitingSince(node), now)} ago`
   }
-  if (node.awaitingAgents) return `Waiting on ${node.awaitingAgents} ${node.awaitingAgents === 1 ? 'agent' : 'agents'}`
+  if (node.awaiting) return `Waiting on ${awaitingText(node.awaiting)}`
   if (isQuiet(node, now)) {
     if (!node.pendingTool) return `Quiet for ${ago(node.lastAt, now)}`
     return `${toolLabel(node.pendingTool.name)} has run for ${ago(node.pendingTool.since, now)}, may be waiting for your approval`

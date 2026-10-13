@@ -1,9 +1,11 @@
+import { memo } from 'react'
 import { BaseEdge, getBezierPath, Handle, Position, type Edge, type EdgeProps, type NodeProps } from '@xyflow/react'
 
 import type { CardNode, FoldNode, MessageData, RoomNode } from '../layout'
 import type { OrbitNode, PileNode } from '../radial'
+import { useStill } from '../motion'
 import { beamStyle } from '../rhythm'
-import { describeStatus, isQuiet, orbStateOf, statusOf } from '../status'
+import { describeStatus, isFreshWait, isQuiet, orbStateOf, statusOf, waitingLine } from '../status'
 import { Orb } from './Orb'
 import { OrreryBackdrop } from './OrreryBackdrop'
 
@@ -24,6 +26,7 @@ function cardClass(kind: string, data: CardNode['data']): string {
     kind,
     `status-${status}`,
     status === 'waiting' && 'beam',
+    isFreshWait(data.node, data.now) && 'fresh',
     isQuiet(data.node, data.now) && 'quiet',
     data.dimmed && 'dimmed',
     data.focused && 'focused',
@@ -31,6 +34,15 @@ function cardClass(kind: string, data: CardNode['data']): string {
   ]
     .filter(Boolean)
     .join(' ')
+}
+
+// Status lines are cut short on a card; the whole line is a hover away.
+function CardLine({ className = 'card-line', children }: { className?: string; children: string }) {
+  return (
+    <span className={className} title={children}>
+      {children}
+    </span>
+  )
 }
 
 export function SessionCard({ data }: NodeProps<CardNode>) {
@@ -44,11 +56,11 @@ export function SessionCard({ data }: NodeProps<CardNode>) {
         <strong className="card-title serif" title={node.label}>
           {node.label}
         </strong>
-        <span className="card-line">
+        <span className="card-line" title={[node.branch, alsoIn.length > 0 && `Also in ${alsoIn.join(', ')}`].filter(Boolean).join('. ')}>
           {node.branch && <span className="branch">{node.branch}</span>}
           {alsoIn.length > 0 && <span className="also">Also in {alsoIn.join(', ')}</span>}
         </span>
-        <span className={waiting ? 'card-line why' : 'card-line'}>{describeStatus(node, now)}</span>
+        {waiting ? <CardLine className="card-line why">{waitingLine(node, now)}</CardLine> : <CardLine>{describeStatus(node, now)}</CardLine>}
       </div>
     </div>
   )
@@ -64,8 +76,8 @@ export function AgentCard({ data }: NodeProps<CardNode>) {
         <strong className="card-title" title={node.label}>
           {node.label}
         </strong>
-        <span className="card-line">{node.kind === 'peer' ? 'Another session' : node.agentType}</span>
-        <span className="card-line">{describeStatus(node, now)}</span>
+        <CardLine>{node.kind === 'peer' ? 'Another session' : (node.agentType ?? '')}</CardLine>
+        <CardLine>{describeStatus(node, now)}</CardLine>
       </div>
     </div>
   )
@@ -75,7 +87,7 @@ export function AgentCard({ data }: NodeProps<CardNode>) {
 export function OrbitCard({ data }: NodeProps<OrbitNode>) {
   const { node, now } = data
   const status = statusOf(node, now)
-  const className = ['orbit-card', `status-${status}`, data.dimmed && 'dimmed', data.focused && 'focused', data.related && !data.focused && 'related']
+  const className = ['orbit-card', `status-${status}`, isFreshWait(node, now) && 'fresh', data.dimmed && 'dimmed', data.focused && 'focused', data.related && !data.focused && 'related']
     .filter(Boolean)
     .join(' ')
   return (
@@ -92,21 +104,21 @@ export function OrbitCard({ data }: NodeProps<OrbitNode>) {
 export function PileCard({ data }: NodeProps<PileNode>) {
   const className = ['orbit-card', 'pile', 'nodrag', data.dimmed && 'dimmed', data.related && 'related'].filter(Boolean).join(' ')
   return (
-    <button type="button" className={className} title={`${data.count} finished in ${data.room}. Show them`} onClick={() => data.onExpand(data.room)}>
+    <button type="button" className={className} data-room={data.room} title={`Show ${data.count} finished in ${data.room}`} onClick={() => data.onExpand(data.room)}>
       <Handle type="target" position={Position.Top} isConnectable={false} />
       <Handle type="source" position={Position.Top} isConnectable={false} />
       <span className="pile-count" aria-hidden="true">{data.count}</span>
-      <span className="orbit-label">{data.count} finished</span>
+      <span className="orbit-label">Show {data.count} finished</span>
     </button>
   )
 }
 
 export function FoldCard({ data }: NodeProps<FoldNode>) {
   return (
-    <button type="button" className={`card fold nodrag${data.dimmed ? ' dimmed' : ''}${data.related ? ' related' : ''}`} onClick={() => data.onExpand(data.room)}>
+    <button type="button" className={`card fold nodrag${data.dimmed ? ' dimmed' : ''}${data.related ? ' related' : ''}`} data-room={data.room} onClick={() => data.onExpand(data.room)}>
       <Handles />
       <span className="fold-dot" aria-hidden="true" />
-      {data.count} finished, show
+      Show {data.count} finished
     </button>
   )
 }
@@ -117,22 +129,26 @@ export function RoomBox({ data }: NodeProps<RoomNode>) {
       <span className="room-summary">
         {data.summary}
         {data.foldable && (
-          <button type="button" className="room-fold nodrag" onClick={() => data.onCollapse(data.name)}>
+          <button type="button" className="room-fold nodrag" data-room={data.name} onClick={() => data.onCollapse(data.name)}>
             Hide finished
           </button>
         )}
       </span>
-      <span className="room-name serif">{data.name}</span>
+      <span className="room-name serif" title={data.name}>
+        {data.name}
+      </span>
     </div>
   )
 }
 
+// A pulse travels along a new message; SMIL ignores the stylesheet, so holding still means not drawing it.
 export function MessageEdge(props: EdgeProps<Edge<MessageData, 'message'>>) {
   const [path] = getBezierPath(props)
+  const still = useStill()
   return (
     <>
-      <BaseEdge id={props.id} path={path} className="message-path" />
-      {props.data?.recent && (
+      <BaseEdge id={props.id} path={path} className={props.data?.fresh ? 'message-path fresh' : 'message-path'} />
+      {props.data?.recent && !still && (
         <circle r={4} className="message-pulse">
           <animateMotion dur="1.6s" repeatCount="indefinite" path={path} />
         </circle>

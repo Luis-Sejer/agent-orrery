@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildFlow, relatedTo, type CardNode, type FlowOptions } from './layout'
+import { buildFlow, buildEdges, groupIntoRooms, relatedTo, type CardNode, type FlowOptions } from './layout'
 import { foldWorktree } from './rooms'
 import { beamStyle, phaseOf } from './rhythm'
 import { statusOf } from './status'
@@ -117,6 +117,54 @@ describe('buildFlow', () => {
   it('gives every node a size, so the minimap can draw it', () => {
     const { nodes } = buildFlow(graphOf([lead, agent('child')]), options())
     for (const node of nodes) expect(node.width && node.height).toBeTruthy()
+  })
+})
+
+describe('rooms', () => {
+  it('put rooms waiting on you first, then rooms with sessions, then the rest by name', () => {
+    const graph = graphOf([
+      agent('a', { room: 'alpha', kind: 'session', parentId: null }),
+      agent('z', { room: 'zulu', kind: 'session', parentId: null, waiting: { reason: 'question', since: NOW - MINUTE } }),
+      agent('h', { room: 'helpers' }),
+      agent('b', { room: 'bravo', kind: 'session', parentId: null }),
+    ])
+    expect(groupIntoRooms(graph, options()).map((room) => room.name)).toEqual(['zulu', 'alpha', 'bravo', 'helpers'])
+  })
+})
+
+describe('keyboard', () => {
+  it('makes agents buttons named for what they do, and rooms and piles no stop of their own', () => {
+    const { nodes } = buildFlow(graphOf([lead, agent('w'), finished('f1'), finished('f2'), finished('f3')]), options())
+    const card = nodes.find((node) => node.id === 'w')!
+    expect(card.ariaRole).toBe('button')
+    expect(card.ariaLabel).toBe('w, Running a command 1 min ago')
+    expect(nodes.filter((node) => node.type === 'room' || node.type === 'fold').every((node) => node.focusable === false)).toBe(true)
+  })
+})
+
+describe('fixed frames', () => {
+  it('gives every grid node with edges its size and both handles, so React Flow never re-measures it', () => {
+    const { nodes } = buildFlow(graphOf([lead, agent('w'), finished('f1'), finished('f2'), finished('f3')]), options())
+    const withEdges = nodes.filter((node) => node.type !== 'room')
+    expect(withEdges.map((node) => node.type).sort()).toEqual(['agent', 'fold', 'session'])
+    for (const node of withEdges) {
+      expect(node.measured).toEqual({ width: node.width, height: node.height })
+      const [source, target] = node.handles!
+      expect([source.type, source.position, source.x, source.y]).toEqual(['source', 'right', node.width! - 3, node.height! / 2 - 3])
+      expect([target.type, target.position, target.x, target.y]).toEqual(['target', 'left', -3, node.height! / 2 - 3])
+    }
+    expect(nodes.filter((node) => node.type === 'room').every((node) => node.measured?.width === node.width)).toBe(true)
+  })
+})
+
+describe('message edges', () => {
+  it('flow while a message is under two minutes old, then rest', () => {
+    const graph = graphOf([lead, agent('w')], [
+      { from: 'lead', to: 'w', count: 1, lastAt: NOW - MINUTE },
+      { from: 'w', to: 'lead', count: 1, lastAt: NOW - 5 * MINUTE },
+    ])
+    const fresh = buildEdges(graph, new Map(), null, NOW).filter((edge) => edge.type === 'message').map((edge) => edge.data?.fresh)
+    expect(fresh).toEqual([true, false])
   })
 })
 

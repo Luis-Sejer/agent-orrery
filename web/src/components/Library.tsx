@@ -207,36 +207,39 @@ export function Library({ kind, nodes, now, openRequest, onSelectNode }: Library
         </nav>
       </div>
 
-      <article className="reader">
-        {!selected && <p className="empty-note">Choose {kind === 'plans' ? 'a plan' : 'a note'} to read it.</p>}
-        {selected && writers.length > 0 && (
-          <p className="written-by">
-            Written by{' '}
-            {writers.map((writer) => (
-              <button key={writer.id} type="button" className="link" onClick={() => onSelectNode(writer.id)}>
-                {writer.label}
-              </button>
-            ))}
-          </p>
-        )}
-        {selected && content === null && <p className="empty-note">Loading…</p>}
-        {note && (
-          <>
-            {(note.fields.description || note.fields.type) && (
-              <header className="note-header">
-                <h1 className="serif">{selected?.title}</h1>
-                {note.fields.description && <p>{note.fields.description}</p>}
-                {note.fields.type && <span className="chip">{note.fields.type}</span>}
-              </header>
-            )}
-            <div className="markdown">
-              <Markdown skipHtml disallowedElements={['img']} remarkPlugins={REMARK_PLUGINS} components={components}>
-                {note.body}
-              </Markdown>
-            </div>
-          </>
-        )}
-      </article>
+      {/* With nothing saved there is nothing to read, so no empty reader either. */}
+      {(selected || items.length > 0) && (
+        <article className="reader">
+          {!selected && <p className="empty-note">Choose {kind === 'plans' ? 'a plan' : 'a note'} to read it.</p>}
+          {selected && writers.length > 0 && (
+            <p className="written-by">
+              Written by{' '}
+              {writers.map((writer) => (
+                <button key={writer.id} type="button" className="link" onClick={() => onSelectNode(writer.id)}>
+                  {writer.label}
+                </button>
+              ))}
+            </p>
+          )}
+          {selected && content === null && <p className="empty-note">Loading…</p>}
+          {note && (
+            <>
+              {(note.fields.description || note.fields.type) && (
+                <header className="note-header">
+                  <h2 className="serif">{selected?.title}</h2>
+                  {note.fields.description && <p>{note.fields.description}</p>}
+                  {note.fields.type && <span className="chip">{note.fields.type}</span>}
+                </header>
+              )}
+              <div className="markdown">
+                <Markdown skipHtml disallowedElements={['img']} remarkPlugins={REMARK_PLUGINS} components={components}>
+                  {note.body}
+                </Markdown>
+              </div>
+            </>
+          )}
+        </article>
+      )}
     </div>
   )
 }

@@ -7,8 +7,10 @@
   --muted: #5b6763;
   --green: #34955f;
   --green-deep: #236b45;
-  --waiting: #c0504a;
+  --waiting: #b5443e;
   --amber: #b9822f;
+  /* The Quiet heading's amber, dark enough to read as text on the light inbox. */
+  --quiet-ink: #8a5f1c;
   --rule: rgba(52, 149, 95, 0.35);
   --ghost: rgba(196, 199, 200, 0.4);
   --shadow: 0 12px 32px rgba(25, 28, 29, 0.06);
@@ -16,7 +18,8 @@
   --shadow-lifted: 0 20px 48px rgba(25, 28, 29, 0.14);
   --hover: rgba(22, 41, 37, 0.04);
   --room: rgba(22, 41, 37, 0.035);
-  --room-name: rgba(22, 41, 37, 0.13);
+  /* A room's name: a watermark, but one you can still read (3:1 or more on the room). */
+  --room-name: rgba(22, 41, 37, 0.55);
   --line: #9fb3ad;
   --idle: #c4cbc9;
   --dot: rgba(22, 41, 37, 0.14);
@@ -44,6 +47,7 @@
   --green-deep: #2f8a57;
   --waiting: #e0766e;
   --amber: #d6a04f;
+  --quiet-ink: var(--amber);
   --rule: rgba(76, 175, 120, 0.4);
   --ghost: rgba(255, 255, 255, 0.12);
   --shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
@@ -51,7 +55,7 @@
   --shadow-lifted: 0 20px 48px rgba(0, 0, 0, 0.55);
   --hover: rgba(228, 235, 232, 0.05);
   --room: rgba(228, 235, 232, 0.035);
-  --room-name: rgba(228, 235, 232, 0.12);
+  --room-name: rgba(228, 235, 232, 0.4);
   --line: #4b5f59;
   --idle: #4d5c58;
   --dot: rgba(228, 235, 232, 0.12);
@@ -146,9 +150,22 @@ button {
   height: 100%;
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);
+  grid-template-areas: 'inbox stage';
   /* One row capped at the window, so each panel scrolls inside itself instead of the page. */
   grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
+}
+
+.inbox {
+  grid-area: inbox;
+}
+
+.stage {
+  grid-area: stage;
+}
+
+.drawer {
+  grid-area: drawer;
 }
 
 .inbox,
@@ -159,6 +176,12 @@ button {
 
 .app.with-drawer {
   grid-template-columns: 300px minmax(0, 1fr) 380px;
+  grid-template-areas: 'inbox stage drawer';
+}
+
+/* The drawer sits where the minimap would be. */
+.app.with-drawer .react-flow__minimap {
+  display: none;
 }
 
 .stage {
@@ -168,12 +191,15 @@ button {
   flex-direction: column;
 }
 
+/* The toolbar floats over the top of the stage, in the stage's grid area; on narrow screens it gets
+   a row of its own. It is a container, so its parts can shorten when the drawer narrows it. */
 .toolbar {
-  position: absolute;
+  grid-area: stage;
+  align-self: start;
+  position: relative;
   z-index: 5;
-  top: 16px;
-  left: 20px;
-  right: 20px;
+  margin: 16px 20px 0;
+  container: toolbar / inline-size;
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
@@ -210,6 +236,22 @@ button {
 
 .search-button:hover {
   color: var(--ink);
+}
+
+/* Narrow, the search button keeps its icon and shortcut, so the toolbar stays on one line. */
+@container toolbar (max-width: 719px) {
+  .search-button {
+    flex: none;
+  }
+  .search-button span {
+    display: none;
+  }
+}
+
+@container toolbar (max-width: 479px) {
+  .search-button kbd {
+    display: none;
+  }
 }
 
 kbd {
@@ -258,6 +300,24 @@ kbd {
   position: relative;
 }
 
+.settings-text {
+  display: none;
+}
+
+/* Wide screens have room to say what the button is. */
+@media (min-width: 1280px) {
+  .settings-button {
+    width: auto;
+    grid-auto-flow: column;
+    gap: 7px;
+    padding: 0 13px 0 11px;
+  }
+  .settings-text {
+    display: inline;
+    font-weight: 500;
+  }
+}
+
 /* A dot while a filter narrows what you see. */
 .settings-button.narrowed::after {
   content: '';
@@ -281,6 +341,9 @@ kbd {
   background: var(--surface-card);
   box-shadow: var(--shadow), 0 18px 40px rgba(25, 28, 29, 0.14);
   color: var(--ink);
+  max-height: calc(100dvh - 76px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .settings:popover-open {
@@ -304,7 +367,9 @@ kbd {
 }
 
 .setting .tabs button {
-  flex: 1;
+  flex: 1 1 auto;
+  padding-inline: 8px;
+  white-space: nowrap;
 }
 
 .setting-group {
@@ -332,21 +397,84 @@ kbd {
   font-size: 14px;
 }
 
-.setting.toggle input {
-  width: 18px;
-  height: 18px;
+/* A switch drawn on the checkbox: an outlined track and a knob that slides across, filled when on. */
+.switch {
+  appearance: none;
+  position: relative;
+  flex: none;
+  width: 34px;
+  height: 20px;
   margin: 0;
-  accent-color: var(--green);
+  border: 1.5px solid var(--muted);
+  border-radius: 999px;
+  background: transparent;
   cursor: pointer;
+  transition: background-color 150ms var(--ease), border-color 150ms var(--ease);
+}
+
+.switch::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 150ms var(--ease), background-color 150ms var(--ease);
+}
+
+.switch:checked {
+  border-color: var(--green);
+  background: var(--green);
+}
+
+.switch:checked::before {
+  transform: translateX(14px);
+  background: var(--on-ink);
+}
+
+.switch[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.setting.toggle:has(.switch[aria-disabled='true']) {
+  cursor: not-allowed;
+}
+
+@media (forced-colors: active) {
+  .switch {
+    forced-color-adjust: none;
+    border-color: CanvasText;
+    background: Canvas;
+  }
+  .switch::before {
+    background: CanvasText;
+  }
+  .switch:checked {
+    border-color: Highlight;
+    background: Highlight;
+  }
+  .switch:checked::before {
+    background: HighlightText;
+  }
+  /* The pressed tab loses its fill; an outline says which one it is. */
+  .tabs button.on {
+    outline: 2px solid CanvasText;
+    outline-offset: -2px;
+  }
 }
 
 /* The clean view: the orrery or the grid, and nothing else. */
 .app.clean {
   grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'stage';
 }
 
 .app.clean.with-drawer {
   grid-template-columns: minmax(0, 1fr) 380px;
+  grid-template-areas: 'stage drawer';
 }
 
 .app.clean .inbox,
@@ -444,7 +572,6 @@ kbd {
 }
 
 .palette-results {
-  list-style: none;
   margin: 0;
   padding: 6px;
   overflow-y: auto;
@@ -452,8 +579,21 @@ kbd {
 }
 
 .palette-hint {
-  padding: 14px 12px;
+  margin: 0;
+  padding: 14px 18px 8px;
   color: var(--muted);
+}
+
+/* The browser's clear button, redrawn as a cross in the muted ink rather than its own bright blue. */
+input[type='search']::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  background:
+    linear-gradient(45deg, transparent 45%, var(--muted) 45% 55%, transparent 55%),
+    linear-gradient(-45deg, transparent 45%, var(--muted) 45% 55%, transparent 55%);
+  cursor: pointer;
 }
 
 .palette-group {
@@ -513,6 +653,11 @@ mark {
   border-radius: 2px;
   background: var(--green-wash);
   color: var(--ink);
+}
+
+/* With nothing to show, the orrery's rings and core step aside for the message. */
+.stage.empty .react-flow__node-backdrop {
+  display: none;
 }
 
 .canvas-empty {
@@ -719,10 +864,32 @@ mark {
 .turn strong {
   font-size: 17px;
   line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
+/* The repository and branch wrap as a row; either is cut short rather than overflowing. */
 .turn .where {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
   color: var(--muted);
+}
+
+.turn .where .branch {
+  margin-left: 0;
+}
+
+.repo-name {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .turn .why,
@@ -893,8 +1060,11 @@ mark {
   font-size: 52px;
   line-height: 1;
   letter-spacing: -0.03em;
+  right: 20px;
   color: var(--room-name);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .card {
@@ -976,8 +1146,9 @@ mark {
   box-shadow: 0 0 0 1px var(--rule), var(--shadow-hover);
 }
 
+/* Unrelated to the selection: faded, but names stay readable. */
 .dimmed {
-  opacity: 0.28;
+  opacity: 0.5;
 }
 
 .room.dimmed {
@@ -1055,16 +1226,21 @@ mark {
   initial-value: 0deg;
 }
 
+/* A wait that has rested past its first two minutes keeps a still red edge; a new one runs a beam. */
 .beam::before {
   content: '';
   position: absolute;
   inset: 0;
   padding: 1.5px;
   border-radius: inherit;
-  background: conic-gradient(from var(--beam-angle), transparent 0 72%, var(--waiting) 90%, transparent 100%);
+  background: color-mix(in srgb, var(--waiting) 70%, transparent);
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-  animation: beam var(--beam-duration, 3.4s) linear var(--beam-delay, 0s) infinite;
   pointer-events: none;
+}
+
+.beam.fresh::before {
+  background: conic-gradient(from var(--beam-angle), transparent 0 72%, var(--waiting) 90%, transparent 100%);
+  animation: beam var(--beam-duration, 3.4s) linear var(--beam-delay, 0s) infinite;
 }
 
 @keyframes beam {
@@ -1087,6 +1263,10 @@ mark {
   stroke-dasharray: 2 6;
   stroke-linecap: round;
   stroke-opacity: 0.7;
+}
+
+/* Dashes flow along a message for its first two minutes, then rest. */
+.message-path.fresh {
   animation: flow 1s linear infinite;
 }
 
@@ -1175,8 +1355,9 @@ mark {
 }
 
 .orrery-ring-label {
+  --text: 15;
   fill: var(--muted);
-  font: italic 15px var(--serif);
+  font: italic calc(15px * var(--counter)) var(--serif);
   letter-spacing: 0.02em;
   text-anchor: middle;
 }
@@ -1201,9 +1382,12 @@ mark {
 }
 
 .core-caption {
+  --text: 19;
   font: italic 19px/1.2 var(--serif);
   color: var(--muted);
   white-space: nowrap;
+  transform: scale(var(--counter));
+  transform-origin: top center;
 }
 
 .core-caption.why {
@@ -1218,8 +1402,10 @@ mark {
   align-items: center;
   gap: 4px;
   white-space: nowrap;
-  /* Anchored on the side facing the centre, so names never reach back over the rings. */
-  transform: translate(calc((var(--cos) - 1) * 50%), calc((var(--sin) - 1) * 50%));
+  /* Anchored on the side facing the centre, so names never reach back over the rings, and grown from there. */
+  --text: 26;
+  transform: translate(calc((var(--cos) - 1) * 50%), calc((var(--sin) - 1) * 50%)) scale(var(--counter));
+  transform-origin: calc((1 - var(--cos)) * 50%) calc((1 - var(--sin)) * 50%);
 }
 
 .sector-label .serif {
@@ -1233,19 +1419,28 @@ mark {
   pointer-events: auto;
 }
 
-/* Arranged by repository, a room's name sits in the gap of its own ring, on a plate so the ring
+/* Arranged by repository, a room's name sits in the gap of its own ring, on a pill so the ring
    doesn't run through it. */
 .sector-label.on-ring {
+  /* Serif: a floor of about 16 px rather than 12. */
+  --text: 16;
   flex-direction: row;
-  gap: 8px;
-  padding: 2px 10px;
-  border-radius: 6px;
-  background: var(--surface);
-  transform: translate(-50%, -50%);
+  gap: 10px;
+  padding: 4px 14px;
+  border-radius: 8px;
+  background: var(--surface-card);
+  box-shadow: var(--shadow);
+  transform: translate(-50%, -50%) scale(var(--counter));
+  transform-origin: center;
 }
 
 .sector-label.on-ring .serif {
-  font-size: 20px;
+  font-size: 22px;
+  color: var(--ink);
+}
+
+.sector-label.area {
+  --text: 11.5;
 }
 
 /* The arrangement switch sits on the canvas, out of the toolbar's way. */
@@ -1312,12 +1507,22 @@ mark {
   outline-offset: 3px;
 }
 
-/* The name sits outside the orb, on the side away from the centre (--cos, --sin set per frame). */
+/* Labels on a canvas grow against the zoom (--zoom, set by GraphCanvas) so they never read smaller
+   than about 12 px, up to a cap, so zoomed far out they don't swamp the agents. --text is a label's
+   own size in px. */
+:is(.orbit-label, .core-caption, .sector-label, .orrery-ring-label) {
+  --text: 12.5;
+  --counter: clamp(1, calc(12 / (var(--text) * var(--zoom, 1))), 2.5);
+}
+
+/* The name sits outside the orb, on the side away from the centre (--cos, --sin set per frame), and
+   grows from the side nearest the orb. */
 .orbit-label {
   position: absolute;
   left: calc(50% + var(--cos, 0) * 30px);
   top: calc(50% + var(--sin, 1) * 30px);
-  transform: translate(calc((var(--cos, 0) - 1) * 50%), calc((var(--sin, 1) - 1) * 50%));
+  transform: translate(calc((var(--cos, 0) - 1) * 50%), calc((var(--sin, 1) - 1) * 50%)) scale(var(--counter));
+  transform-origin: calc((1 - var(--cos, 0)) * 50%) calc((1 - var(--sin, 1)) * 50%);
   max-width: 24ch;
   padding: 0 6px;
   border-radius: 3px;
@@ -1331,6 +1536,8 @@ mark {
 }
 
 .orbit-label.serif {
+  /* Instrument Serif reads small; its floor is about 16 px rather than 12. */
+  --text: 12;
   font-size: 16.5px;
   line-height: 1.25;
 }
@@ -1359,8 +1566,11 @@ mark {
   inset: -5px;
   border-radius: 50%;
   box-shadow: 0 0 0 1.5px var(--waiting), 0 0 16px color-mix(in srgb, var(--waiting) 55%, transparent);
-  animation: halo var(--beam-duration, 3.4s) ease-in-out var(--beam-delay, 0s) infinite;
   pointer-events: none;
+}
+
+.orbit-card.status-waiting.fresh .orb::after {
+  animation: halo var(--beam-duration, 3.4s) ease-in-out var(--beam-delay, 0s) infinite;
 }
 
 @keyframes halo {
@@ -1482,8 +1692,9 @@ mark {
   max-width: 20ch;
 }
 
-/* Zoomed out, a galaxy shows its suns, names, counts and orbs; agents' names come back as you zoom in. */
-.react-flow.galaxy.far :is(.orbit-card:not(.focused) .orbit-label, .area-name) {
+/* Zoomed out, a galaxy shows its suns, names, counts and orbs, and the names of agents waiting on you;
+   the rest come back as you zoom in. */
+.react-flow.galaxy.far :is(.orbit-card:not(.focused, .status-waiting) .orbit-label, .area-name) {
   display: none;
 }
 
@@ -1531,10 +1742,16 @@ mark {
   padding-right: 32px;
 }
 
-.drawer h3 {
+.drawer h2 {
   margin: 0;
   font-size: 26px;
   line-height: 1.1;
+  /* Clear of the sticky toolbar when it scrolls into view on a phone. */
+  scroll-margin-top: 72px;
+}
+
+.drawer h2:focus-visible {
+  outline-offset: 4px;
 }
 
 .drawer .meta {
@@ -1620,13 +1837,17 @@ mark {
   box-shadow: var(--shadow-hover);
 }
 
+/* A session id is one word: the command scrolls sideways rather than breaking inside it. */
 .command {
+  display: block;
+  padding-bottom: 4px;
+  overflow-x: auto;
   color: var(--muted);
   font-size: 12px;
-  word-break: break-all;
+  white-space: nowrap;
 }
 
-.drawer h4 {
+.drawer h3 {
   margin: 0 0 10px;
   font-size: 19px;
 }
@@ -1817,7 +2038,7 @@ mark {
   border-bottom: 1px dashed var(--rule);
 }
 
-.note-header h1 {
+.note-header h2 {
   margin: 0 0 8px;
   font-size: 32px;
   line-height: 1.1;
@@ -1930,6 +2151,7 @@ mark {
   --green-deep: #ffbe6b;
   --waiting: #ff5a64;
   --amber: #ffb02e;
+  --quiet-ink: var(--amber);
   --cyan: #5ee7ff;
   --rule: rgba(255, 154, 46, 0.5);
   --ghost: rgba(255, 176, 46, 0.16);
@@ -1941,7 +2163,7 @@ mark {
   --shadow-lifted: 0 0 0 1px rgba(255, 154, 46, 0.6), 0 0 36px rgba(255, 120, 20, 0.28);
   --hover: rgba(255, 176, 46, 0.07);
   --room: rgba(255, 176, 46, 0.03);
-  --room-name: rgba(255, 176, 46, 0.16);
+  --room-name: rgba(255, 176, 46, 0.5);
   --line: #7a5426;
   --idle: #4f3d27;
   --dot: rgba(255, 176, 46, 0.12);
@@ -1978,7 +2200,7 @@ mark {
 }
 
 /* Frames with corner brackets. */
-:root[data-hud] :where(.turn, .drawer, .tabs, .search-button, .icon-button, .card, .reader, .palette, .settings) {
+:root[data-hud] :where(.turn, .drawer, .tabs, .search-button, .icon-button, .card, .reader, .palette, .settings, .turn-overlay button) {
   border-radius: 2px;
   background: var(--brackets), var(--surface-card);
 }
@@ -1998,7 +2220,7 @@ mark {
 }
 
 /* Headings and small labels speak HUD: monospace, upper case, tracked, glowing. */
-:root[data-hud] :where(.inbox h1, .inbox h2, .drawer h3, .drawer h4, .room-name, .sector-label .serif, .wordmark .serif, .note-header h1) {
+:root[data-hud] :where(.inbox h1, .inbox h2, .drawer h2, .drawer h3, .room-name, .sector-label .serif, .wordmark .serif, .note-header h2) {
   font-family: var(--mono);
   font-style: normal;
   text-transform: uppercase;
@@ -2012,12 +2234,12 @@ mark {
   letter-spacing: 0.22em;
 }
 
-:root[data-hud] :where(.inbox h2, .drawer h4) {
+:root[data-hud] :where(.inbox h2, .drawer h3) {
   font-size: 13px;
   letter-spacing: 0.2em;
 }
 
-:root[data-hud] .drawer h3 {
+:root[data-hud] .drawer h2 {
   font-size: 18px;
   line-height: 1.3;
 }
@@ -2039,8 +2261,25 @@ mark {
   text-shadow: none;
 }
 
+:root[data-hud] .sector-label {
+  --text: 18;
+}
+
 :root[data-hud] .sector-label .serif {
   font-size: 18px;
+}
+
+/* The selected agent's name, lit like the HUD's pressed tabs. */
+:root[data-hud] .orbit-card.focused .orbit-label {
+  background: var(--amber);
+  color: var(--on-ink);
+  box-shadow: 0 0 12px var(--glow);
+}
+
+/* Focus is cyan on the HUD, so it never looks like a pressed (amber) control. */
+:root[data-hud] :focus-visible,
+:root[data-hud] .orbit-card.pile:focus-visible .pile-count {
+  outline-color: var(--cyan);
 }
 
 /* Titles stay in the text face; serif display type doesn't belong on a HUD. */
@@ -2055,7 +2294,9 @@ mark {
   font-size: 15px;
 }
 
-:root[data-hud] :where(.card-line, .turn .where, .turn .why, .inbox .lede, .connection, .tabs button, kbd, .branch, .chip, .facts dt, .timeline time, .palette-group, .room-summary, .room-fold, .search-button span, .core-caption, .orrery-ring-label, .button, .card.fold) {
+/* Labels, tabs and chips speak HUD too; status lines and sentences stay in the text face, where small
+   type reads best. */
+:root[data-hud] :where(.connection, .tabs button, kbd, .branch, .chip, .facts dt, .timeline time, .palette-group, .room-fold, .search-button span, .settings-text, .core-caption, .orrery-ring-label, .button, .card.fold) {
   font-family: var(--mono);
   font-size: 10.5px;
   font-style: normal;
@@ -2073,8 +2314,9 @@ mark {
 }
 
 :root[data-hud] .orrery-ring-label {
+  --text: 10;
   fill: var(--amber);
-  font-size: 10px;
+  font-size: calc(10px * var(--counter));
   letter-spacing: 0.2em;
 }
 
@@ -2087,6 +2329,7 @@ mark {
 }
 
 :root[data-hud] .core-caption {
+  --text: 12;
   margin-top: 12px;
   font-size: 12px;
   color: var(--amber);
@@ -2146,6 +2389,7 @@ mark {
 }
 
 :root[data-hud] .orbit-label {
+  --text: 11.5;
   border-radius: 2px;
   background: color-mix(in srgb, var(--surface) 88%, transparent);
   box-shadow: inset 0 0 0 1px var(--frame);
@@ -2262,21 +2506,70 @@ mark {
   animation: spin 44s linear infinite;
 }
 
+/* Narrow screens and zoomed-in pages stack everything and scroll the page: the toolbar on a row of
+   its own at the top, then Your turn, the stage and the drawer. */
 @media (max-width: 900px) {
   .app,
-  .app.with-drawer {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 70vh auto;
+  .app.with-drawer,
+  .app.clean,
+  .app.clean.with-drawer {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    grid-template-areas: 'toolbar' 'inbox' 'stage' 'drawer';
     height: auto;
+    overflow: visible;
+  }
+  .toolbar {
+    grid-area: toolbar;
+    margin: 0;
+    padding: 12px 16px;
+    pointer-events: auto;
   }
   .stage {
     height: 70vh;
   }
+  /* Plans and Memory are as long as they need to be, the list above the reader. */
+  .stage.reading {
+    height: auto;
+  }
   .library {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 12px;
+    padding: 0 0 16px;
+  }
+  .library-list {
+    padding: 0 16px;
+  }
+  .library-list nav {
+    max-height: 60vh;
+  }
+  .reader {
+    margin: 0 16px;
+    padding: 20px;
+  }
+  .turn-overlay {
+    top: 16px;
   }
 }
 
+/* On a phone the toolbar stays at the top as the page scrolls, so search and the views are always a
+   tap away. Short windows (a desktop zoomed in) can't spare the height. */
+@media (max-width: 600px) and (min-height: 500px) {
+  .toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    backdrop-filter: blur(6px);
+  }
+  .toolbar .tabs button {
+    padding-inline: 9px;
+  }
+}
+
+/* Reduced motion, or Pause motion (data-still), holds everything still. motion.ts asks the same
+   question for the canvas and the orbs. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -2289,15 +2582,77 @@ mark {
   }
 }
 
+:root[data-still] *,
+:root[data-still] *::before,
+:root[data-still] *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
+:root[data-still][data-hud] body::after {
+  display: none;
+}
+
+/* The clean view's corner list of who is waiting on you. */
+.turn-overlay {
+  position: absolute;
+  z-index: 4;
+  top: 64px;
+  left: 20px;
+  width: min(280px, calc(100% - 40px));
+  max-height: calc(100% - 150px);
+  overflow-y: auto;
+}
+
+.turn-overlay ol {
+  list-style: none;
+  margin: 0;
+  padding: 2px;
+  display: grid;
+  gap: 6px;
+}
+
+.turn-overlay button {
+  position: relative;
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 9px;
+  align-items: center;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--surface-card);
+  box-shadow: var(--shadow);
+  text-align: left;
+  cursor: pointer;
+}
+
+.turn-overlay .orb {
+  grid-row: span 2;
+  align-self: center;
+}
+
+.turn-overlay strong {
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.turn-overlay .why {
+  font-size: 12px;
+}
+
 /* Quiet agents, cost, replay */
 
 .card.quiet {
   box-shadow: var(--shadow), inset 3px 0 0 var(--amber);
 }
 
-.quiet-heading {
+.inbox .quiet-heading {
   margin: 14px 0 6px;
-  color: var(--amber);
+  color: var(--quiet-ink);
   font: 600 11.5px/1 var(--sans);
   letter-spacing: 0.06em;
   text-transform: uppercase;

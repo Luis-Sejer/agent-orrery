@@ -1,11 +1,14 @@
 import type { CSSProperties } from 'react'
-import { Position, type Edge, type Node, type NodeHandle } from '@xyflow/react'
+import { Position, type Edge, type Node } from '@xyflow/react'
 
 import {
   buildEdges,
+  fixedFrame,
   foldId,
+  HANDLE_PX,
   groupIntoRooms,
   matches,
+  opensDetails,
   relatedTo,
   Z_CARD,
   Z_FOCUSED,
@@ -27,19 +30,9 @@ import type { AgentNode, GraphSnapshot, Status } from './types'
 // An orbit node's box is just its orb; the name hangs outside it, pointing away from the centre.
 export const ORBIT_SIZE = { width: 56, height: 56 }
 export const ORB_CENTRE_Y = ORBIT_SIZE.height / 2
-const HANDLE_PX = 6
-
-// The orbit hands React Flow new node objects about 30 times a second. A node without a size
-// is re-measured, and its edges are dropped until then, so they flicker; the size and the
-// handles (centred, as the stylesheet draws them) are given up front instead.
-function fixedFrame(size: { width: number; height: number }, source: Position, target: Position) {
-  const box = { x: size.width / 2 - HANDLE_PX / 2, y: size.height / 2 - HANDLE_PX / 2, width: HANDLE_PX, height: HANDLE_PX }
-  const handles: NodeHandle[] = [
-    { ...box, type: 'source', position: source },
-    { ...box, type: 'target', position: target },
-  ]
-  return { measured: size, handles }
-}
+// Orbit nodes' edges meet at the orb's centre. A fresh frame per node, as React Flow keeps what it's given.
+const CENTRE = { position: Position.Top, x: ORBIT_SIZE.width / 2 - HANDLE_PX / 2, y: ORBIT_SIZE.height / 2 - HANDLE_PX / 2 }
+const orbitFrame = () => fixedFrame(ORBIT_SIZE, CENTRE, CENTRE)
 // The inner ring clears the core (its constellation reaches 131 px, its dial and caption about 190 px),
 // even for an orb staggered inwards.
 const RINGS: Record<Status, number> = { waiting: 255, running: 375, finished: 495 }
@@ -379,6 +372,19 @@ function galaxyBox(systems: System[]): Box {
   return { x, y, width: right - x, height: bottom - y }
 }
 
+// A galaxy is zoomed to fit its systems and you, then centred on you as far as that keeps every system
+// in view, so the lanes read as rings around you rather than off to one side.
+export function galaxyView(box: Box, width: number, height: number, padding: number, maxZoom: number): { x: number; y: number; zoom: number } {
+  // Padding as React Flow's fitView reads it: the box takes 1 / (1 + padding) of the screen.
+  const fill = 1 / (1 + padding)
+  const zoom = Math.min((width * fill) / box.width, (height * fill) / box.height, maxZoom)
+  const centre = (from: number, span: number, screen: number) => {
+    const visible = (screen * fill) / 2 / zoom
+    return Math.min(Math.max(0, from + span - visible), from + visible)
+  }
+  return { x: centre(box.x, box.width, width), y: centre(box.y, box.height, height), zoom }
+}
+
 const ARRANGE: Record<Arrangement, (planned: Planned[], status: (id: string) => Status) => Plan> = { status: byStatus, room: byRoom, galaxy: byGalaxy }
 
 export function buildOrrery(
@@ -440,9 +446,10 @@ export function buildOrrery(
       type: 'orbit',
       position: { x: 0, y: 0 },
       ...ORBIT_SIZE,
-      ...fixedFrame(ORBIT_SIZE, Position.Top, Position.Top),
+      ...orbitFrame(),
       className: 'orrery-node',
       zIndex: focused ? Z_FOCUSED : related.has(node.id) ? Z_RELATED : Z_CARD,
+      ...opensDetails(node, now),
       data: { node, now, dimmed: isDimmed(node), focused, related: related.has(node.id), alsoIn: [] },
     } satisfies OrbitNode, at.angle, at.r, at.cx, at.cy)
   }
@@ -463,9 +470,11 @@ export function buildOrrery(
       type: 'pile',
       position: { x: 0, y: 0 },
       ...ORBIT_SIZE,
-      ...fixedFrame(ORBIT_SIZE, Position.Top, Position.Top),
+      ...orbitFrame(),
       className: 'orrery-node',
       zIndex: Z_CARD,
+      // The pile is a button of its own; the node around it needn't be a second stop.
+      focusable: false,
       data: {
         room: room.name,
         count: room.folded.length,

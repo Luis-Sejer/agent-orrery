@@ -77,6 +77,7 @@ const DESCRIBE_TOOL = {
   Task: (input) => `Started ${input?.description ?? 'a subagent'}`,
   AskUserQuestion: () => 'Asked you a question',
   SubagentHandback: () => 'Handed back its report',
+  [MESSAGE_TOOL]: () => 'Sent a message',
 }
 
 function describeTool(name, input) {

@@ -39,18 +39,18 @@ Agent Orrery answers that at a glance. It reads the transcripts Claude Code alre
 - **The orrery.** The page opens on your agents in rings around you: whatever waits on you sits closest, running agents next, finished ones on the outside, with a sector for each repository. Working across many repositories? Arrange it by repository instead: each one gets a ring of its own, and the ones that need you move inwards. Or as a galaxy: each repository is a small solar system with its own rings, and the systems that need you sit closest. The rings turn slowly, inner ones faster, and steady themselves while you point at an agent. Agents, one tab over, lays the same agents out as a grid of rooms.
 - **Your turn.** Every session that finished or asked you something, oldest first, with how long it has waited. The tab title shows the count. Dismiss one until it does something new.
 - **Rooms per repository.** Each agent sits in the repo its work touches, not the folder its session started in. A session started in the API whose subagents edit the web app reaches across into the web app's room. In a monorepo, each busy package gets a room of its own.
-- **Focus.** Click an agent to light up its parent, its subagents and everyone it messaged, and dim the rest. A drawer shows what it has done, step by step, and a command to resume the session.
+- **Focus.** Click an agent, or Tab to it and press Enter, to light up its parent, its subagents and everyone it messaged, and dim the rest. A drawer shows what it has done, step by step, and a command to resume the session.
 - **Cost.** An estimate of what each agent, session and room has cost, worked out in your browser from the token counts and Anthropic's published prices. Models it has no price for show tokens only.
 - **Replay.** Turn on Replay in the settings and drag back through the last hours (the same window as `AGENT_ORRERY_WINDOW_HOURS`) to see who was running, waiting and finished at any moment. Notifications stay off while you replay.
 - **Light, dark and T.Y.C.H.O.** Follows your system, or pick one. T.Y.C.H.O. (Tracks Your Claude Helpers' Orbits) is a holographic HUD in amber on black.
-- **A clean dashboard.** Search and the views sit on top; filters, the arrangement, themes, replay, notifications, voice and whether worktrees get rooms of their own are in one settings menu. Clean view hides the side panel, minimap and zoom too, for a screen you glance at. The page remembers all of it.
+- **A clean dashboard.** Search and the views sit on top; filters, the arrangement, themes, replay, notifications, voice, whether worktrees get rooms of their own and Pause motion are in one settings menu. Clean view hides the side panel, minimap and zoom too, for a screen you glance at, and keeps a small list of who's waiting on you in a corner. The page remembers all of it.
 - **Read-only and local.** It only reads files, never writes them, and nothing leaves your machine.
 
 <details>
 <summary><strong>And more:</strong> live state, search everything, notifications, menu bar, quiet agents, voice, plans and memory</summary>
 
 - **Live state.** Each agent's orb shows what it's doing now: reading, writing code, running a command, talking to other agents, or waiting on you. Messages between agents travel along the lines as they're sent.
-- **Search everything.** Press <kbd>⌘</kbd> <kbd>K</kbd> to find agents by name, repo or branch, and plans and memory notes by what they say.
+- **Search everything.** Press <kbd>⌘</kbd> <kbd>K</kbd> (<kbd>Ctrl</kbd> <kbd>K</kbd> elsewhere) to find agents by name, repo or branch, and plans and memory notes by what they say.
 - **Notifications.** Turn them on in the settings and your browser tells you when a session starts waiting on you while you're in another tab.
 - **Menu bar.** On a Mac, a small [menu bar app](#menu-bar-companion) shows how many sessions are waiting on you, and opens the one you pick.
 - **Quiet agents.** An agent that is running but has been silent for five minutes is flagged, and if a tool call is still open it says which one: that is how a permission prompt looks from outside, so it may be waiting for your approval.

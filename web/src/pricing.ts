@@ -112,12 +112,12 @@ export function formatDollars(amount: number): string {
 }
 
 export function formatTokens(count: number): string {
-  if (count >= PER_MILLION) return `${(count / PER_MILLION).toFixed(1)} M tokens`
-  if (count >= 1_000) return `${Math.round(count / 1_000)} k tokens`
+  if (count >= PER_MILLION) return `${(count / PER_MILLION).toFixed(1)}M tokens`
+  if (count >= 1_000) return `${Math.round(count / 1_000)}k tokens`
   return `${count} tokens`
 }
 
-// "about $1.24, 1.2 M tokens"; tokens only when a model has no known price; null when nothing was used.
+// "about $1.24, 1.2M tokens"; tokens only when a model has no known price; null when nothing was used.
 export function describeSpend(usage: ModelUsage): string | null {
   const tokens = tokensOf(usage)
   if (tokens === 0) return null
