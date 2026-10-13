@@ -12,7 +12,20 @@ const DAY = 24 * 3_600_000
 
 test('defaults come from the environment, only with known values', () => {
   const defaults = settingDefaults({ AGENT_ORRERY_ARRANGEMENT: 'galaxy', AGENT_ORRERY_THEME: '"><script>', AGENT_ORRERY_HIDE_FINISHED: 'on', AGENT_ORRERY_VIEW: '' })
-  assert.deepEqual(defaults, { arrangement: 'galaxy', 'hide-finished': 'on' })
+  assert.deepEqual(defaults, { arrangement: 'galaxy', 'hide-finished': 'on', 'window-hours': '6', 'waiting-hours': '24' })
+  // The hour windows always have one, from the environment when it's a whole number in range.
+  assert.deepEqual(settingDefaults({ AGENT_ORRERY_WINDOW_HOURS: '12', AGENT_ORRERY_WAITING_HOURS: '9000' }), { 'window-hours': '12', 'waiting-hours': '24' })
+})
+
+test('the hour windows are kept only as whole numbers in their range, and the store reads them as numbers', () => {
+  assert.deepEqual(cleanSettings({ 'window-hours': '12', 'waiting-hours': '169' }), { 'window-hours': '12' })
+  assert.deepEqual(cleanSettings({ 'window-hours': '0' }), {})
+  assert.deepEqual(cleanSettings({ 'window-hours': '1.5' }), {})
+  assert.deepEqual(cleanSettings({ 'window-hours': 12 }), {})
+  const store = createStore({ dir: null, defaults: settingDefaults({}) })
+  assert.equal(store.number('window-hours'), 6)
+  store.changeSettings({ 'window-hours': '48' })
+  assert.equal(store.number('window-hours'), 48)
 })
 
 test('only known settings with known values are kept', () => {
@@ -81,4 +94,25 @@ test("the plan's usage comes from the status line bridge's file, and only its wi
   assert.equal(parseUsage(JSON.stringify({ at, five_hour: null })), null)
   assert.equal(parseUsage('{broken'), null)
   assert.equal(parseUsage(''), null)
+})
+
+test('the session forecast follows the pace of the last hour, and says when the limit comes first', async () => {
+  const { forecast } = await import('./server.mjs')
+  const MINUTE = 60_000
+  const now = Date.parse('2026-10-13T15:00:00Z')
+  const resetsAt = now + 2 * 60 * MINUTE
+  // 2 % every 5 minutes, at 60 % now: 24 % an hour, so 100 % in 100 minutes, before the reset.
+  const samples = [0, 5, 10, 15, 20].map((back, index) => ({ at: now - back * MINUTE, percent: 60 - index * 2, resetsAt })).reverse()
+  const ahead = forecast(samples, { percent: 60, resetsAt }, now)
+  assert.equal(Math.round(ahead.perHour), 24)
+  assert.equal(ahead.atReset, 100)
+  assert.equal(ahead.limitAt, now + 100 * MINUTE)
+  // Slower: the limit is after the reset, so there is none, just where it will be.
+  const slow = samples.map((sample, index) => ({ ...sample, percent: 52 + index }))
+  const calm = forecast(slow, { percent: 56, resetsAt }, now)
+  assert.equal(calm.limitAt, null)
+  assert.equal(Math.round(calm.atReset), 80)
+  // Too little to go on, or readings from the last window: no forecast.
+  assert.equal(forecast(samples.slice(-2), { percent: 60, resetsAt }, now), null)
+  assert.equal(forecast(samples, { percent: 60, resetsAt: resetsAt + 5 * 60 * MINUTE }, now), null)
 })

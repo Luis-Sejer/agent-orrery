@@ -21,8 +21,13 @@ const PORT = Number(process.env.AGENT_ORRERY_PORT ?? 4777)
 // Inside Docker the server must listen on all interfaces; compose publishes it on 127.0.0.1 only.
 const BIND_HOST = process.env.AGENT_ORRERY_BIND ?? '127.0.0.1'
 const HOUR_MS = 3_600_000
-const WINDOW_MS = Number(process.env.AGENT_ORRERY_WINDOW_HOURS ?? 6) * HOUR_MS
-const WAITING_WINDOW_MS = Number(process.env.AGENT_ORRERY_WAITING_HOURS ?? 24) * HOUR_MS
+// The settings store, once the server starts; until then (and in tests) the defaults apply.
+let store = null
+const defaults = settingDefaults()
+const hoursSetting = (name) => (store ? store.number(name) : Number(defaults[name])) * HOUR_MS
+// How far back agents are shown, and how long a session waiting on you stays: Settings → Advanced.
+const windowMs = () => hoursSetting('window-hours')
+const waitingWindowMs = () => hoursSetting('waiting-hours')
 const CLAUDE_DIR = process.env.AGENT_ORRERY_CLAUDE_DIR ?? join(homedir(), '.claude')
 const PROJECTS_DIR = join(CLAUDE_DIR, 'projects')
 // Where Agent Orrery keeps its own state. compose.yaml mounts a folder here; it's the only one it writes.
@@ -58,7 +63,7 @@ function track(path, nodeId) {
 }
 
 async function discoverSessions() {
-  const cutoff = Date.now() - Math.max(WINDOW_MS, WAITING_WINDOW_MS)
+  const cutoff = Date.now() - Math.max(windowMs(), waitingWindowMs())
   for (const project of await listDir(PROJECTS_DIR)) {
     const projectDir = join(PROJECTS_DIR, project)
     for (const name of await listDir(projectDir)) {
@@ -182,7 +187,44 @@ export function parseUsage(text) {
   }
 }
 
-const readUsage = () => parseUsage(readText(USAGE_FILE))
+// The session window's recent readings, one a minute at most, for the forecast. In memory only.
+const SAMPLE_EVERY_MS = 60_000
+const FORECAST_LOOKBACK_MS = 60 * 60_000
+const FORECAST_MIN_SPAN_MS = 10 * 60_000
+const FORECAST_MIN_SAMPLES = 3
+const FULL_PERCENT = 100
+const usageSamples = []
+
+function recordUsage(usage) {
+  const window = usage?.fiveHour
+  if (!window) return
+  const last = usageSamples.at(-1)
+  if (last && usage.at - last.at < SAMPLE_EVERY_MS && last.resetsAt === window.resetsAt) return
+  usageSamples.push({ at: usage.at, percent: window.percent, resetsAt: window.resetsAt })
+  while (usageSamples.length > 0 && usage.at - usageSamples[0].at > FORECAST_LOOKBACK_MS) usageSamples.shift()
+}
+
+// Where the session window is heading at the pace of the last hour of this window: a straight line
+// through the readings. Null until there's enough to go on. limitAt is when it reaches 100 %, if that
+// comes before the window resets.
+export function forecast(samples, window, now) {
+  if (!window?.resetsAt) return null
+  const recent = samples.filter((sample) => sample.resetsAt === window.resetsAt && now - sample.at <= FORECAST_LOOKBACK_MS)
+  if (recent.length < FORECAST_MIN_SAMPLES || recent.at(-1).at - recent[0].at < FORECAST_MIN_SPAN_MS) return null
+  const meanAt = recent.reduce((sum, sample) => sum + sample.at, 0) / recent.length
+  const meanPercent = recent.reduce((sum, sample) => sum + sample.percent, 0) / recent.length
+  const spread = recent.reduce((sum, sample) => sum + (sample.at - meanAt) ** 2, 0)
+  const slope = Math.max(0, recent.reduce((sum, sample) => sum + (sample.at - meanAt) * (sample.percent - meanPercent), 0) / spread)
+  const atReset = Math.min(FULL_PERCENT, window.percent + slope * Math.max(0, window.resetsAt - now))
+  const limitAt = slope > 0 ? now + (FULL_PERCENT - window.percent) / slope : null
+  return { perHour: slope * HOUR_MS, atReset, limitAt: limitAt !== null && limitAt < window.resetsAt ? limitAt : null }
+}
+
+function readUsage() {
+  const usage = parseUsage(readText(USAGE_FILE))
+  if (!usage?.fiveHour) return usage
+  return { ...usage, fiveHour: { ...usage.fiveHour, forecast: forecast(usageSamples, usage.fiveHour, Date.now()) } }
+}
 
 const clients = new Set()
 let lastPayload = ''
@@ -210,7 +252,7 @@ function send() {
 
 // Transcripts and nodes older than discovery would pick up are dropped; a new line brings them back.
 function forgetOld() {
-  const cutoff = Date.now() - Math.max(WINDOW_MS, WAITING_WINDOW_MS)
+  const cutoff = Date.now() - Math.max(windowMs(), waitingWindowMs())
   const forgotten = forget(graph, cutoff)
   for (const [path, entry] of tracked) if (forgotten.has(entry.nodeId)) tracked.delete(path)
   for (const id of forgotten) sessionDirs.delete(id)
@@ -226,7 +268,8 @@ async function tick(discover, paths) {
   for (const [path, entry] of tracked) if (!paths || paths.has(path)) await readAppended(path, entry)
   const now = Date.now()
   setLive(graph, await readLiveSessions(), now)
-  const payload = JSON.stringify({ ...snapshot(graph, now - WINDOW_MS, now - WAITING_WINDOW_MS, now), usage: readUsage() })
+  recordUsage(parseUsage(readText(USAGE_FILE)))
+  const payload = JSON.stringify({ ...snapshot(graph, now - windowMs(), now - waitingWindowMs(), now), usage: readUsage() })
   if (payload !== lastPayload) push(payload)
 }
 
@@ -399,14 +442,14 @@ function sendJson(response, body) {
 const API_ROUTES = {
   '/api/waiting': () => {
     const now = Date.now()
-    return waitingSessions(snapshot(graph, now - WINDOW_MS, now - WAITING_WINDOW_MS, now), now)
+    return waitingSessions(snapshot(graph, now - windowMs(), now - waitingWindowMs(), now), now)
   },
   '/api/timeline': (query) => timeline(graph, query.get('id') ?? ''),
   '/api/replay': (query) => {
     const at = Number(query.get('at'))
-    return Number.isFinite(at) && query.get('at') ? replay(graph, at, WINDOW_MS, WAITING_WINDOW_MS) : null
+    return Number.isFinite(at) && query.get('at') ? replay(graph, at, windowMs(), waitingWindowMs()) : null
   },
-  '/api/window': () => ({ windowMs: WINDOW_MS }),
+  '/api/window': () => ({ windowMs: windowMs() }),
   '/api/usage': () => readUsage() ?? {},
   '/api/day': (query) => {
     const since = Number(query.get('since'))
@@ -430,7 +473,8 @@ const WRITE_ROUTES = {
   '/api/dismissals': (store, body) => store.changeDismissals(body),
 }
 
-function createHandler(webFiles, store) {
+// onWrite runs after a page changed something, so a new window applies at once.
+function createHandler(webFiles, state, onWrite = () => {}) {
   return async function handle(request, response) {
     const write = WRITE_ROUTES[new URL(request.url, 'http://localhost').pathname]
     if (request.method === 'PATCH' && write && isTrustedWrite(request.headers)) {
@@ -439,8 +483,9 @@ function createHandler(webFiles, store) {
         response.writeHead(400, SECURITY_HEADERS).end()
         return
       }
-      await write(store, body)
-      sendState(store.get())
+      await write(state, body)
+      sendState(state.get())
+      onWrite()
       response.writeHead(204, SECURITY_HEADERS).end()
       return
     }
@@ -455,7 +500,7 @@ function createHandler(webFiles, store) {
       response.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': 'text/event-stream' })
       response.write(`data: ${lastPayload || '{"nodes":[],"messages":[]}'}\n\n`)
       // A page that reconnects may have missed changes made while it was away.
-      sendState(store.get(), [response])
+      sendState(state.get(), [response])
       clients.add(response)
       request.on('close', () => clients.delete(response))
       return
@@ -470,7 +515,7 @@ function createHandler(webFiles, store) {
       response.writeHead(404, SECURITY_HEADERS).end()
       return
     }
-    const body = file.endsWith('index.html') ? withState(await readFile(file, 'utf8'), store.get()) : await readFile(file)
+    const body = file.endsWith('index.html') ? withState(await readFile(file, 'utf8'), state.get()) : await readFile(file)
     response.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': CONTENT_TYPES[extname(file)] }).end(body)
   }
 }
@@ -478,11 +523,13 @@ function createHandler(webFiles, store) {
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const webFiles = await listWebFiles(WEB_DIR)
   if (!webFiles.has('/index.html')) console.warn('agent-orrery: no built page in web/dist; run `pnpm build` first')
-  const handle = createHandler(webFiles, createStore({ dir: DATA_DIR, defaults: settingDefaults() }))
+  store = createStore({ dir: DATA_DIR, defaults })
+  const scheduler = createScheduler()
+  // A longer window finds older transcripts; a shorter one forgets them on the same pass.
+  const handle = createHandler(webFiles, store, () => scheduler.soon({ discover: true }))
   createServer((request, response) => {
     handle(request, response).catch(() => response.writeHead(500, SECURITY_HEADERS).end())
   }).listen(PORT, BIND_HOST, () => console.log(`agent-orrery: http://127.0.0.1:${PORT}`))
-  const scheduler = createScheduler()
   scheduler.now()
   console.log(`agent-orrery: following transcripts with ${startWatching(scheduler)}`)
 }

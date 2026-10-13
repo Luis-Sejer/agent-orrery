@@ -23,6 +23,16 @@ export const SETTINGS = {
   notifications: ['AGENT_ORRERY_NOTIFICATIONS', ON_OFF],
 }
 
+// The server's own settings, Settings → Advanced on the page: a whole number of hours in a range,
+// and the default when neither the page nor the environment gives one.
+export const NUMBER_SETTINGS = {
+  'window-hours': ['AGENT_ORRERY_WINDOW_HOURS', 1, 72, 6],
+  'waiting-hours': ['AGENT_ORRERY_WAITING_HOURS', 1, 168, 24],
+}
+
+const WHOLE_NUMBER = /^\d{1,4}$/
+const inRange = (value, [, min, max]) => typeof value === 'string' && WHOLE_NUMBER.test(value) && Number(value) >= min && Number(value) <= max
+
 const STATE_FILE = 'state.json'
 // A dismissal outlives the session's window by far; after a week it's of no use.
 const FORGET_DISMISSAL_MS = 7 * 24 * 3_600_000
@@ -33,6 +43,8 @@ const MAX_ID_LENGTH = 200
 export function settingDefaults(env = process.env) {
   const defaults = {}
   for (const [name, [variable, allowed]] of Object.entries(SETTINGS)) if (variable && allowed.includes(env[variable])) defaults[name] = env[variable]
+  // Numbers always have a default, so the page shows the value in force.
+  for (const [name, spec] of Object.entries(NUMBER_SETTINGS)) defaults[name] = inRange(env[spec[0]], spec) ? env[spec[0]] : String(spec[3])
   return defaults
 }
 
@@ -41,7 +53,9 @@ const isObject = (value) => !!value && typeof value === 'object' && !Array.isArr
 // The known settings in `value`, with known values; everything else is dropped.
 export function cleanSettings(value) {
   if (!isObject(value)) return {}
-  return Object.fromEntries(Object.entries(value).filter(([name, setting]) => Object.hasOwn(SETTINGS, name) && SETTINGS[name][1].includes(setting)))
+  const known = ([name, setting]) =>
+    (Object.hasOwn(SETTINGS, name) && SETTINGS[name][1].includes(setting)) || (Object.hasOwn(NUMBER_SETTINGS, name) && inRange(setting, NUMBER_SETTINGS[name]))
+  return Object.fromEntries(Object.entries(value).filter(known))
 }
 
 // Session id → its last activity when dismissed, for ids and times that look right and aren't stale.
@@ -87,6 +101,8 @@ export function createStore({ dir, defaults = {} }) {
   return {
     // What the page starts from: the defaults and what has been chosen since.
     get: () => ({ defaults, settings: state.settings, dismissals: state.dismissals }),
+    // A number setting in force: chosen on the page, or else from the environment or built in.
+    number: (name) => Number(state.settings[name] ?? defaults[name] ?? NUMBER_SETTINGS[name][3]),
     // Merges in the settings a page changed; unknown names and values are ignored.
     changeSettings(change) {
       state = { ...state, settings: { ...state.settings, ...cleanSettings(change) } }
