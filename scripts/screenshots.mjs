@@ -76,6 +76,7 @@ const SHOTS = [
   { name: 'orrery-dark', theme: 'dark', steps: [ZOOM_IN] },
   { name: 'tycho', theme: 'tycho', steps: [ZOOM_IN] },
   { name: 'orrery-repo', arrangement: 'room', steps: [ZOOM_IN] },
+  { name: 'galaxy', theme: 'tycho', arrangement: 'galaxy', steps: [] },
   { name: 'settings', steps: [ZOOM_IN, OPEN_SETTINGS] },
   { name: 'agents', view: 'graph', steps: [] },
   { name: 'dark', view: 'graph', theme: 'dark', steps: [] },

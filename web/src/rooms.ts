@@ -2,7 +2,10 @@ import type { GraphSnapshot } from './types'
 
 // Mirrors repos.mjs: the server tags a room in a worktree with its branch ("shop ⎇ feat/x › apps/web").
 const WORKTREE_SEPARATOR = ' ⎇ '
-const AREA_SEPARATOR = ' › '
+export const AREA_SEPARATOR = ' › '
+
+// A room's repository: its key before any area, keeping a worktree's branch.
+export const repositoryOf = (room: string): string => room.split(AREA_SEPARATOR)[0]
 
 // A worktree's room folded into its repository's, keeping any area.
 export function foldWorktree(key: string): string {

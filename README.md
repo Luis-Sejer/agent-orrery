@@ -36,7 +36,7 @@ Agent Orrery answers that at a glance. It reads the transcripts Claude Code alre
 
 ## Features
 
-- **The orrery.** The page opens on your agents in rings around you: whatever waits on you sits closest, running agents next, finished ones on the outside, with a sector for each repository. Working across many repositories? Arrange it by repository instead: each one gets a ring of its own, and the ones that need you move inwards. The rings turn slowly, inner ones faster, and steady themselves while you point at an agent. Agents, one tab over, lays the same agents out as a grid of rooms.
+- **The orrery.** The page opens on your agents in rings around you: whatever waits on you sits closest, running agents next, finished ones on the outside, with a sector for each repository. Working across many repositories? Arrange it by repository instead: each one gets a ring of its own, and the ones that need you move inwards. Or as a galaxy: each repository is a small solar system with its own rings, and the systems that need you sit closest. The rings turn slowly, inner ones faster, and steady themselves while you point at an agent. Agents, one tab over, lays the same agents out as a grid of rooms.
 - **Your turn.** Every session that finished or asked you something, oldest first, with how long it has waited. The tab title shows the count. Dismiss one until it does something new.
 - **Rooms per repository.** Each agent sits in the repo its work touches, not the folder its session started in. A session started in the API whose subagents edit the web app reaches across into the web app's room. In a monorepo, each busy package gets a room of its own.
 - **Focus.** Click an agent to light up its parent, its subagents and everyone it messaged, and dim the rest. A drawer shows what it has done, step by step, and a command to resume the session.
@@ -82,10 +82,13 @@ Agent Orrery answers that at a glance. It reads the transcripts Claude Code alre
 </table>
 
 <details>
-<summary><strong>More screenshots:</strong> a monorepo, replay, search, arranged by repository, the settings, plans and the dark theme</summary>
+<summary><strong>More screenshots:</strong> a monorepo, a galaxy, replay, search, arranged by repository, the settings, plans and the dark theme</summary>
 
 <p><img src="docs/screenshots/monorepo.webp" alt="The orrery on a made-up monorepo, atlas, with a sector for each of its eight packages, from atlas › apps/web to atlas › services/search, and two sessions waiting on you closest to the centre."></p>
 <p><sub>A monorepo: every busy package gets a room of its own.</sub></p>
+
+<p><img src="docs/screenshots/galaxy.webp" alt="The orrery as a galaxy in the T.Y.C.H.O. theme: each made-up repository is a small solar system with a sun, its name and a count line, the three with sessions waiting on you closest to the centre on red spokes."></p>
+<p><sub>A galaxy: a solar system per repository, the ones that need you closest.</sub></p>
 
 <table>
   <tr>
