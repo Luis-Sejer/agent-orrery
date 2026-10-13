@@ -38,7 +38,7 @@ Agent Orrery answers that at a glance. It reads the transcripts Claude Code alre
 
 - **The orrery.** The page opens on your agents in rings around you: whatever waits on you sits closest, running agents next, finished ones on the outside, with a sector for each repository. Working across many repositories? Arrange it by repository instead: each one gets a ring of its own, and the ones that need you move inwards. The rings turn slowly, inner ones faster, and steady themselves while you point at an agent. Agents, one tab over, lays the same agents out as a grid of rooms.
 - **Your turn.** Every session that finished or asked you something, oldest first, with how long it has waited. The tab title shows the count. Dismiss one until it does something new.
-- **Rooms per repository.** Each agent sits in the repo its work touches, not the folder its session started in. A session started in the API whose subagents edit the web app reaches across into the web app's room.
+- **Rooms per repository.** Each agent sits in the repo its work touches, not the folder its session started in. A session started in the API whose subagents edit the web app reaches across into the web app's room. In a monorepo, each busy package gets a room of its own.
 - **Focus.** Click an agent to light up its parent, its subagents and everyone it messaged, and dim the rest. A drawer shows what it has done, step by step, and a command to resume the session.
 - **Cost.** An estimate of what each agent, session and room has cost, worked out in your browser from the token counts and Anthropic's published prices. Models it has no price for show tokens only.
 - **Replay.** Turn on Replay in the settings and drag back through the last hours (the same window as `AGENT_ORRERY_WINDOW_HOURS`) to see who was running, waiting and finished at any moment. Notifications stay off while you replay.
@@ -82,7 +82,10 @@ Agent Orrery answers that at a glance. It reads the transcripts Claude Code alre
 </table>
 
 <details>
-<summary><strong>More screenshots:</strong> replay, search, arranged by repository, the settings, plans and the dark theme</summary>
+<summary><strong>More screenshots:</strong> a monorepo, replay, search, arranged by repository, the settings, plans and the dark theme</summary>
+
+<p><img src="docs/screenshots/monorepo.webp" alt="The orrery on a made-up monorepo, atlas, with a sector for each of its eight packages, from atlas › apps/web to atlas › services/search, and two sessions waiting on you closest to the centre."></p>
+<p><sub>A monorepo: every busy package gets a room of its own.</sub></p>
 
 <table>
   <tr>
@@ -227,6 +230,13 @@ No. They come from the dashboard tab, so keep it open, in the background, or pin
 <summary><strong>Does it slow Claude Code down?</strong></summary>
 
 No. It reads files Claude Code writes anyway, and adds no hooks.
+
+</details>
+
+<details>
+<summary><strong>How does it handle a monorepo?</strong></summary>
+
+Each package or app with its own `package.json`, `Cargo.toml`, `go.mod`, `pyproject.toml` or Nx `project.json` below the repository root becomes an area, shown as a room such as `shop › apps/web`; files at the root stay with the repository. It only splits a repository while two or more of its areas are busy, so most of the time it looks like any other repository. To name the areas yourself, add an `.orrery.json` at the root: `{"areas": ["apps/*", "services/*", "infra"]}`, where `*` stands for one folder.
 
 </details>
 

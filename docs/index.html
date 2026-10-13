@@ -106,7 +106,7 @@
         </article>
         <article class="feature">
           <h3>Rooms per repository</h3>
-          <p>Each agent sits in the repo its work touches, not the folder its session started in. The Agents tab lays them out as a grid of rooms, and a session started in storefront-api whose subagents edit storefront-web reaches across into that room.</p>
+          <p>Each agent sits in the repo its work touches, not the folder its session started in, and in a monorepo, the package it works in. The Agents tab lays them out as a grid of rooms, and a session started in storefront-api whose subagents edit storefront-web reaches across into that room.</p>
         </article>
         <article class="feature">
           <h3>Focus, and what it cost</h3>
@@ -169,6 +169,11 @@
           <img src="screenshots/search.webp" width="1440" height="900" loading="lazy" decoding="async"
             alt="The search window open over the dashboard, listing agents, plans and memory notes that match checkout, with the matches highlighted.">
           <figcaption>Search agents, plans and memory with <kbd>⌘</kbd> <kbd>K</kbd>.</figcaption>
+        </figure>
+        <figure>
+          <img src="screenshots/monorepo.webp" width="1440" height="900" loading="lazy" decoding="async"
+            alt="The orrery on a made-up monorepo, atlas, with a sector for each of its eight packages and two sessions waiting on you closest to the centre.">
+          <figcaption>A monorepo, a room per busy package.</figcaption>
         </figure>
         <figure>
           <img src="screenshots/memory.webp" width="1440" height="900" loading="lazy" decoding="async"
@@ -309,6 +314,10 @@ pnpm demo</pre>
         <details>
           <summary>Does it work with several machines?</summary>
           <p>No. It reads the Claude Code files on the machine it runs on.</p>
+        </details>
+        <details>
+          <summary>How does it handle a monorepo?</summary>
+          <p>Each package or app with its own <code>package.json</code>, <code>Cargo.toml</code>, <code>go.mod</code>, <code>pyproject.toml</code> or Nx <code>project.json</code> below the repository root becomes an area, shown as a room such as <code>shop › apps/web</code>. It only splits a repository while two or more of its areas are busy. To name the areas yourself, add an <code>.orrery.json</code> at the root: <code>{"areas": ["apps/*", "infra"]}</code>.</p>
         </details>
         <details>
           <summary>Why is an agent in the wrong room?</summary>
