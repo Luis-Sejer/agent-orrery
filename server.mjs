@@ -10,6 +10,7 @@ import { homedir } from 'node:os'
 import { extname, join, relative } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
+import { createArtifactIndex } from './artifacts.mjs'
 import { applyLines, createGraph, day, ensureNode, forget, replay, setLive, snapshot, timeline, waitingSessions } from './graph.mjs'
 import { createLibrary } from './library.mjs'
 import { createRepoResolver, readText } from './repos.mjs'
@@ -40,7 +41,9 @@ const READ_CHUNK_BYTES = 4 * 1024 * 1024
 const MIN_PUSH_MS = 1_000
 
 const library = createLibrary({ claudeDir: CLAUDE_DIR })
-const graph = createGraph({ resolveRepo: createRepoResolver(), plansDir: library.plansDir })
+const resolveRepo = createRepoResolver()
+const graph = createGraph({ resolveRepo, plansDir: library.plansDir })
+const artifacts = createArtifactIndex({ projectsDir: PROJECTS_DIR, resolveRepo })
 const tracked = new Map()
 const sessionDirs = new Map()
 
@@ -372,7 +375,8 @@ const API_ROUTES = {
   '/api/plan': (query) => library.readPlan(query.get('name') ?? ''),
   '/api/memory': () => library.listMemory(),
   '/api/memory/note': (query) => library.readMemory(query.get('project') ?? '', query.get('name') ?? ''),
-  '/api/search': (query) => library.search(query.get('q') ?? ''),
+  '/api/search': async (query) => ({ ...(await library.search(query.get('q') ?? '')), artifacts: await artifacts.search(query.get('q') ?? '') }),
+  '/api/artifacts': () => artifacts.list(),
 }
 
 // Every open page hears about a change made in another, so a dismissal shows everywhere at once.

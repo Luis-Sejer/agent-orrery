@@ -699,3 +699,35 @@ test('a forked subagent does not take over the parent message it starts with, so
   assert.equal(nodes.f2.parentId, 's1')
   assert.deepEqual(Object.keys(nodes.f1.usage), [])
 })
+
+test('a published artifact keeps its title and claude.ai address, and nothing else from the reply', () => {
+  const graph = createGraph({ resolveRepo })
+  ensureNode(graph, 's1', { kind: 'session', label: 'one', sessionId: 's1' })
+  const publish = (id, second, input) => line({ type: 'assistant', timestamp: at(second), message: { stop_reason: 'tool_use', content: [toolUse(id, 'Artifact', input)] } })
+  const reply = (id, second, text, isError = false) => line({ type: 'user', timestamp: at(second), message: { content: [{ type: 'tool_result', tool_use_id: id, is_error: isError, content: [{ type: 'text', text }] }] } })
+  applyLines(
+    graph,
+    's1',
+    publish('p1', 1, { file_path: '/code/shop/Launch plan.html', description: 'SECRET' }) +
+      reply('p1', 2, 'Published at https://claude.ai/code/artifact/0123456789-abcd. SECRET watch line https://claude.ai/artifact/typeTypeType') +
+      // A republish names its data file, which mustn't rename the page.
+      publish('p2', 3, { url: 'https://claude.ai/code/artifact/0123456789-abcd', file_path: '/tmp/data.json' }) +
+      reply('p2', 4, 'Updated.') +
+      publish('p3', 5, { action: 'publish', type_url: 'https://claude.ai/artifact/typeTypeType', title: 'Board deck' }) +
+      reply('p3', 6, 'Created a new Artifact at https://claude.ai/artifact/DeckDeckDeck from the Artifact type https://claude.ai/artifact/typeTypeType') +
+      publish('p4', 7, { file_path: '/code/shop/broken.html' }) +
+      reply('p4', 8, 'Refused', true) +
+      publish('p5', 9, { action: 'read', url: 'https://claude.ai/artifact/SomeoneElses' }) +
+      reply('p5', 10, 'https://claude.ai/artifact/SomeoneElses'),
+  )
+  const [node] = snapshot(graph, 0).nodes
+  assert.deepEqual(node.artifacts, [
+    { title: 'Board deck', url: 'https://claude.ai/artifact/DeckDeckDeck', at: Date.parse(at(5)) },
+    { title: 'Launch plan', url: 'https://claude.ai/code/artifact/0123456789-abcd', at: Date.parse(at(3)) },
+  ])
+  assert.ok(!JSON.stringify(snapshot(graph, 0)).includes('SECRET'))
+  assert.deepEqual(timeline(graph, 's1').map(({ text }) => text).slice(0, 3), ['Published Launch plan', 'Published data', 'Published Board deck'])
+  // Deleting one takes it off the list.
+  applyLines(graph, 's1', publish('d1', 11, { action: 'delete', url: 'https://claude.ai/artifact/DeckDeckDeck' }))
+  assert.deepEqual(snapshot(graph, 0).nodes[0].artifacts.map(({ title }) => title), ['Launch plan'])
+})

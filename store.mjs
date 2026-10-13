@@ -9,7 +9,7 @@ import { join } from 'node:path'
 const ON_OFF = ['on', 'off']
 // Each setting, the environment variable that gives its default, and the values it may take.
 export const SETTINGS = {
-  view: ['AGENT_ORRERY_VIEW', ['orrery', 'graph', 'day', 'plans', 'memory']],
+  view: ['AGENT_ORRERY_VIEW', ['orrery', 'graph', 'day', 'artifacts', 'plans', 'memory']],
   // The canvas you used last (Agents or Orrery), where jumping to an agent takes you.
   canvas: [null, ['orrery', 'graph']],
   arrangement: ['AGENT_ORRERY_ARRANGEMENT', ['status', 'room', 'galaxy']],

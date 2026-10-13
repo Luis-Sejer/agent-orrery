@@ -26,6 +26,11 @@ const SYNTHETIC_MODEL = '<synthetic>'
 const TASK_TOOL_USE_ID = /<tool-use-id>([\w-]{1,100})<\/tool-use-id>/
 const TASK_ID = /<task-id>([\w-]{1,100})<\/task-id>/
 const TASK_STOP_TOOL = 'TaskStop'
+const ARTIFACT_TOOL = 'Artifact'
+// A published artifact's address on claude.ai, the one thing taken from the reply to a publish.
+const ARTIFACT_URL = /https:\/\/claude\.ai\/(?:code\/)?artifact\/[\w-]{6,80}/
+const ARTIFACTS_LIMIT = 50
+const MAX_TITLE_LENGTH = 120
 // As long as an agent counts as running after its last record (STALE_MS in web/src/status.ts).
 const HISTORY_MERGE_MS = 15 * 60_000
 // Some prices depend on the request, not just the model: fast mode, and long prompts on models
@@ -50,6 +55,7 @@ const ACTIVITY_BY_TOOL = {
   Task: 'connecting',
   SendMessage: 'connecting',
   AskUserQuestion: 'listening',
+  Artifact: 'composing',
 }
 
 // Agents often read and edit through the shell, so a command is classified by what it does.
@@ -87,6 +93,33 @@ const DESCRIBE_TOOL = {
   AskUserQuestion: () => 'Asked you a question',
   SubagentHandback: () => 'Handed back its report',
   [MESSAGE_TOOL]: () => 'Sent a message',
+  [ARTIFACT_TOOL]: describeArtifact,
+}
+
+// What an Artifact call does to the list of published artifacts: publishes one (a new page, a
+// republish or one made from a type) or deletes one. Reads, lists and asset uploads change nothing.
+export function artifactCall(input) {
+  const action = input?.action ?? 'publish'
+  if (action === 'delete' && !input.path && typeof input.url === 'string') return { kind: 'delete', url: input.url.match(ARTIFACT_URL)?.[0] ?? null }
+  if (action !== 'publish' || input?.asset === true) return null
+  // A republish names its file (often a data file), so only a title given outright renames a page.
+  const titled = typeof input?.title === 'string' && input.title.trim() !== ''
+  const named = titled ? input.title.trim() : typeof input?.file_path === 'string' ? basename(input.file_path).replace(/\.[a-z]+$/i, '') : 'Artifact'
+  return { kind: 'publish', title: named.slice(0, MAX_TITLE_LENGTH), titled, url: typeof input?.url === 'string' ? (input.url.match(ARTIFACT_URL)?.[0] ?? null) : null }
+}
+
+// The first artifact address in a tool result: the page that was published (a page made from a type
+// names the type's address after its own).
+export function artifactUrlIn(content) {
+  const text = typeof content === 'string' ? content : Array.isArray(content) ? content.map((block) => (typeof block?.text === 'string' ? block.text : '')).join('\n') : ''
+  return text.match(ARTIFACT_URL)?.[0] ?? null
+}
+
+function describeArtifact(input) {
+  const call = artifactCall(input)
+  if (call?.kind === 'publish') return `Published ${call.title}`
+  if (call?.kind === 'delete') return 'Deleted an artifact'
+  return 'Looked at artifacts'
 }
 
 function describeTool(name, input) {
@@ -127,6 +160,9 @@ export function ensureNode(graph, id, fields) {
       edits: new Map(),
       // [start, end] spans in which it waited on you and you answered.
       youWaits: [],
+      // Artifacts it published, by address, and its publish calls still waiting for their reply.
+      artifacts: new Map(),
+      artifactCalls: new Map(),
     }
     graph.nodes.set(id, node)
   }
@@ -229,6 +265,24 @@ function recordToolUse(graph, node, block, record, at) {
   if (name === MESSAGE_TOOL && typeof recipient === 'string') addMessage(graph, node.id, recipient, at)
   if (name === QUESTION_TOOL) node.waiting = { reason: 'question', since: at }
   if (SPAWN_TOOLS.has(name)) node.lastSpawnAt = at
+  if (name === ARTIFACT_TOOL) {
+    const call = artifactCall(block.input)
+    if (call?.kind === 'publish') node.artifactCalls.set(block.id, { ...call, at })
+    if (call?.kind === 'delete' && call.url) node.artifacts.delete(call.url)
+  }
+}
+
+// A publish is known once its reply names the page; a failed one leaves nothing behind.
+function settleArtifact(node, block) {
+  const call = node.artifactCalls.get(block.tool_use_id)
+  if (!call) return
+  node.artifactCalls.delete(block.tool_use_id)
+  const url = block.is_error ? null : (artifactUrlIn(block.content) ?? call.url)
+  if (!url) return
+  const earlier = node.artifacts.get(url)
+  node.artifacts.delete(url)
+  node.artifacts.set(url, { title: earlier && !call.titled ? earlier.title : call.title, url, at: call.at })
+  if (node.artifacts.size > ARTIFACTS_LIMIT) node.artifacts.delete(node.artifacts.keys().next().value)
 }
 
 function recordEdit(node, path, at, repo) {
@@ -279,12 +333,14 @@ function closeTools(node, record) {
   for (const block of content) {
     if (block?.type !== 'tool_result') continue
     node.openTools.delete(block.tool_use_id)
+    settleArtifact(node, block)
     // A background call answers at once with its task id; notifications and TaskStop use that id.
     const taskId = record.toolUseResult?.backgroundTaskId
     if (typeof taskId === 'string' && node.backgroundTasks.has(block.tool_use_id)) node.backgroundTaskIds.set(taskId, block.tool_use_id)
   }
   if (isHumanPrompt(record)) {
     node.openTools.clear()
+    node.artifactCalls.clear()
     // Only the current turn's background calls count: earlier ones may have been killed, or never
     // end at all (a dev server), and Claude Code doesn't always say when they finish.
     node.backgroundTasks.clear()
@@ -504,6 +560,7 @@ function publicNode(graph, node, now) {
     plans: [...node.plans],
     live: liveOf(graph, node, now),
     youWaits: node.youWaits,
+    artifacts: [...node.artifacts.values()].reverse(),
   }
 }
 
@@ -560,9 +617,11 @@ function nodeAt(node, at) {
   const entry = node.history.findLast((candidate) => candidate[0] <= at)
   // Before the oldest kept entry there's nothing to show but that the node existed.
   const youWaits = node.youWaits.filter(([, end]) => end <= at)
-  if (!entry) return { ...node, activity: null, lastTool: null, waiting: null, openTools: new Map(), backgroundTasks: new Map(), youWaits, lastAt: Math.min(node.firstAt, at) }
+  const artifacts = new Map([...node.artifacts].filter(([, artifact]) => artifact.at <= at))
+  const past = { openTools: new Map(), backgroundTasks: new Map(), youWaits, artifacts }
+  if (!entry) return { ...node, ...past, activity: null, lastTool: null, waiting: null, lastAt: Math.min(node.firstAt, at) }
   const [since, activity, reason, lastTool, lastAt] = entry
-  return { ...node, activity, lastTool, lastAt: Math.min(lastAt, at), waiting: reason && { reason, since }, openTools: new Map(), backgroundTasks: new Map(), youWaits }
+  return { ...node, ...past, activity, lastTool, lastAt: Math.min(lastAt, at), waiting: reason && { reason, since } }
 }
 
 // The graph as it was at `at`, through the same visibility rules as the live snapshot.
