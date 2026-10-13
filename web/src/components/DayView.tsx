@@ -65,7 +65,7 @@ export function DayView({ nodes, now, onSelectNode }: DayViewProps) {
           {rows.length === 0
             ? 'No sessions yet today.'
             : waited > 0
-              ? `Agents waited ${duration(waited)} on you, across ${rows.length} ${rows.length === 1 ? 'session' : 'sessions'}.${longest && longest.ms > 0 ? ` ${longest.node.label} waited longest: ${duration(longest.ms)}.` : ''}`
+              ? `Something waited on you for ${duration(waited)} today, across ${rows.length} ${rows.length === 1 ? 'session' : 'sessions'}.${longest && longest.ms > 0 ? ` ${longest.node.label} waited longest: ${duration(longest.ms)}.` : ''}`
               : `${rows.length} ${rows.length === 1 ? 'session' : 'sessions'}, and none of them waited on you.`}
         </p>
         <ul className="day-key" aria-label="Key">

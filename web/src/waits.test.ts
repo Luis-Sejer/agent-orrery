@@ -47,6 +47,12 @@ describe('time waiting on you', () => {
     expect(waitedOnYou([node], NOW, since)).toBe(20 * MINUTE)
   })
 
+  it('counts time several sessions waited at once only once, so it never adds up to more than has passed', () => {
+    const wait = { waiting: { reason: 'reply' as const, since: NOW - 60 * MINUTE } }
+    const open = [session({ ...wait, id: 'a' }), session({ ...wait, id: 'b' }), session({ ...wait, id: 'c' })]
+    expect(waitedOnYou(open, NOW, NOW - 2 * 60 * MINUTE)).toBe(60 * MINUTE)
+  })
+
   it('stops counting a wait you dismissed, or a session that has closed', () => {
     const wait = { waiting: { reason: 'reply' as const, since: NOW - 5 * MINUTE } }
     expect(waitedOnYou([session({ ...wait, dismissed: true }), session({ ...wait, live: { status: 'closed' } })], NOW, 0)).toBe(0)

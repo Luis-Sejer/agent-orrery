@@ -186,7 +186,7 @@ export function Inbox({ nodes, collisions, usage, now, connection, selectedId, d
       {running.length > RUNNING_SHOWN && <p className="empty-note">And {running.length - RUNNING_SHOWN} more.</p>}
       {running.length === 0 && <p className="empty-note">No agents are running.</p>}
       {spend && <p className="spend-note">Everything in view: {spend}</p>}
-      {waited > 0 && <p className="spend-note">Agents waited {duration(waited)} on you today</p>}
+      {waited > 0 && <p className="spend-note">Something waited on you for {duration(waited)} today</p>}
     </aside>
   )
 }

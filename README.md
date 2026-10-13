@@ -39,7 +39,7 @@ Agent Orrery answers that at a glance. It reads the transcripts Claude Code alre
 - **The orrery.** The page opens on your agents in rings around you: whatever waits on you sits closest, running agents next, finished ones on the outside, with a sector for each repository. Working across many repositories? Arrange it by repository instead: each one gets a ring of its own, and the ones that need you move inwards. Or as a galaxy: each repository is a small solar system with its own rings, and the systems that need you sit closest. The rings turn slowly, inner ones faster, and steady themselves while you point at an agent. Agents, one tab over, lays the same agents out as a grid of rooms, or as a tree of who started whom.
 - **Your turn.** Every session that finished, asked you something or is waiting on a permission prompt, oldest first, with how long it has waited. It comes from Claude Code's own status for each running session, so a closed terminal drops off at once. The tab title shows the count. Dismiss one until it does something new.
 - **Same files.** Two agents editing the same file within minutes of each other get a red line between them, and a warning in Your turn, before they undo each other's work.
-- **Day.** Today's sessions on one clock: when each worked, when it sat waiting on you, and how long agents waited on you in total.
+- **Day.** Today's sessions on one clock: when each worked, when it sat waiting on you, and how long something was waiting on you in total.
 - **Plan usage.** Your plan's session and weekly usage, the same numbers as `/usage`, live under Your turn, round T.Y.C.H.O.'s core and in the menu bar, amber near the limit and red at it. It takes [one line in your status line](#plan-usage).
 - **Artifacts.** Every page your agents published on claude.ai, from all their sessions, newest first, with a filter and ⌘K search. Agents that published something carry a small mark, and their drawer lists what they made. Each one opens on claude.ai.
 - **Rooms per repository.** Each agent sits in the repo its work touches, not the folder its session started in. A session started in the API whose subagents edit the web app reaches across into the web app's room. In a monorepo, each busy package gets a room of its own.
@@ -85,7 +85,7 @@ Agent Orrery answers that at a glance. It reads the transcripts Claude Code alre
   </tr>
   <tr>
     <td width="50%"><img src="docs/screenshots/same-files.webp" alt="The Agents grid with Order history export selected: a red dashed line joins it to Write the order API contract, and the drawer says that agent also edited routes.ts."></td>
-    <td width="50%"><img src="docs/screenshots/day.webp" alt="The Day view: today's sessions on one clock, green where each one worked and red where it waited on you, with how long agents waited on you in total."></td>
+    <td width="50%"><img src="docs/screenshots/day.webp" alt="The Day view: today's sessions on one clock, green where each one worked and red where it waited on you, with how long something was waiting on you in total."></td>
   </tr>
   <tr>
     <td><sub>Same files: two agents in one file get a red line before they undo each other's work.</sub></td>

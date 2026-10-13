@@ -30,8 +30,10 @@ export function waitSpans(node: AgentNode, now: number, since: number): Span[] {
 
 const total = (spans: Span[]) => spans.reduce((sum, [start, end]) => sum + end - start, 0)
 
+// How long anything was waiting on you: overlapping waits count once, so sessions left open and idle
+// side by side can't add up to more time than has passed.
 export function waitedOnYou(nodes: AgentNode[], now: number, since: number): number {
-  return nodes.filter((node) => node.kind === 'session').reduce((sum, node) => sum + total(waitSpans(node, now, since)), 0)
+  return total(join(nodes.filter((node) => node.kind === 'session').flatMap((node) => waitSpans(node, now, since))))
 }
 
 export function waitedFor(node: AgentNode, now: number, since: number): number {
