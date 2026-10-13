@@ -7,8 +7,15 @@ const STALE_MS = 15 * 60_000
 // A tool call with no result yet may be a permission prompt waiting for you, so the agent keeps
 // looking busy for much longer instead of quietly passing as finished.
 const PENDING_STALE_MS = 2 * 60 * 60_000
+// Silence after a tool result long enough to mean a held-back question (HELD_REPLY_MS in graph.mjs).
+const HELD_REPLY_MS = 3 * 60_000
+// How long a background shell keeps its session waiting on it (BACKGROUND_MS in graph.mjs).
+const BACKGROUND_MS = 30 * 60_000
 // Running but silent for this long is worth a look: it may be waiting for approval.
 const QUIET_MS = 5 * 60_000
+// A wait or a message this new still moves on screen; after that it rests, still coloured, so the page
+// isn't always busy.
+export const FRESH_MS = 2 * 60_000
 const ELSEWHERE = 'elsewhere'
 
 const STATE_COLOURS: Record<OrbState, string> = {
@@ -42,14 +49,14 @@ export function stateColour(state: OrbState, hud: boolean): string {
 
 export function statusOf(node: AgentNode, now: number): Status {
   if (node.dismissed) return 'finished'
-  if (node.awaitingAgents) return 'running'
+  if (node.awaiting) return 'running'
   if (node.waiting && node.kind === 'session') return 'waiting'
   if (node.waiting) return 'finished'
   return now - node.lastAt < (node.pendingTool ? PENDING_STALE_MS : STALE_MS) ? 'running' : 'finished'
 }
 
 export function isQuiet(node: AgentNode, now: number): boolean {
-  return statusOf(node, now) === 'running' && !node.awaitingAgents && now - node.lastAt >= QUIET_MS
+  return statusOf(node, now) === 'running' && !node.awaiting && now - node.lastAt >= QUIET_MS
 }
 
 // MCP tools are named mcp__server__tool; the last part reads best.
@@ -59,7 +66,7 @@ export function orbStateOf(node: AgentNode, now: number): OrbState {
   const status = statusOf(node, now)
   if (status === 'waiting') return 'listening'
   if (status === 'finished') return 'breathing'
-  if (node.awaitingAgents) return 'connecting'
+  if (node.awaiting) return 'connecting'
   return node.activity ?? 'solving'
 }
 
@@ -119,17 +126,40 @@ export function verbFor(activity: OrbState | null): string {
   return (activity && VERBS[activity]) ?? 'Working'
 }
 
-// A session that ended its turn while subagents it started are still running isn't waiting on you:
-// they wake it when they report back. One that asked you a question still is.
+const counted = (count: number, one: string, many: string) => (count === 1 ? one : `${count} ${many}`)
+
+// "an agent", "2 agents and a shell"
+function awaitingText({ agents, shells }: { agents: number; shells: number }): string {
+  const parts = [agents > 0 && counted(agents, 'an agent', 'agents'), shells > 0 && counted(shells, 'a shell', 'shells')].filter(Boolean)
+  return parts.join(' and ')
+}
+
+// A session that ended its turn while its subagents or background shells are still running isn't
+// waiting on you: they wake it when they report back. One that asked you a question still is.
 export function awaitAgents(graph: GraphSnapshot, now: number): GraphSnapshot {
-  const running = new Map<string, number>()
+  const agents = new Map<string, number>()
   for (const node of graph.nodes) {
-    if (node.kind === 'subagent' && node.sessionId && statusOf(node, now) === 'running') running.set(node.sessionId, (running.get(node.sessionId) ?? 0) + 1)
+    if (node.kind === 'subagent' && node.sessionId && statusOf(node, now) === 'running') agents.set(node.sessionId, (agents.get(node.sessionId) ?? 0) + 1)
   }
-  if (running.size === 0) return graph
+  // A background call counts for half an hour at most: one that never ends (a dev server) mustn't keep
+  // a session busy for good.
+  const shellsOf = (node: AgentNode) => (node.background ?? []).filter((task) => now - task.since < BACKGROUND_MS).length
+  let changed = false
   const nodes = graph.nodes.map((node) => {
-    const count = running.get(node.id)
-    return count && node.kind === 'session' && node.waiting?.reason === 'reply' ? { ...node, waiting: null, awaitingAgents: count } : node
+    // Silent right after a tool result, with nothing running: Claude Code is holding back a message
+    // until you answer it, which in practice is a question.
+    if (node.kind === 'session' && node.owesReply && !node.waiting && !node.pendingTool && now - node.lastAt >= HELD_REPLY_MS) {
+      changed = true
+      return { ...node, waiting: { reason: 'question' as const, since: node.lastAt, probably: true } }
+    }
+    // Also mid-turn: a session gone quiet while its own agents or shells work is waiting on them.
+    const turnEnded = node.waiting?.reason === 'reply'
+    const quietMidTurn = !node.waiting && statusOf(node, now) === 'running' && now - node.lastAt >= QUIET_MS
+    if (node.kind !== 'session' || !(turnEnded || quietMidTurn)) return node
+    const awaiting = { agents: agents.get(node.id) ?? 0, shells: shellsOf(node) }
+    if (awaiting.agents + awaiting.shells === 0) return node
+    changed = true
+    return { ...node, waiting: null, awaiting }
   })
-  return { ...graph, nodes }
+  return changed ? { ...graph, nodes } : graph
 }

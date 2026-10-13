@@ -56,13 +56,17 @@ export function App() {
   const { preference, theme, hud, choose: chooseTheme } = useTheme()
   const [worktreeRooms, setWorktreeRooms] = useWorktreeRooms()
   const graph = useMemo(() => {
-    const shown = replay.view?.graph ?? applyDismissals(liveGraph, dismissals)
-    return awaitAgents(worktreeRooms === 'on' ? shown : foldWorktrees(shown), now)
+    const shown = replay.view?.graph ?? liveGraph
+    // Waits are inferred first (held-back questions, sessions waiting on their agents), so a
+    // dismissal applies to those too. A replay is from the past, with nothing to dismiss.
+    const settled = awaitAgents(worktreeRooms === 'on' ? shown : foldWorktrees(shown), now)
+    return replay.view ? settled : applyDismissals(settled, dismissals)
   }, [replay.view, liveGraph, dismissals, worktreeRooms, now])
   const dismissedCount = graph.nodes.filter((node) => node.dismissed).length
   const { view, setView, toCanvas } = useView()
   const [arrangement, arrange] = useArrangement()
   const [clean, setClean] = useCleanView()
+  const [pauseMotion, setPauseMotion] = usePauseMotion()
   const onCanvas = view === 'graph' || view === 'orrery'
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [focusRequest, setFocusRequest] = useState<{ id: string; at: number } | null>(null)

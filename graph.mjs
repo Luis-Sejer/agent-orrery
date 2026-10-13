@@ -17,6 +17,9 @@ const TIMELINE_LIMIT = 80
 const HISTORY_LIMIT = 400
 const UNKNOWN_MODEL = 'unknown'
 const SYNTHETIC_MODEL = '<synthetic>'
+const TASK_TOOL_USE_ID = /<tool-use-id>([\w-]{1,100})<\/tool-use-id>/
+const TASK_ID = /<task-id>([\w-]{1,100})<\/task-id>/
+const TASK_STOP_TOOL = 'TaskStop'
 // As long as an agent counts as running after its last record (STALE_MS in web/src/status.ts).
 const HISTORY_MERGE_MS = 15 * 60_000
 // Some prices depend on the request, not just the model: fast mode, and long prompts on models
@@ -108,6 +111,10 @@ export function ensureNode(graph, id, fields) {
       usage: Object.create(null),
       lastMessageId: null,
       openTools: new Map(),
+      // Calls running in the background (run_in_background), until their task notification arrives.
+      backgroundTasks: new Map(),
+      // A background call's task id (from its result) → its tool use id, for notifications and TaskStop.
+      backgroundTaskIds: new Map(),
       history: [],
     }
     graph.nodes.set(id, node)
@@ -186,7 +193,9 @@ function addMessage(graph, from, to, at) {
 }
 
 function recordToolUse(graph, node, block, record, at) {
+  if (block.input?.run_in_background === true && !SPAWN_TOOLS.has(String(block.name))) node.backgroundTasks.set(block.id, { name: String(block.name), since: at })
   const name = String(block.name)
+  if (name === TASK_STOP_TOOL) closeBackgroundTask(node, { taskId: block.input?.task_id })
   node.lastTool = name
   node.activity = name === 'Bash' ? shellActivity(block.input?.command) : (ACTIVITY_BY_TOOL[name] ?? 'working')
   // Only spawns are looked up (to find a subagent's parent), so only they are kept.
@@ -236,9 +245,26 @@ function isInterruption(record) {
 // A result closes its call; a new prompt settles whatever was left open, such as an interrupted call.
 function closeTools(node, record) {
   const content = Array.isArray(record.message?.content) ? record.message.content : []
-  for (const block of content) if (block?.type === 'tool_result') node.openTools.delete(block.tool_use_id)
+  for (const block of content) {
+    if (block?.type !== 'tool_result') continue
+    node.openTools.delete(block.tool_use_id)
+    // A background call answers at once with its task id; notifications and TaskStop use that id.
+    const taskId = record.toolUseResult?.backgroundTaskId
+    if (typeof taskId === 'string' && node.backgroundTasks.has(block.tool_use_id)) node.backgroundTaskIds.set(taskId, block.tool_use_id)
+  }
   const origin = record.origin
-  if (origin?.kind === 'human' || (!origin && isTypedPrompt(record))) node.openTools.clear()
+  if (origin?.kind === 'human' || (!origin && isTypedPrompt(record))) {
+    node.openTools.clear()
+    // Only the current turn's background calls count: earlier ones may have been killed, or never
+    // end at all (a dev server), and Claude Code doesn't always say when they finish.
+    node.backgroundTasks.clear()
+    node.backgroundTaskIds.clear()
+  }
+}
+
+function closeBackgroundTask(node, { toolUseId, taskId }) {
+  if (toolUseId) node.backgroundTasks.delete(toolUseId)
+  if (taskId && node.backgroundTaskIds.has(taskId)) node.backgroundTasks.delete(node.backgroundTaskIds.get(taskId))
 }
 
 function isToolResultOnly(record) {
@@ -250,6 +276,10 @@ export function applyRecord(graph, nodeId, record) {
   const node = graph.nodes.get(nodeId)
   const at = Date.parse(record.timestamp ?? '') || 0
   if (isActivity(record)) {
+    // After a tool result or a prompt the model owes a reply. Claude Code holds back a message that asks
+    // you a question until you answer it, so a long silence here usually means a question is open.
+    // A task notification is news for an idle session, not something the model is busy answering.
+    node.owesReply = record.type === 'user' && record.origin?.kind !== 'task-notification'
     node.lastAt = Math.max(node.lastAt, at)
     markFirstSeen(node, at)
   }
@@ -260,13 +290,21 @@ export function applyRecord(graph, nodeId, record) {
 
   if (record.type === 'user' && isActivity(record)) {
     // The handback's own tool result doesn't wake a subagent; a new message to it does.
-    if (!node.handedBack || !isToolResultOnly(record)) {
+    // A task notification that lands after the turn ended doesn't end the wait either; if the model
+    // takes it up, its own records follow within seconds.
+    const notification = record.origin?.kind === 'task-notification'
+    if (!notification && (!node.handedBack || !isToolResultOnly(record))) {
       node.waiting = null
       node.handedBack = false
     }
     closeTools(node, record)
     const origin = record.origin
-    if (isInterruption(record)) {
+    if (origin?.kind === 'task-notification') {
+      // Only the id of the finished call is read from the notification, to stop waiting on it.
+      const content = record.message?.content
+      const text = typeof content === 'string' ? content : ''
+      closeBackgroundTask(node, { toolUseId: text.match(TASK_TOOL_USE_ID)?.[1], taskId: text.match(TASK_ID)?.[1] })
+    } else if (isInterruption(record)) {
       node.waiting = { reason: 'reply', since: at }
       if (node.kind === 'session') addEvent(node, { at, activity: 'listening', text: 'You stopped it', repo: null })
     } else if (origin?.kind === 'peer' && origin.from && !origin.handback) {
@@ -361,6 +399,8 @@ function publicNode(graph, node) {
     lastAt: node.lastAt,
     waiting: node.waiting ?? null,
     pendingTool: oldestOpenTool(node),
+    background: [...node.backgroundTasks.values()],
+    owesReply: node.kind === 'session' && node.owesReply === true,
     usage: node.usage,
     agentType: node.agentType ?? null,
     model: node.model ?? null,
@@ -387,9 +427,9 @@ export function snapshot(graph, since, waitingSince = since) {
 function nodeAt(node, at) {
   const entry = node.history.findLast((candidate) => candidate[0] <= at)
   // Before the oldest kept entry there's nothing to show but that the node existed.
-  if (!entry) return { ...node, activity: null, lastTool: null, waiting: null, openTools: new Map(), lastAt: Math.min(node.firstAt, at) }
+  if (!entry) return { ...node, activity: null, lastTool: null, waiting: null, openTools: new Map(), backgroundTasks: new Map(), lastAt: Math.min(node.firstAt, at) }
   const [since, activity, reason, lastTool, lastAt] = entry
-  return { ...node, activity, lastTool, lastAt: Math.min(lastAt, at), waiting: reason && { reason, since }, openTools: new Map() }
+  return { ...node, activity, lastTool, lastAt: Math.min(lastAt, at), waiting: reason && { reason, since }, openTools: new Map(), backgroundTasks: new Map() }
 }
 
 // The graph as it was at `at`, through the same visibility rules as the live snapshot.
@@ -407,14 +447,35 @@ export function replay(graph, at, windowMs, waitingWindowMs = windowMs) {
 const RUNNING_MS = 15 * 60_000
 const RUNNING_WITH_OPEN_TOOL_MS = 2 * 60 * 60_000
 const isRunning = (node, now) => !node.waiting && now - node.lastAt < (node.pendingTool ? RUNNING_WITH_OPEN_TOOL_MS : RUNNING_MS)
+// How long a session may stay silent after a tool result before it's probably asking you something
+// (HELD_REPLY_MS in web/src/status.ts).
+const HELD_REPLY_MS = 3 * 60_000
+const probablyAsking = (node, now) => node.owesReply && !node.waiting && !node.pendingTool && now - node.lastAt >= HELD_REPLY_MS
+// A background call counts for half an hour at most (BACKGROUND_MS in web/src/status.ts).
+const BACKGROUND_MS = 30 * 60_000
+const runsInBackground = (node, now) => (node.background ?? []).some((task) => now - task.since < BACKGROUND_MS)
 
-// A session whose turn ended while its subagents still run is waiting on them, not on you.
+// A session whose turn ended while its subagents or background calls still run is waiting on them, not on you.
 export function waitingSessions({ nodes }, now = Date.now()) {
   const busy = new Set(nodes.filter((node) => node.kind === 'subagent' && isRunning(node, now)).map((node) => node.sessionId))
+  for (const node of nodes) if (node.kind === 'session' && runsInBackground(node, now)) busy.add(node.id)
+  const asking = (node) => (probablyAsking(node, now) ? { reason: 'question', since: node.lastAt } : null)
   return nodes
-    .filter((node) => node.kind === 'session' && node.waiting && (node.waiting.reason === 'question' || !busy.has(node.id)))
-    .map((node) => ({ id: node.id, label: node.label, room: node.room, branch: node.branch, reason: node.waiting.reason, since: node.waiting.since }))
+    .filter((node) => node.kind === 'session')
+    .map((node) => ({ node, waiting: asking(node) ?? node.waiting }))
+    .filter(({ node, waiting }) => waiting && (waiting.reason === 'question' || !busy.has(node.id)))
+    .map(({ node, waiting }) => ({ id: node.id, label: node.label, room: node.room, branch: node.branch, reason: waiting.reason, since: waiting.since }))
     .sort((a, b) => a.since - b.since)
+}
+
+// Drops nodes whose last activity is older than the cutoff, and the messages that touch them.
+// Returns their ids, so their transcripts can stop being read.
+export function forget(graph, cutoff) {
+  const forgotten = new Set()
+  for (const [id, node] of graph.nodes) if (node.lastAt > 0 && node.lastAt < cutoff) forgotten.add(id)
+  for (const id of forgotten) graph.nodes.delete(id)
+  for (const [key, edge] of graph.messages) if (forgotten.has(edge.from) || forgotten.has(edge.to)) graph.messages.delete(key)
+  return forgotten
 }
 
 export function timeline(graph, id) {

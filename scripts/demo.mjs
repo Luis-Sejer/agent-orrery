@@ -109,6 +109,11 @@ class Transcript {
     this.add({ type: 'assistant', timestamp: ago(minutesAgo), message: { ...messageMeta(this.model), stop_reason: 'tool_use', content: [{ type: 'tool_use', id: nextId('toolu_'), name: 'AskUserQuestion', input: {} }] } })
   }
 
+  // The session was closed mid-turn: the model spoke last, so it owes nothing and waits on no one.
+  stopped(minutesAgo) {
+    this.add({ type: 'assistant', timestamp: ago(minutesAgo), message: { ...messageMeta(this.model), stop_reason: null, content: [{ type: 'thinking', thinking: '…' }] } })
+  }
+
   endTurn(minutesAgo) {
     this.add({ type: 'assistant', timestamp: ago(minutesAgo), message: { ...messageMeta(this.model), stop_reason: 'end_turn', content: [{ type: 'text', text: '…' }] } })
   }
@@ -205,6 +210,7 @@ function writeMonorepo() {
   tokens.transcript.prompt(160)
   tokens.transcript.tool(150, STEPS.edit(ATLAS, at('packages/ui', 'tokens.ts')))
   tokens.transcript.tool(140, STEPS.bash(ATLAS))
+  tokens.transcript.stopped(138)
 
   // 7. Joins and leaves Your turn now and then.
   const lint = createSession({ n: 7, title: 'Lint config bump', repo: ATLAS, branch: 'chore/lint' })
@@ -304,6 +310,7 @@ function writeSessions() {
   onboarding.transcript.prompt(120)
   onboarding.transcript.tool(112, STEPS.write('mobile-app', 'src/emails/reminder.ts'))
   onboarding.transcript.tool(100, STEPS.bash('mobile-app'))
+  onboarding.transcript.stopped(98)
 
   return [checkout, limiter, deps]
 }

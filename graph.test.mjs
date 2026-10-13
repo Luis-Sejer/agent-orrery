@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 
-import { applyLines, createGraph, ensureNode, replay, shellActivity, snapshot, timeline, waitingSessions } from './graph.mjs'
+import { applyLines, createGraph, ensureNode, forget, replay, shellActivity, snapshot, timeline, waitingSessions } from './graph.mjs'
 import { createLibrary, snippetAround } from './library.mjs'
 import { createRepoResolver, pathsInToolInput } from './repos.mjs'
 import { isTrustedRequest } from './server.mjs'
@@ -476,4 +476,80 @@ test('areas are counted across a repository and its worktrees, as the page folds
     applyLines(graph, id, line({ type: 'assistant', timestamp: at(1), message: { content: [toolUse(`r${id}`, 'Read', { file_path: file })] } }))
   }
   assert.deepEqual(snapshot(graph, 0).nodes.map((node) => node.room).sort(), ['shop × apps/web', 'shop ⎇ feat/x › apps/api'].map((key) => key.replace(' × ', ' › ')).sort())
+})
+
+test('a message to another agent reads as sent, without its text', () => {
+  const graph = createGraph()
+  ensureNode(graph, 's', { kind: 'session', label: 's', sessionId: 's' })
+  applyLines(graph, 's', line({ type: 'assistant', timestamp: at(1), message: { content: [toolUse('m', 'SendMessage', { to: 'peer', message: 'SECRET' })] } }))
+  assert.deepEqual(timeline(graph, 's').map((event) => event.text), ['Sent a message'])
+})
+
+test('a session waiting on a shell it runs in the background is not waiting on you, until the shell reports back', () => {
+  const graph = createGraph()
+  ensureNode(graph, 'lead', { kind: 'session', label: 'Lead', sessionId: 'lead' })
+  applyLines(
+    graph,
+    'lead',
+    line({ type: 'assistant', timestamp: at(1), message: { content: [toolUse('bg1', 'Bash', { command: 'SECRET', run_in_background: true })] } }) +
+      line({ type: 'user', timestamp: at(1), message: { content: [{ type: 'tool_result', tool_use_id: 'bg1', content: 'SECRET' }] } }) +
+      line({ type: 'assistant', timestamp: at(2), message: { stop_reason: 'end_turn', content: [] } }),
+  )
+  const now = Date.parse(at(30))
+  assert.deepEqual(snapshot(graph, 0).nodes[0].background, [{ name: 'Bash', since: Date.parse(at(1)) }])
+  assert.deepEqual(waitingSessions(snapshot(graph, 0), now), [])
+  applyLines(graph, 'lead', line({ type: 'user', timestamp: at(20), origin: { kind: 'task-notification' }, message: { content: '<task-notification><tool-use-id>bg1</tool-use-id><status>completed</status>SECRET</task-notification>' } }))
+  applyLines(graph, 'lead', line({ type: 'assistant', timestamp: at(21), message: { stop_reason: 'end_turn', content: [] } }))
+  assert.deepEqual(snapshot(graph, 0).nodes[0].background, [])
+  assert.deepEqual(waitingSessions(snapshot(graph, 0), now).map((entry) => entry.id), ['lead'])
+  assert.ok(!JSON.stringify([snapshot(graph, 0), timeline(graph, 'lead')]).includes('SECRET'))
+})
+
+test('a session silent right after a tool result is probably asking you a question, held back until you answer', () => {
+  const graph = createGraph()
+  ensureNode(graph, 's', { kind: 'session', label: 'Layout', sessionId: 's' })
+  applyLines(graph, 's', line({ type: 'assistant', timestamp: at(1), message: { content: [toolUse('a1', 'Agent', { description: 'x', run_in_background: true })] } }) + line({ type: 'user', timestamp: at(2), message: { content: [{ type: 'tool_result', tool_use_id: 'a1' }] } }))
+  const seen = (seconds) => waitingSessions(snapshot(graph, 0), Date.parse(at(2)) + seconds * 1000)
+  assert.deepEqual(seen(60), [])
+  assert.deepEqual(seen(7 * 60).map(({ id, reason }) => [id, reason]), [['s', 'question']])
+  applyLines(graph, 's', line({ type: 'assistant', timestamp: at(3), message: { content: [{ type: 'thinking' }] } }))
+  assert.deepEqual(seen(7 * 60), [])
+})
+
+test('forgets nodes older than the cutoff and their messages, and keeps the rest', () => {
+  const graph = createGraph()
+  for (const [id, second] of [['old', 1], ['new', 50]]) {
+    ensureNode(graph, id, { kind: 'session', label: id, sessionId: id })
+    applyLines(graph, id, line({ type: 'assistant', timestamp: at(second), message: { content: [] } }))
+  }
+  applyLines(graph, 'new', line({ type: 'assistant', timestamp: at(51), message: { content: [toolUse('m', 'SendMessage', { to: 'old', message: 'x' })] } }))
+  assert.deepEqual([...forget(graph, Date.parse(at(10)))], ['old'])
+  assert.deepEqual([...graph.nodes.keys()], ['new'])
+  assert.equal(graph.messages.size, 0)
+})
+
+test('a task notification after the turn ended leaves the session waiting on its agents, not asking a question', () => {
+  const graph = createGraph()
+  ensureNode(graph, 'lead', { kind: 'session', label: 'Lead', sessionId: 'lead' })
+  ensureNode(graph, 'helper', { kind: 'subagent', label: 'Helper', sessionId: 'lead' })
+  applyLines(graph, 'lead', line({ type: 'assistant', timestamp: at(1), message: { stop_reason: 'end_turn', content: [] } }) + line({ type: 'user', timestamp: at(1), origin: { kind: 'task-notification' }, message: { content: '<task-notification><tool-use-id>other</tool-use-id></task-notification>' } }))
+  applyLines(graph, 'helper', line({ type: 'assistant', timestamp: at(50), message: { content: [toolUse('r', 'Read', { file_path: '/x' })] } }))
+  const lead = snapshot(graph, 0).nodes.find((node) => node.id === 'lead')
+  assert.equal(lead.waiting?.reason, 'reply')
+  assert.equal(lead.owesReply, false)
+  assert.deepEqual(waitingSessions(snapshot(graph, 0), Date.parse(at(55))), [])
+})
+
+test('background shells count only for the current turn, and close by task id or TaskStop too', () => {
+  const graph = createGraph()
+  ensureNode(graph, 's', { kind: 'session', label: 's', sessionId: 's' })
+  const start = (second, id, task) =>
+    line({ type: 'assistant', timestamp: at(second), message: { content: [toolUse(id, 'Bash', { command: 'x', run_in_background: true })] } }) +
+    line({ type: 'user', timestamp: at(second), toolUseResult: { backgroundTaskId: task }, message: { content: [{ type: 'tool_result', tool_use_id: id }] } })
+  applyLines(graph, 's', start(1, 'old', 'b-old'))
+  applyLines(graph, 's', line({ type: 'user', timestamp: at(2), message: { content: 'next thing' } }))
+  applyLines(graph, 's', start(3, 'one', 'b-one') + start(4, 'two', 'b-two') + start(5, 'three', 'b-three'))
+  applyLines(graph, 's', line({ type: 'user', timestamp: at(6), origin: { kind: 'task-notification' }, message: { content: '<task-notification><task-id>b-one</task-id><status>completed</status></task-notification>' } }))
+  applyLines(graph, 's', line({ type: 'assistant', timestamp: at(7), message: { content: [toolUse('stop', 'TaskStop', { task_id: 'b-two' })] } }))
+  assert.deepEqual(snapshot(graph, 0).nodes[0].background, [{ name: 'Bash', since: Date.parse(at(5)) }])
 })

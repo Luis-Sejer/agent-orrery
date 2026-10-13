@@ -5,6 +5,8 @@ export type NodeKind = 'session' | 'subagent' | 'peer'
 export interface Waiting {
   reason: 'question' | 'reply'
   since: number
+  // Inferred, not written: Claude Code writes a question only once you've answered it.
+  probably?: boolean
 }
 
 export interface PendingTool {
@@ -22,6 +24,11 @@ export interface TokenUsage {
 }
 
 export type ModelUsage = Record<string, TokenUsage>
+
+export interface BackgroundTask {
+  name: string
+  since: number
+}
 
 export interface AgentNode {
   id: string
@@ -45,8 +52,12 @@ export interface AgentNode {
   plans: string[]
   // Set in the browser when you dismiss a waiting session.
   dismissed?: boolean
-  // Set in the browser: how many subagents a session that ended its turn is still waiting for.
-  awaitingAgents?: number
+  // Calls running in the background (run_in_background) that haven't reported back yet.
+  background?: BackgroundTask[]
+  // A tool result or a prompt came in last, so the model owes a reply.
+  owesReply?: boolean
+  // Set in the browser: what a session that ended its turn is still waiting for.
+  awaiting?: { agents: number; shells: number }
 }
 
 export interface MessageLink {

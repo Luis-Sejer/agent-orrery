@@ -30,7 +30,8 @@ const sayable = (text: string) => text.replace(/[-_/]+/g, ' ')
 
 export function announcement(node: AgentNode): string {
   const where = node.room ? ` in ${sayable(node.room)}` : ''
-  return node.waiting?.reason === 'question' ? `${node.label} asked you a question${where}.` : `${node.label} is waiting on you${where}.`
+  if (node.waiting?.reason === 'question') return `${node.label} ${node.waiting.probably ? 'is probably asking you a question' : 'asked you a question'}${where}.`
+  return `${node.label} is waiting on you${where}.`
 }
 
 // The best British voice on this machine: Premium, then Enhanced, then Daniel, then any British,

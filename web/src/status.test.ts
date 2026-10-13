@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { describeSpend, costOf, mergeUsage, priceOf } from './pricing'
-import { awaitAgents, describeStatus, isQuiet, statusOf } from './status'
+import { describeSpend, costOf, formatTokens, mergeUsage, priceOf } from './pricing'
+import { awaitAgents, describeStatus, isFreshWait, isQuiet, statusOf, waitingLine } from './status'
+import { applyDismissals } from './useDismissed'
 import type { AgentNode } from './types'
 
 const NOW = Date.parse('2026-10-12T12:00:00Z')
@@ -65,12 +66,12 @@ describe('cost', () => {
 
   it('shows tokens only for a model it has no price for', () => {
     expect(costOf({ 'claude-unknown-9': opus })).toBeNull()
-    expect(describeSpend({ 'claude-unknown-9': opus })).toBe('4.6 M tokens')
+    expect(describeSpend({ 'claude-unknown-9': opus })).toBe('4.6M tokens')
   })
 
   it('describes spend and merges models', () => {
     const small = { input: 1_000, output: 500, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 }
-    expect(describeSpend({ 'claude-haiku-4-5': small })).toBe('under $0.01, 2 k tokens')
+    expect(describeSpend({ 'claude-haiku-4-5': small })).toBe('under $0.01, 2k tokens')
     expect(describeSpend({})).toBeNull()
     expect(mergeUsage([{ m: small }, { m: small }]).m.input).toBe(2_000)
   })
@@ -97,7 +98,7 @@ describe('waiting on its own agents', () => {
   it('keeps a session running, not waiting on you, while a subagent it started still runs', () => {
     const lead = awaitAgents({ nodes: [session(), helper()], messages: [] }, NOW).nodes[0]
     expect(statusOf(lead, NOW)).toBe('running')
-    expect(describeStatus(lead, NOW)).toBe('Waiting on 1 agent')
+    expect(describeStatus(lead, NOW)).toBe('Waiting on an agent')
     expect(isQuiet(lead, NOW)).toBe(false)
   })
 
@@ -105,5 +106,79 @@ describe('waiting on its own agents', () => {
     expect(statusOf(awaitAgents({ nodes: [session(), helper({ waiting: { reason: 'reply', since: NOW } })], messages: [] }, NOW).nodes[0], NOW)).toBe('waiting')
     const asked = session({ waiting: { reason: 'question', since: NOW } })
     expect(statusOf(awaitAgents({ nodes: [asked, helper()], messages: [] }, NOW).nodes[0], NOW)).toBe('waiting')
+  })
+})
+
+describe('waits', () => {
+  const waiting = (minutes: number, reason: 'question' | 'reply' = 'reply') =>
+    node({ kind: 'session', lastAt: NOW - minutes * MINUTE, waiting: { reason, since: NOW - minutes * MINUTE } })
+
+  it('are fresh for their first two minutes, then rest', () => {
+    expect(isFreshWait(waiting(1), NOW)).toBe(true)
+    expect(isFreshWait(waiting(3), NOW)).toBe(false)
+    expect(isFreshWait(node(), NOW)).toBe(false)
+  })
+
+  it('read the same in Your turn and on cards, and say who they wait on elsewhere', () => {
+    expect(waitingLine(waiting(20), NOW)).toBe('Finished, 20 min ago')
+    expect(waitingLine(waiting(7, 'question'), NOW)).toBe('Asked you a question, 7 min ago')
+    expect(describeStatus(waiting(20), NOW)).toBe('Finished, waiting on you, 20 min ago')
+  })
+})
+
+describe('token counts', () => {
+  it('read as 689k and 3.1M tokens', () => {
+    expect(formatTokens(689_400)).toBe('689k tokens')
+    expect(formatTokens(3_140_000)).toBe('3.1M tokens')
+    expect(formatTokens(900)).toBe('900 tokens')
+  })
+})
+
+describe('waiting on background shells', () => {
+  const NOW = Date.parse('2026-10-13T08:00:00Z')
+  const base = { branch: null, home: 'app', room: 'app', repos: [], activity: null, lastTool: null, pendingTool: null, usage: {}, agentType: null, model: null, plans: [] }
+  const lead = (fields: Partial<AgentNode>): AgentNode => ({ ...base, id: 'lead', kind: 'session', label: 'Lead', sessionId: 'lead', parentId: null, lastAt: NOW - 60_000, waiting: { reason: 'reply', since: NOW - 60_000 }, ...fields })
+
+  it('keeps a session running while a shell it started in the background still runs', () => {
+    const node = awaitAgents({ nodes: [lead({ background: [{ name: 'Bash', since: NOW - 5 * 60_000 }] })], messages: [] }, NOW).nodes[0]
+    expect(statusOf(node, NOW)).toBe('running')
+    expect(describeStatus(node, NOW)).toBe('Waiting on a shell')
+  })
+
+  it('shows a session gone quiet mid-turn while its subagents work as waiting on them, not as quiet', () => {
+    const quiet = lead({ waiting: null, lastAt: NOW - 7 * 60_000 })
+    const helper: AgentNode = { ...base, id: 'helper', kind: 'subagent', label: 'Helper', sessionId: 'lead', parentId: 'lead', lastAt: NOW - 10_000, waiting: null }
+    const node = awaitAgents({ nodes: [quiet, helper], messages: [] }, NOW).nodes[0]
+    expect(isQuiet(node, NOW)).toBe(false)
+    expect(describeStatus(node, NOW)).toBe('Waiting on an agent')
+  })
+
+  it('stops waiting on a shell that never reported back after half an hour', () => {
+    const node = awaitAgents({ nodes: [lead({ background: [{ name: 'Bash', since: NOW - 31 * 60_000 }] })], messages: [] }, NOW).nodes[0]
+    expect(statusOf(node, NOW)).toBe('waiting')
+  })
+})
+
+describe('a held-back question', () => {
+  const NOW = Date.parse('2026-10-13T08:30:00Z')
+  const base = { branch: null, home: 'app', room: 'app', repos: [], activity: null, lastTool: null, pendingTool: null, usage: {}, agentType: null, model: null, plans: [] }
+  const session = (fields: Partial<AgentNode>): AgentNode => ({ ...base, id: 's', kind: 'session', label: 'Layout', sessionId: 's', parentId: null, waiting: null, lastAt: NOW - 7 * 60_000, owesReply: true, ...fields })
+
+  it('reads a session silent right after a tool result as probably asking you a question', () => {
+    const node = awaitAgents({ nodes: [session({})], messages: [] }, NOW).nodes[0]
+    expect(statusOf(node, NOW)).toBe('waiting')
+    expect(describeStatus(node, NOW)).toBe('Probably asking you a question, 7 min ago')
+  })
+
+  it('can be dismissed like any wait', () => {
+    const asked = awaitAgents({ nodes: [session({})], messages: [] }, NOW)
+    const node = applyDismissals(asked, { s: NOW - 7 * 60_000 }).nodes[0]
+    expect(statusOf(node, NOW)).toBe('finished')
+  })
+
+  it('does not when the silence is short, a tool is still running, or the model spoke last', () => {
+    for (const fields of [{ lastAt: NOW - 60_000 }, { pendingTool: { name: 'Bash', since: NOW - 7 * 60_000 } }, { owesReply: false }]) {
+      expect(statusOf(awaitAgents({ nodes: [session(fields)], messages: [] }, NOW).nodes[0], NOW)).not.toBe('waiting')
+    }
   })
 })
