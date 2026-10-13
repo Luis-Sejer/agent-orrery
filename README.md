@@ -40,6 +40,7 @@ Agent Orrery answers that at a glance. It reads the transcripts Claude Code alre
 - **Your turn.** Every session that finished, asked you something or is waiting on a permission prompt, oldest first, with how long it has waited. It comes from Claude Code's own status for each running session, so a closed terminal drops off at once. The tab title shows the count. Dismiss one until it does something new.
 - **Same files.** Two agents editing the same file within minutes of each other get a red line between them, and a warning in Your turn, before they undo each other's work.
 - **Day.** Today's sessions on one clock: when each worked, when it sat waiting on you, and how long agents waited on you in total.
+- **Artifacts.** Every page your agents published on claude.ai, from all their sessions, newest first, with a filter and ⌘K search. Agents that published something carry a small mark, and their drawer lists what they made. Each one opens on claude.ai.
 - **Rooms per repository.** Each agent sits in the repo its work touches, not the folder its session started in. A session started in the API whose subagents edit the web app reaches across into the web app's room. In a monorepo, each busy package gets a room of its own.
 - **Focus.** Click an agent, or Tab to it and press Enter, to light up its parent, its subagents and everyone it messaged, and dim the rest. A drawer shows what it has done, step by step, and a command to resume the session.
 - **Cost.** An estimate of what each agent, session and room has cost, worked out in your browser from the token counts and Anthropic's published prices. Models it has no price for show tokens only.
@@ -208,6 +209,7 @@ Claude Code saves every session to `~/.claude/projects/<project>/<session>.jsonl
 - **Orb colours** come from the last tool each agent used. Shell commands count by what they do: `cat` and `grep` read, `sed -i` and redirects write. Only the colour is kept, never the command.
 - **Waiting on you** comes from Claude Code itself where it can: each running session keeps a small status file (`~/.claude/sessions/<pid>.json`) saying whether it is busy, idle or waiting, and for what, such as a permission prompt. A session without one has ended. Where there are no status files, it means the session's last reply ended its turn, or it asked a question you haven't answered.
 - **Same files** compares the paths agents edited in the last ten minutes. Only file names reach the page.
+- **Artifacts** come from the agents' `Artifact` calls: the title they gave a page, and its claude.ai address from the reply. Nothing else in the reply is kept.
 - **Messages** come from agents' `SendMessage` calls and the replies they receive.
 - **Cost** comes from the token counts on each reply, counted once per message and kept per model. Prices live in one table, `web/src/pricing.ts`, so the figure is an estimate.
 - **Quiet** means a tool call has started and no result has come back, and nothing else has happened for five minutes.
@@ -219,7 +221,7 @@ The page is React with [React Flow](https://reactflow.dev) and [Thinking Orbs](h
 
 Your transcripts hold your code, your prompts and sometimes secrets, so Agent Orrery is built to keep them in:
 
-- **The graph holds no content.** Only titles, repo and branch names, agent types, tool names, file names, token counts, model names and times reach the page. Never messages, commands or tool output.
+- **The graph holds no content.** Only titles, repo and branch names, agent types, tool names, file names, token counts, model names, times and the titles and addresses of published artifacts reach the page. Never messages, commands or tool output.
 - **It only listens on this machine.** The server binds to `127.0.0.1`, and Docker publishes it there only.
 - **Other websites can't read it.** Requests for another hostname are refused, which blocks DNS rebinding. So are data requests from other sites.
 - **It never writes your files.** Claude Code's files and your code are mounted read-only. The only writes the server accepts are your settings and dismissed sessions, from its own page only, as JSON, checked against a fixed list, into its own data folder. Plans and notes are opened by name from the server's own folder listing, never by a path from the request.
