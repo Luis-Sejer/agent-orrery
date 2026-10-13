@@ -2,7 +2,7 @@
 // actually works rather than where its session started. In a monorepo it also names the area:
 // the package or app the path sits in ("shop › apps/web").
 
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 
@@ -16,6 +16,20 @@ export const WORKTREE_SEPARATOR = ' ⎇ '
 const MANIFESTS = ['package.json', 'Cargo.toml', 'go.mod', 'pyproject.toml', 'project.json']
 // An optional file at the repository root that names the areas instead: {"areas": ["apps/*", "infra"]}.
 const AREAS_FILE = '.orrery.json'
+// Any of these at a root makes it one project, whatever its subfolders hold.
+const ROOT_MANIFESTS = [...MANIFESTS, 'Package.swift', 'Gemfile', 'pom.xml', 'build.gradle', 'build.gradle.kts', 'composer.json', 'setup.py', 'requirements.txt', 'mix.exs', 'deno.json']
+// Without a manifest or workspace at its root, a repository is a monorepo once it holds this many packages.
+const MIN_PACKAGES = 2
+// Files at a root that declare a workspace of several packages.
+const WORKSPACE_FILES = ['go.work', 'nx.json', 'turbo.json', 'lerna.json', 'rush.json']
+// Folders of installed dependencies: whatever is inside belongs to the repository that holds them,
+// even a dependency that came with its own .git.
+const DEPENDENCIES = new Set(['node_modules', 'bower_components', 'vendor', 'Pods', '.venv', 'venv', 'site-packages'])
+// Folders of dependencies and build output: never packages of the repository itself.
+const NOT_AREAS = new Set([
+  'node_modules', 'bower_components', 'vendor', 'Pods', '.venv', 'venv', 'site-packages', '__pycache__',
+  'target', 'dist', 'build', 'out', 'coverage', '.next', '.nuxt', '.turbo', '.cache', '.gradle', '.git',
+])
 const PATH_FIELDS = ['file_path', 'path', 'notebook_path']
 const TRAILING_PUNCTUATION = /[.,:;!?]+$/
 const ABSOLUTE_PATH_IN_COMMAND = /(?:^|[\s'"=(])((?:~|\/)[^\s'"`;|&<>()]+)/g
@@ -28,6 +42,47 @@ function readAreaPatterns(checkout) {
   } catch {
     return null
   }
+}
+
+function readText(path) {
+  try {
+    return readFileSync(path, 'utf8')
+  } catch {
+    return ''
+  }
+}
+
+// Folders below the root, one or two levels down, that hold a manifest.
+function countPackages(root) {
+  const folders = (dir) => {
+    try {
+      return readdirSync(dir, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.') && !NOT_AREAS.has(entry.name))
+        .map((entry) => join(dir, entry.name))
+    } catch {
+      return []
+    }
+  }
+  const hasManifest = (dir) => MANIFESTS.some((name) => existsSync(join(dir, name)))
+  let count = 0
+  for (const child of folders(root)) count += hasManifest(child) ? 1 : folders(child).filter(hasManifest).length
+  return count
+}
+
+// A monorepo says so at its root: a workspace of packages, or no project of its own and several
+// packages side by side. A single project whose dependencies or tools have manifests is not one.
+function isMonorepo(root) {
+  if (WORKSPACE_FILES.some((name) => existsSync(join(root, name)))) return true
+  // pnpm-workspace.yaml also holds plain settings; only a packages list makes a workspace.
+  if (/^packages:/m.test(readText(join(root, 'pnpm-workspace.yaml')))) return true
+  if (/^\[workspace\]/m.test(readText(join(root, 'Cargo.toml')))) return true
+  try {
+    if (JSON.parse(readText(join(root, 'package.json'))).workspaces) return true
+  } catch {
+    // No package.json, or not JSON: the manifest check below decides.
+  }
+  if (ROOT_MANIFESTS.some((name) => existsSync(join(root, name)))) return false
+  return countPackages(root) >= MIN_PACKAGES
 }
 
 // The first pattern that matches the start of a path names its area; "*" stands for one folder.
@@ -44,6 +99,7 @@ export function createRepoResolver(home = homedir()) {
   const repos = new Map()
   const areas = new Map()
   const patterns = new Map()
+  const monorepos = new Map()
 
   // The repository a directory is in, as its name and root folder.
   function repoOf(start) {
@@ -70,18 +126,25 @@ export function createRepoResolver(home = homedir()) {
   function areaOf(path, checkout) {
     if (!patterns.has(checkout)) patterns.set(checkout, readAreaPatterns(checkout))
     const named = patterns.get(checkout)
-    if (named) return matchArea(named, relative(checkout, path).split('/'))
-    // The outermost manifest below the root wins, so node_modules, fixtures and nested packages
-    // stay inside the package that holds them.
+    const segments = relative(checkout, path).split('/')
+    if (named) return matchArea(named, segments)
+    if (!monorepos.has(checkout)) monorepos.set(checkout, isMonorepo(checkout))
+    if (!monorepos.get(checkout)) return null
+    // Look only above any dependency or build folder, and let the outermost manifest below the root
+    // win, so fixtures and nested packages stay inside the package that holds them.
+    const cut = segments.findIndex((segment) => NOT_AREAS.has(segment))
+    const start = cut === -1 ? path : join(checkout, ...segments.slice(0, cut))
     let area = null
-    for (let directory = path; directory.startsWith(checkout + '/'); directory = dirname(directory)) {
+    for (let directory = start; directory.startsWith(checkout + '/'); directory = dirname(directory)) {
       if (!areas.has(directory)) areas.set(directory, MANIFESTS.some((name) => existsSync(join(directory, name))))
       if (areas.get(directory)) area = relative(checkout, directory)
     }
     return area
   }
 
-  return function resolveRepo(path) {
+  return function resolveRepo(file) {
+    const dependencyAt = file.split('/').findIndex((segment) => DEPENDENCIES.has(segment))
+    const path = dependencyAt === -1 ? file : file.split('/').slice(0, dependencyAt).join('/')
     const worktreeAt = path.indexOf(WORKTREE_MARKER)
     const repo = repoOf(worktreeAt === -1 ? path : path.slice(0, worktreeAt))
     if (!repo) return null
