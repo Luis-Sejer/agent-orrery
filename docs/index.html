@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Agent Orrery: a live map of your Claude Code agents</title>
-  <meta name="description" content="See every Claude Code session and subagent, the repo each one is working in, who started whom, and which sessions need your reply. Open source, read-only, and local to your machine.">
+  <meta name="description" content="See every Claude Code session and subagent, the repo each one is working in, who started whom, and which sessions need your reply. Open source, local to your machine, and it never touches your files.">
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#f8f9fa" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0f1715" media="(prefers-color-scheme: dark)">
@@ -240,11 +240,11 @@
       </div>
       <dl class="guarantees">
         <div><dt>Only on this machine</dt><dd>The server binds to <code>127.0.0.1</code>, and Docker publishes it there only.</dd></div>
-        <div><dt>Read-only</dt><dd>It never writes to your files, and the server accepts only <code>GET</code> requests.</dd></div>
+        <div><dt>Never writes your files</dt><dd>Claude Code's files and your code are mounted read-only. The only thing it saves is its own settings, from its own page.</dd></div>
         <div><dt>No hooks</dt><dd>Nothing is added to Claude Code, so it can’t slow it down or change what it does.</dd></div>
         <div><dt>Closed to other websites</dt><dd>Requests for another hostname are refused, which blocks DNS rebinding. So are data requests from other sites.</dd></div>
         <div><dt>No scripts from content</dt><dd>Plans and notes render as Markdown without raw HTML or images, under a strict Content Security Policy.</dd></div>
-        <div><dt>A small supply chain</dt><dd>The server has no dependencies. The container runs as you, with a read-only filesystem and no Linux capabilities.</dd></div>
+        <div><dt>A small supply chain</dt><dd>The server has no dependencies. The container runs as you, with a read-only filesystem apart from its settings folder, and no Linux capabilities.</dd></div>
       </dl>
     </section>
 

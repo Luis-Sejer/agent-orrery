@@ -10,7 +10,7 @@ Work through the steps in order. Each one says how to check it worked. Tell the 
 - **Keep it on this machine.** Never change the port mapping away from `127.0.0.1`, never set `AGENT_ORRERY_BIND`, and never expose the port any other way. The dashboard shows what their agents are working on.
 - **Don't commit or push.** Settings go in `.env`, which git ignores.
 - **Ask before installing software.** If Docker Desktop is missing, tell them and stop. Don't install it yourself.
-- **Use `docker compose`**, not a hand-written `docker run`. The compose file carries the security settings (read-only mounts, non-root user, no capabilities).
+- **Use `docker compose`**, not a hand-written `docker run`. The compose file carries the security settings (read-only mounts, non-root user, no capabilities). The one writable mount is `./data`, where it saves its own settings.
 
 ## 1. Check Docker
 
@@ -97,3 +97,4 @@ These also go in `.env`. Restart with `docker compose up -d` after changing them
 |---|---|---|
 | `AGENT_ORRERY_WINDOW_HOURS` | `6` | How far back to show sessions and agents |
 | `AGENT_ORRERY_WAITING_HOURS` | `24` | How long a session waiting on them stays listed |
+| `AGENT_ORRERY_VIEW`, `AGENT_ORRERY_ARRANGEMENT`, `AGENT_ORRERY_THEME`, … | unset | What every browser starts with; the README lists them all, and Settings → "Copy these settings for .env" writes them |

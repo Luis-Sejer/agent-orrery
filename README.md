@@ -36,15 +36,17 @@ Agent Orrery answers that at a glance. It reads the transcripts Claude Code alre
 
 ## Features
 
-- **The orrery.** The page opens on your agents in rings around you: whatever waits on you sits closest, running agents next, finished ones on the outside, with a sector for each repository. Working across many repositories? Arrange it by repository instead: each one gets a ring of its own, and the ones that need you move inwards. Or as a galaxy: each repository is a small solar system with its own rings, and the systems that need you sit closest. The rings turn slowly, inner ones faster, and steady themselves while you point at an agent. Agents, one tab over, lays the same agents out as a grid of rooms.
-- **Your turn.** Every session that finished or asked you something, oldest first, with how long it has waited. The tab title shows the count. Dismiss one until it does something new.
+- **The orrery.** The page opens on your agents in rings around you: whatever waits on you sits closest, running agents next, finished ones on the outside, with a sector for each repository. Working across many repositories? Arrange it by repository instead: each one gets a ring of its own, and the ones that need you move inwards. Or as a galaxy: each repository is a small solar system with its own rings, and the systems that need you sit closest. The rings turn slowly, inner ones faster, and steady themselves while you point at an agent. Agents, one tab over, lays the same agents out as a grid of rooms, or as a tree of who started whom.
+- **Your turn.** Every session that finished, asked you something or is waiting on a permission prompt, oldest first, with how long it has waited. It comes from Claude Code's own status for each running session, so a closed terminal drops off at once. The tab title shows the count. Dismiss one until it does something new.
+- **Same files.** Two agents editing the same file within minutes of each other get a red line between them, and a warning in Your turn, before they undo each other's work.
+- **Day.** Today's sessions on one clock: when each worked, when it sat waiting on you, and how long agents waited on you in total.
 - **Rooms per repository.** Each agent sits in the repo its work touches, not the folder its session started in. A session started in the API whose subagents edit the web app reaches across into the web app's room. In a monorepo, each busy package gets a room of its own.
 - **Focus.** Click an agent, or Tab to it and press Enter, to light up its parent, its subagents and everyone it messaged, and dim the rest. A drawer shows what it has done, step by step, and a command to resume the session.
 - **Cost.** An estimate of what each agent, session and room has cost, worked out in your browser from the token counts and Anthropic's published prices. Models it has no price for show tokens only.
 - **Replay.** Turn on Replay in the settings and drag back through the last hours (the same window as `AGENT_ORRERY_WINDOW_HOURS`) to see who was running, waiting and finished at any moment. Notifications stay off while you replay.
 - **Light, dark and T.Y.C.H.O.** Follows your system, or pick one. T.Y.C.H.O. (Tracks Your Claude Helpers' Orbits) is a holographic HUD in amber on black.
-- **A clean dashboard.** Search and the views sit on top; filters, the arrangement, themes, replay, notifications, voice, whether worktrees get rooms of their own and Pause motion are in one settings menu. Clean view hides the side panel, minimap and zoom too, for a screen you glance at, and keeps a small list of who's waiting on you in a corner. The page remembers all of it.
-- **Read-only and local.** It only reads files, never writes them, and nothing leaves your machine.
+- **A clean dashboard.** Search and the views sit on top; filters, the arrangement, themes, replay, notifications, voice, Hide finished, whether worktrees get rooms of their own and Pause motion are in one settings menu. Hide finished takes finished agents off the canvas, with every room or solar system that has nothing going on. Clean view hides the side panel, minimap and zoom too, for a screen you glance at, and keeps a small list of who's waiting on you in a corner. The page remembers all of it, and `.env` can set what every browser starts with.
+- **Local, and it doesn't touch your files.** It only reads Claude Code's files and your code, and nothing leaves your machine. The one thing it saves is its own settings, in its own folder, so every browser opens the same way.
 
 <details>
 <summary><strong>And more:</strong> live state, search everything, notifications, menu bar, quiet agents, voice, plans and memory</summary>
@@ -182,6 +184,18 @@ Set these in your shell, or in a `.env` file next to `compose.yaml`.
 | `AGENT_ORRERY_WINDOW_HOURS` | `6` | How far back to show sessions and agents |
 | `AGENT_ORRERY_WAITING_HOURS` | `24` | How long a session waiting on you stays listed |
 | `AGENT_ORRERY_CLAUDE_DIR` | `~/.claude` | Where Claude Code keeps its files (from source only) |
+| `AGENT_ORRERY_DATA` | `./data` | Folder for its own settings and dismissed sessions, the only one it writes to (Docker only) |
+| `AGENT_ORRERY_DATA_DIR` | `~/.config/agent-orrery` | The same, running from source |
+
+Settings you change on the page are saved by the server (in `./data`, or `AGENT_ORRERY_DATA`), so every browser opens the same way. These give a fresh install its starting settings; Settings → "Copy these settings for .env" writes the lines for you.
+
+| Variable | Values |
+|---|---|
+| `AGENT_ORRERY_VIEW` | `orrery`, `graph` (Agents), `day`, `plans`, `memory` |
+| `AGENT_ORRERY_ARRANGEMENT` | `status`, `room`, `galaxy` |
+| `AGENT_ORRERY_THEME` | `system`, `light`, `dark`, `tycho` |
+| `AGENT_ORRERY_AGENTS_LAYOUT` | `rooms`, `tree` |
+| `AGENT_ORRERY_HIDE_FINISHED`, `AGENT_ORRERY_WORKTREE_ROOMS`, `AGENT_ORRERY_CLEAN_VIEW`, `AGENT_ORRERY_PAUSE_MOTION`, `AGENT_ORRERY_VOICE`, `AGENT_ORRERY_NOTIFICATIONS` | `on`, `off` |
 
 </details>
 
@@ -192,11 +206,12 @@ Claude Code saves every session to `~/.claude/projects/<project>/<session>.jsonl
 - **Sessions and subagents** come from those files and their metadata.
 - **Rooms** come from the file paths each agent's tools touch. Agent Orrery walks up from each path to the nearest git repository, and counts a worktree as its main repository.
 - **Orb colours** come from the last tool each agent used. Shell commands count by what they do: `cat` and `grep` read, `sed -i` and redirects write. Only the colour is kept, never the command.
-- **Waiting on you** means the session's last reply ended its turn, or it asked a question you haven't answered.
+- **Waiting on you** comes from Claude Code itself where it can: each running session keeps a small status file (`~/.claude/sessions/<pid>.json`) saying whether it is busy, idle or waiting, and for what, such as a permission prompt. A session without one has ended. Where there are no status files, it means the session's last reply ended its turn, or it asked a question you haven't answered.
+- **Same files** compares the paths agents edited in the last ten minutes. Only file names reach the page.
 - **Messages** come from agents' `SendMessage` calls and the replies they receive.
 - **Cost** comes from the token counts on each reply, counted once per message and kept per model. Prices live in one table, `web/src/pricing.ts`, so the figure is an estimate.
 - **Quiet** means a tool call has started and no result has come back, and nothing else has happened for five minutes.
-- **Replay** uses a short history of state changes the server keeps for each agent (a few hundred entries, in memory only).
+- **Replay** and **Day** use a short history of state changes the server keeps for each agent (a few hundred entries, in memory only).
 
 The page is React with [React Flow](https://reactflow.dev) and [Thinking Orbs](https://libraries.dev/orbs). The server is plain Node with no dependencies.
 
@@ -207,9 +222,9 @@ Your transcripts hold your code, your prompts and sometimes secrets, so Agent Or
 - **The graph holds no content.** Only titles, repo and branch names, agent types, tool names, file names, token counts, model names and times reach the page. Never messages, commands or tool output.
 - **It only listens on this machine.** The server binds to `127.0.0.1`, and Docker publishes it there only.
 - **Other websites can't read it.** Requests for another hostname are refused, which blocks DNS rebinding. So are data requests from other sites.
-- **Read-only.** It never writes to your files, and the server accepts only `GET` requests. Plans and notes are opened by name from the server's own folder listing, never by a path from the request.
+- **It never writes your files.** Claude Code's files and your code are mounted read-only. The only writes the server accepts are your settings and dismissed sessions, from its own page only, as JSON, checked against a fixed list, into its own data folder. Plans and notes are opened by name from the server's own folder listing, never by a path from the request.
 - **No scripts from content.** Plans and notes render as Markdown without raw HTML or images, under a strict Content Security Policy.
-- **A small supply chain.** The server has no dependencies. Front-end packages are pinned and only installed once they're a week old, and the Docker images are pinned by digest. The container runs as you, with a read-only filesystem and no Linux capabilities.
+- **A small supply chain.** The server has no dependencies. Front-end packages are pinned and only installed once they're a week old, and the Docker images are pinned by digest. The container runs as you, with a read-only filesystem apart from its data folder, and no Linux capabilities.
 
 Found a problem? See [SECURITY.md](SECURITY.md).
 
