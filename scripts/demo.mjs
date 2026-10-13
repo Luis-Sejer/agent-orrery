@@ -114,7 +114,8 @@ class Transcript {
   }
 
   messageFrom(minutesAgo, from, name) {
-    this.add({ type: 'user', timestamp: ago(minutesAgo), origin: { kind: 'peer', from, name, body: '…' }, message: { content: '…' } })
+    // Claude Code writes messages from other agents as meta records.
+    this.add({ type: 'user', isMeta: true, timestamp: ago(minutesAgo), origin: { kind: 'peer', from, name, body: '…' }, message: { content: '…' } })
   }
 }
 

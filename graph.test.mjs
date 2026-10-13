@@ -125,8 +125,10 @@ test('finds paths in tool inputs and maps worktrees to their repo', () => {
   const root = mkdtempSync(join(tmpdir(), 'agent-orrery-'))
   mkdirSync(join(root, 'storefront-web', '.git'), { recursive: true })
   mkdirSync(join(root, 'storefront-web', '.claude', 'worktrees', 'feat-x', 'src'), { recursive: true })
+  // A real worktree has a .git file at its root; its rooms carry its branch, which the page folds away.
+  writeFileSync(join(root, 'storefront-web', '.claude', 'worktrees', 'feat-x', '.git'), 'gitdir: …')
   const resolve = createRepoResolver(root)
-  assert.equal(resolve(join(root, 'storefront-web', '.claude', 'worktrees', 'feat-x', 'src', 'a.ts')), 'storefront-web')
+  assert.equal(resolve(join(root, 'storefront-web', '.claude', 'worktrees', 'feat-x', 'src', 'a.ts')), 'storefront-web ⎇ feat-x')
   assert.equal(resolve(join(root, 'elsewhere', 'b.ts')), null)
 })
 
@@ -420,4 +422,58 @@ test('a model named __proto__ is just another key', () => {
   applyLines(graph, 's', line({ type: 'assistant', timestamp: at(1), message: { id: 'm', model: '__proto__', usage: { input_tokens: 5, output_tokens: 1 }, content: [] } }))
   assert.equal({}.input, undefined)
   assert.equal(snapshot(graph, 0).nodes[0].usage.__proto__.input, 5)
+})
+
+test('usage takes the final output count from the last record of a message, and skips API errors', () => {
+  const graph = createGraph()
+  ensureNode(graph, 's', { kind: 'session', label: 's', sessionId: 's' })
+  const record = (second, message) => line({ type: 'assistant', timestamp: at(second), message })
+  const usage = (output) => ({ input_tokens: 10, output_tokens: output, cache_read_input_tokens: 100 })
+  applyLines(graph, 's', record(1, { id: 'm1', model: 'claude-opus-5-5', usage: usage(3), content: [{ type: 'thinking' }] }) + record(2, { id: 'm1', model: 'claude-opus-5-5', usage: usage(6431), content: [] }))
+  applyLines(graph, 's', record(3, { id: 'e1', model: '<synthetic>', stop_reason: 'stop_sequence', usage: usage(0), content: [] }).replace('"type":"assistant"', '"type":"assistant","isApiErrorMessage":true'))
+  const node = snapshot(graph, 0).nodes[0]
+  assert.deepEqual(Object.keys(node.usage), ['claude-opus-5-5'])
+  assert.deepEqual(node.usage['claude-opus-5-5'], { input: 10, output: 6431, cacheRead: 100, cacheWrite5m: 0, cacheWrite1h: 0 })
+  assert.equal(node.waiting?.reason, 'reply')
+})
+
+test('a hand-back wakes its session without a second line, and a stop leaves the session waiting', () => {
+  const graph = createGraph()
+  ensureNode(graph, 'lead', { kind: 'session', label: 'lead', sessionId: 'lead' })
+  ensureNode(graph, 'sub', { kind: 'subagent', label: 'sub', sessionId: 'lead' })
+  applyLines(graph, 'lead', line({ type: 'assistant', timestamp: at(1), message: { stop_reason: 'end_turn', content: [] } }))
+  applyLines(graph, 'lead', line({ type: 'user', isMeta: true, timestamp: at(2), origin: { kind: 'peer', from: 'sub', name: 'sub', handback: true }, message: { content: 'SECRET' } }))
+  let lead = snapshot(graph, 0).nodes.find((node) => node.id === 'lead')
+  assert.equal(lead.waiting, null)
+  assert.equal(lead.lastAt, Date.parse(at(2)))
+  assert.equal(snapshot(graph, 0).messages.length, 0)
+  applyLines(graph, 'lead', line({ type: 'user', isMeta: true, timestamp: at(3), origin: { kind: 'peer', from: 'sub', name: 'sub' }, message: { content: 'SECRET' } }))
+  assert.equal(snapshot(graph, 0).messages.length, 1)
+  applyLines(graph, 'lead', line({ type: 'user', timestamp: at(4), message: { content: [{ type: 'text', text: '[Request interrupted by user]' }] } }))
+  lead = snapshot(graph, 0).nodes.find((node) => node.id === 'lead')
+  assert.equal(lead.waiting?.reason, 'reply')
+  assert.ok(!JSON.stringify([snapshot(graph, 0), timeline(graph, 'lead')]).includes('SECRET'))
+})
+
+test('replay shows nothing before the kept history, and a long silence as idle', () => {
+  const graph = createGraph()
+  ensureNode(graph, 's', { kind: 'session', label: 's', sessionId: 's' })
+  const read = (second, id) => line({ type: 'assistant', timestamp: new Date(Date.parse(at(0)) + second * 1000).toISOString(), message: { content: [toolUse(id, 'Read', { file_path: '/x' })] } })
+  applyLines(graph, 's', read(0, 'a') + read(3600, 'b'))
+  const halfway = Date.parse(at(0)) + 1800 * 1000
+  assert.equal(replay(graph, halfway, 6 * 3600_000).nodes[0].lastAt, Date.parse(at(0)))
+  graph.nodes.get('s').history.shift()
+  const early = replay(graph, Date.parse(at(0)) + 1000, 6 * 3600_000).nodes[0]
+  assert.equal(early.activity, null)
+  assert.equal(early.waiting, null)
+})
+
+test('areas are counted across a repository and its worktrees, as the page folds them', () => {
+  const resolveRepo = (path) => (path.includes('/feat') ? 'shop ⎇ feat/x › apps/api' : 'shop › apps/web')
+  const graph = createGraph({ resolveRepo })
+  for (const [id, file] of [['a', '/code/shop/apps/web/a.ts'], ['b', '/code/shop/.claude/worktrees/feat/x/apps/api/b.ts']]) {
+    ensureNode(graph, id, { kind: 'subagent', label: id, sessionId: id })
+    applyLines(graph, id, line({ type: 'assistant', timestamp: at(1), message: { content: [toolUse(`r${id}`, 'Read', { file_path: file })] } }))
+  }
+  assert.deepEqual(snapshot(graph, 0).nodes.map((node) => node.room).sort(), ['shop × apps/web', 'shop ⎇ feat/x › apps/api'].map((key) => key.replace(' × ', ' › ')).sort())
 })

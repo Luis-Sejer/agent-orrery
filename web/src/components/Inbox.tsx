@@ -15,7 +15,8 @@ interface InboxProps {
   selectedId: string | null
   dismissedCount: number
   onSelect: (id: string) => void
-  onDismiss: (node: AgentNode) => void
+  // Absent while replaying: a replayed session is a copy from the past, with nothing to dismiss.
+  onDismiss?: (node: AgentNode) => void
   onRestoreDismissed: () => void
 }
 
@@ -63,17 +64,19 @@ export function Inbox({ nodes, now, connection, selectedId, dismissedCount, onSe
               </span>
               <span className="why">{waitingLine(node, now)}</span>
             </button>
-            <button
-              type="button"
-              className="dismiss"
-              aria-label={`Dismiss ${node.label}`}
-              title="Dismiss until it does something new"
-              onClick={() => onDismiss(node)}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M7 7l10 10M17 7L7 17" />
-              </svg>
-            </button>
+            {onDismiss && (
+              <button
+                type="button"
+                className="dismiss"
+                aria-label={`Dismiss ${node.label}`}
+                title="Dismiss until it does something new"
+                onClick={() => onDismiss(node)}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M7 7l10 10M17 7L7 17" />
+                </svg>
+              </button>
+            )}
           </li>
         ))}
       </ol>

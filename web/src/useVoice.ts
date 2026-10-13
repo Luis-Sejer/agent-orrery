@@ -81,7 +81,8 @@ export function useVoice({ nodes, now, loaded, hud }: VoiceOptions) {
   useEffect(() => {
     if (!loaded) return
     const { fresh, keys } = newWaits(seen.current, nodes, now)
-    seen.current = keys
+    // Waits seen before stay seen, so one that leaves and comes back isn't announced twice.
+    seen.current = new Set([...(seen.current ?? []), ...keys])
     const voice = enabled && fresh.length > 0 ? pickVoice(voices.current) : null
     if (!voice) return
     for (const node of fresh) {

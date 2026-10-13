@@ -15,12 +15,14 @@ struct WaitingSession: Decodable, Identifiable, Sendable {
     }
 }
 
+// Rounds like the page's ago() in web/src/status.ts, so the menu and the dashboard agree.
 func ago(_ sinceMs: Double, now: Date = .now) -> String {
-    let minutes = max(0, Int((now.timeIntervalSince1970 - sinceMs / 1000) / 60))
-    if minutes < 1 { return "moments" }
+    let seconds = max(0, (now.timeIntervalSince1970 - sinceMs / 1000).rounded())
+    if seconds < 60 { return "moments" }
+    let minutes = Int((seconds / 60).rounded())
     if minutes < 60 { return "\(minutes) min" }
-    let hours = minutes / 60
-    return hours < 48 ? "\(hours) h" : "\(hours / 24) days"
+    let hours = Int((Double(minutes) / 60).rounded())
+    return hours < 48 ? "\(hours) h" : "\(Int((Double(hours) / 24).rounded())) days"
 }
 
 func configuredPort() -> Int {

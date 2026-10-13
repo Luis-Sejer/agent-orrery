@@ -34,7 +34,13 @@ function minimapClass(node: CanvasNode, now: number): string {
   return `mini-${statusOf(node.data.node, now)}`
 }
 
-export function GraphCanvas({ layout, arrangement, graph, theme, focusRequest, onSelect, ...options }: GraphCanvasProps) {
+export function GraphCanvas({ layout, arrangement, graph, theme, focusRequest, onSelect, now, selectedId, expandedRooms, filter, onExpand, onCollapse }: GraphCanvasProps) {
+  // One options object per change, not per render: the layout rebuilds whenever it changes, and the
+  // orbit re-renders 30 times a second.
+  const options = useMemo<FlowOptions>(
+    () => ({ now, selectedId, expandedRooms, filter, onExpand, onCollapse }),
+    [now, selectedId, expandedRooms, filter, onExpand, onCollapse],
+  )
   const { fitView, fitBounds, setCenter } = useReactFlow()
   const { nodes: laidOut, edges, polar } = useMemo<{ nodes: CanvasNode[]; edges: Edge[]; polar: Map<string, Polar> | null }>(
     () => (layout === 'orrery' ? buildOrrery(graph, options, arrangement) : { ...buildFlow(graph, options), polar: null }),

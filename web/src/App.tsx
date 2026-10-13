@@ -135,7 +135,7 @@ export function App() {
           selectedId={selectedId}
           dismissedCount={dismissedCount}
           onSelect={selectAndFocus}
-          onDismiss={dismiss}
+          onDismiss={replay.open ? undefined : dismiss}
           onRestoreDismissed={restoreAll}
         />
 
@@ -212,7 +212,7 @@ export function App() {
             onClose={() => setSelectedId(null)}
             onSelect={selectAndFocus}
             onOpenPlan={openPlan}
-            onDismiss={dismiss}
+            onDismiss={replay.open ? undefined : dismiss}
           />
         )}
 

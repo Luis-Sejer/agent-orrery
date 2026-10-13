@@ -4,7 +4,7 @@
 
 import { basename } from 'node:path'
 
-import { AREA_SEPARATOR, pathsInToolInput } from './repos.mjs'
+import { AREA_SEPARATOR, WORKTREE_SEPARATOR, pathsInToolInput } from './repos.mjs'
 
 const QUESTION_TOOL = 'AskUserQuestion'
 // Subagents end by handing their report back through this tool, not with an end_turn.
@@ -16,6 +16,9 @@ const TIMELINE_LIMIT = 80
 // Replay needs the state changes of the last several hours, which is far fewer than the records.
 const HISTORY_LIMIT = 400
 const UNKNOWN_MODEL = 'unknown'
+const SYNTHETIC_MODEL = '<synthetic>'
+// As long as an agent counts as running after its last record (STALE_MS in web/src/status.ts).
+const HISTORY_MERGE_MS = 15 * 60_000
 // Some prices depend on the request, not just the model: fast mode, and long prompts on models
 // that price them higher. The usage key carries those as tags ("claude-opus-5-5 fast").
 const LONG_PROMPT_TOKENS = 100_000
@@ -127,7 +130,8 @@ function markFirstSeen(node, at) {
 function recordHistory(node, at) {
   const entry = [at, node.activity ?? null, node.waiting?.reason ?? null, node.lastTool]
   const last = node.history.at(-1)
-  if (last && entry.every((value, index) => index === 0 || value === last[index])) {
+  // An unchanged state is merged only across a short gap, so a long silence still reads as idle.
+  if (last && at - last[4] < HISTORY_MERGE_MS && entry.every((value, index) => index === 0 || value === last[index])) {
     last[4] = Math.max(last[4], at)
     return
   }
@@ -138,12 +142,23 @@ function recordHistory(node, at) {
 // One API message is split over several records that repeat its usage, so each id counts once.
 function addUsage(node, message) {
   const usage = message?.usage
-  if (!usage || (message.id && message.id === node.lastMessageId)) return
+  // An API error is written as a <synthetic> message with no usage worth pricing.
+  if (!usage || message.model === SYNTHETIC_MODEL) return
+  // One message is written as one record per content block, all with the same input and cache
+  // counts; its output count grows, and only the last record has the final one.
+  if (message.id && message.id === node.lastMessageId) {
+    const output = usage.output_tokens ?? 0
+    node.usage[node.lastUsageKey].output += Math.max(0, output - node.lastOutput)
+    node.lastOutput = Math.max(node.lastOutput, output)
+    return
+  }
   node.lastMessageId = message.id ?? null
+  node.lastOutput = usage.output_tokens ?? 0
   const cacheWrite = usage.cache_creation_input_tokens ?? 0
   const prompt = (usage.input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0) + cacheWrite
   const tags = `${usage.speed === 'fast' ? ' fast' : ''}${prompt > LONG_PROMPT_TOKENS ? ' long' : ''}`
-  const totals = (node.usage[`${message.model ?? UNKNOWN_MODEL}${tags}`] ??= { input: 0, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 })
+  node.lastUsageKey = `${message.model ?? UNKNOWN_MODEL}${tags}`
+  const totals = (node.usage[node.lastUsageKey] ??= { input: 0, output: 0, cacheRead: 0, cacheWrite5m: 0, cacheWrite1h: 0 })
   const write1h = usage.cache_creation?.ephemeral_1h_input_tokens ?? 0
   totals.input += usage.input_tokens ?? 0
   totals.output += usage.output_tokens ?? 0
@@ -173,7 +188,8 @@ function recordToolUse(graph, node, block, record, at) {
   const name = String(block.name)
   node.lastTool = name
   node.activity = name === 'Bash' ? shellActivity(block.input?.command) : (ACTIVITY_BY_TOOL[name] ?? 'working')
-  graph.toolUseOwner.set(block.id, node.id)
+  // Only spawns are looked up (to find a subagent's parent), so only they are kept.
+  if (SPAWN_TOOLS.has(name)) graph.toolUseOwner.set(block.id, node.id)
   // A spawn waits for its subagent, not for you, so only the other calls can look stuck.
   if (!SPAWN_TOOLS.has(name)) node.openTools.set(block.id, { name, since: at })
 
@@ -203,7 +219,17 @@ function isTypedPrompt(record) {
 // compaction writes are bookkeeping: they mustn't make an idle session look busy.
 function isActivity(record) {
   if (record.type === 'assistant') return true
-  return record.type === 'user' && !record.isMeta && !record.isCompactSummary
+  // Messages from other agents, hand-backs included, are written as meta records but are real.
+  const fromPeer = record.origin?.kind === 'peer'
+  return record.type === 'user' && (!record.isMeta || fromPeer) && !record.isCompactSummary
+}
+
+// Stopping a session (Esc) is written as a user record; it leaves the session waiting on you.
+const INTERRUPTED = '[Request interrupted'
+function isInterruption(record) {
+  const content = record.message?.content
+  const texts = typeof content === 'string' ? [content] : Array.isArray(content) ? content.filter((block) => block?.type === 'text').map((block) => block.text) : []
+  return texts.some((text) => typeof text === 'string' && text.startsWith(INTERRUPTED))
 }
 
 // A result closes its call; a new prompt settles whatever was left open, such as an interrupted call.
@@ -239,7 +265,11 @@ export function applyRecord(graph, nodeId, record) {
     }
     closeTools(node, record)
     const origin = record.origin
-    if (origin?.kind === 'peer' && origin.from) {
+    if (isInterruption(record)) {
+      node.waiting = { reason: 'reply', since: at }
+      if (node.kind === 'session') addEvent(node, { at, activity: 'listening', text: 'You stopped it', repo: null })
+    } else if (origin?.kind === 'peer' && origin.from && !origin.handback) {
+      // A hand-back answers a spawn the graph already shows, so only other messages add a line.
       const from = String(origin.from)
       if (!graph.nodes.has(from)) ensureNode(graph, from, { label: String(origin.name ?? from) })
       addMessage(graph, from, nodeId, at)
@@ -252,7 +282,8 @@ export function applyRecord(graph, nodeId, record) {
   if (record.type === 'assistant') {
     const content = record.message?.content ?? []
     node.handedBack = content.some((block) => block?.type === 'tool_use' && block.name === HANDBACK_TOOL)
-    const turnEnded = record.message?.stop_reason === 'end_turn' || node.handedBack
+    // An API error ends the turn too: the session waits for you to try again.
+    const turnEnded = record.message?.stop_reason === 'end_turn' || node.handedBack || record.isApiErrorMessage === true
     node.waiting = turnEnded ? { reason: 'reply', since: at } : null
     addUsage(node, record.message)
     if (turnEnded) node.openTools.clear()
@@ -294,9 +325,12 @@ function sessionRoom(node) {
 // A monorepo splits into a room per area only while two or more of its areas are busy; otherwise
 // it stays one room, so a repository used one area at a time looks the same as any other.
 function collapseAreas(nodes) {
+  // Counted across a repository and its worktrees, which the page folds together by default.
+  const repositoryOf = (key) => repoOfRoom(key).split(WORKTREE_SEPARATOR)[0]
+  const areaOf = (key) => key.split(AREA_SEPARATOR)[1] ?? ''
   const busy = new Map()
-  for (const { room } of nodes) if (room) busy.set(repoOfRoom(room), (busy.get(repoOfRoom(room)) ?? new Set()).add(room))
-  const keep = (key) => (key && (busy.get(repoOfRoom(key))?.size ?? 0) < 2 ? repoOfRoom(key) : key)
+  for (const { room } of nodes) if (room) busy.set(repositoryOf(room), (busy.get(repositoryOf(room)) ?? new Set()).add(areaOf(room)))
+  const keep = (key) => (key && (busy.get(repositoryOf(key))?.size ?? 0) < 2 ? repoOfRoom(key) : key)
   for (const node of nodes) {
     node.room = keep(node.room)
     node.home = keep(node.home)
@@ -351,7 +385,8 @@ export function snapshot(graph, since, waitingSince = since) {
 // The state a node had at `at`: the latest history entry that is not later than it.
 function nodeAt(node, at) {
   const entry = node.history.findLast((candidate) => candidate[0] <= at)
-  if (!entry) return { ...node, lastAt: Math.min(node.lastAt, at) }
+  // Before the oldest kept entry there's nothing to show but that the node existed.
+  if (!entry) return { ...node, activity: null, lastTool: null, waiting: null, openTools: new Map(), lastAt: Math.min(node.firstAt, at) }
   const [since, activity, reason, lastTool, lastAt] = entry
   return { ...node, activity, lastTool, lastAt: Math.min(lastAt, at), waiting: reason && { reason, since }, openTools: new Map() }
 }

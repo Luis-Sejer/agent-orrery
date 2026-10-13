@@ -57,7 +57,8 @@ export function useNotifications({ nodes, now, loaded, onOpen }: NotificationOpt
     const { fresh, keys } = newWaits(seen.current, nodes, now)
     if (enabled && lookingElsewhere()) {
       for (const node of fresh) {
-        const body = node.waiting?.reason === 'question' ? `Asked you a question in ${node.room}` : `Finished in ${node.room}, waiting for you`
+        const where = node.room ? ` in ${node.room}` : ''
+        const body = node.waiting?.reason === 'question' ? `Asked you a question${where}` : `Finished${where}, waiting for you`
         const notification = new Notification(node.label, { body, tag: node.id })
         notification.onclick = () => {
           window.focus()
@@ -66,7 +67,8 @@ export function useNotifications({ nodes, now, loaded, onOpen }: NotificationOpt
         }
       }
     }
-    seen.current = keys
+    // Waits seen before stay seen, so one that leaves and comes back isn't announced twice.
+    seen.current = new Set([...(seen.current ?? []), ...keys])
   }, [nodes, now, loaded, enabled])
 
   const toggle = useCallback(async () => {

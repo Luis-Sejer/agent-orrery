@@ -83,6 +83,8 @@ export function costOf(usage: ModelUsage): number | null {
   let total = 0
   for (const [model, tokens] of Object.entries(usage)) {
     const price = priceOf(model)
+    // A model with no tokens (an API error, say) can't make the total unknown.
+    if (!price && tokensOf({ [model]: tokens }) === 0) continue
     if (!price) return null
     total += dollars(price, tokens)
   }

@@ -19,7 +19,7 @@ interface DrawerProps {
   onClose: () => void
   onSelect: (id: string) => void
   onOpenPlan: (name: string) => void
-  onDismiss: (node: AgentNode) => void
+  onDismiss?: (node: AgentNode) => void
 }
 
 function useTimeline(id: string): TimelineEvent[] {
@@ -166,7 +166,7 @@ export function Drawer({ node, parent, children, now, onClose, onSelect, onOpenP
             <button type="button" className="button primary" onClick={copyResume}>
               {copied ? 'Copied' : 'Copy resume command'}
             </button>
-            {statusOf(node, now) === 'waiting' && (
+            {onDismiss && statusOf(node, now) === 'waiting' && (
               <button type="button" className="button quiet" onClick={() => onDismiss(node)} title="Dismiss until it does something new">
                 Dismiss
               </button>
