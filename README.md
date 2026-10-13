@@ -43,7 +43,7 @@ Agent Orrery answers that at a glance. It reads the transcripts Claude Code alre
 - **Cost.** An estimate of what each agent, session and room has cost, worked out in your browser from the token counts and Anthropic's published prices. Models it has no price for show tokens only.
 - **Replay.** Turn on Replay in the settings and drag back through the last hours (the same window as `AGENT_ORRERY_WINDOW_HOURS`) to see who was running, waiting and finished at any moment. Notifications stay off while you replay.
 - **Light, dark and T.Y.C.H.O.** Follows your system, or pick one. T.Y.C.H.O. (Tracks Your Claude Helpers' Orbits) is a holographic HUD in amber on black.
-- **A clean dashboard.** Search and the views sit on top; filters, the arrangement, themes, replay, notifications and voice are in one settings menu. Clean view hides the side panel, minimap and zoom too, for a screen you glance at. The page remembers all of it.
+- **A clean dashboard.** Search and the views sit on top; filters, the arrangement, themes, replay, notifications, voice and whether worktrees get rooms of their own are in one settings menu. Clean view hides the side panel, minimap and zoom too, for a screen you glance at. The page remembers all of it.
 - **Read-only and local.** It only reads files, never writes them, and nothing leaves your machine.
 
 <details>

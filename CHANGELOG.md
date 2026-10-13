@@ -13,6 +13,7 @@ All notable changes to Agent Orrery are documented here. The format is based on
 - Arrange the orrery by repository: each repository gets a ring of its own, the ones that need you innermost, so many repositories add rings instead of thinning sectors.
 - One settings menu holds the filters, the orrery's arrangement, the theme, replay, notifications and voice, leaving the toolbar with search and the views. Clean view hides the side panel, minimap and zoom as well.
 - Monorepos: each package or app with its own manifest becomes an area with a room of its own (`shop › apps/web`), but only while two or more of a repository's areas are busy. An `.orrery.json` names the areas instead, and `pnpm demo --monorepo` shows a made-up one.
+- Worktrees as their own rooms: a switch in the settings gives each worktree's branch a room or ring of its own. Off by default, so worktrees join their repository.
 - Switching the orrery's arrangement glides every agent to its new ring while the view eases to the new size, instead of redrawing at once.
 - T.Y.C.H.O., a fourth theme: a holographic HUD in amber and orange on black, with a turning dial around you in the Orrery view.
 - Voice: turn it on in the settings and the page says out loud when a session starts waiting on you, using a voice on your machine.
@@ -36,6 +37,8 @@ All notable changes to Agent Orrery are documented here. The format is based on
 - A subagent that hands back its report shows as finished straight away, instead of running for another 15 minutes.
 - A long branch name on a card or in the drawer is cut short with an ellipsis instead of pushing the column wider than the page.
 - A pile of finished agents in the orrery is an orb-sized stack with its count, so it no longer covers the agents beside it.
+- A worktree whose branch name has a slash (`feat/x`) joins its repository instead of showing up as a monorepo package of its own.
+- Dismissing a session sticks with the dashboard open in several tabs: each tab used to write back its own list and undo dismissals made in the others.
 - Selecting an agent no longer rearranges the canvas: piles of finished agents stay folded and light up instead.
 - Waiting cards glow on their own rhythm instead of all at once.
 - Renamed to Agent Orrery.
