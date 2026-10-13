@@ -1,5 +1,5 @@
 # Both stages are pinned by digest, so a rebuild can't silently pick up a different image.
-FROM node:24.21.0-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS build
+FROM node:26.10.0-alpine@sha256:0b36e8c136b94cd4fcf02188228e76c31ad5872eef3fec8cbd2eee500cfd9e80 AS build
 WORKDIR /app
 RUN npm install --global corepack@0.36.0 && corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -8,7 +8,7 @@ COPY web ./web
 RUN pnpm build
 
 # The server has no dependencies, so the runtime image holds only its own files and the built page.
-FROM node:24.21.0-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
+FROM node:26.10.0-alpine@sha256:0b36e8c136b94cd4fcf02188228e76c31ad5872eef3fec8cbd2eee500cfd9e80
 WORKDIR /app
 COPY server.mjs graph.mjs library.mjs repos.mjs store.mjs artifacts.mjs transcripts.mjs ./
 COPY --from=build /app/web/dist ./web/dist
