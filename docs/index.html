@@ -317,7 +317,7 @@ pnpm demo</pre>
         </details>
         <details>
           <summary>How does it handle a monorepo?</summary>
-          <p>Each package or app with its own <code>package.json</code>, <code>Cargo.toml</code>, <code>go.mod</code>, <code>pyproject.toml</code> or Nx <code>project.json</code> below the repository root becomes an area, shown as a room such as <code>shop › apps/web</code>. It only splits a repository while two or more of its areas are busy. To name the areas yourself, add an <code>.orrery.json</code> at the root: <code>{"areas": ["apps/*", "infra"]}</code>.</p>
+          <p>When a repository declares a workspace, or holds several packages with no project at its root, each package becomes an area, shown as a room such as <code>shop › apps/web</code>. Dependency and build folders like <code>node_modules</code> never count. It only splits a repository while two or more of its areas are busy. To name the areas yourself, add an <code>.orrery.json</code> at the root: <code>{"areas": ["apps/*", "infra"]}</code>.</p>
         </details>
         <details>
           <summary>Why is an agent in the wrong room?</summary>

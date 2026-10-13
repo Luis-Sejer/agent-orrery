@@ -236,7 +236,7 @@ No. It reads files Claude Code writes anyway, and adds no hooks.
 <details>
 <summary><strong>How does it handle a monorepo?</strong></summary>
 
-Each package or app with its own `package.json`, `Cargo.toml`, `go.mod`, `pyproject.toml` or Nx `project.json` below the repository root becomes an area, shown as a room such as `shop › apps/web`; files at the root stay with the repository. It only splits a repository while two or more of its areas are busy, so most of the time it looks like any other repository. To name the areas yourself, add an `.orrery.json` at the root: `{"areas": ["apps/*", "services/*", "infra"]}`, where `*` stands for one folder.
+A repository is a monorepo when its root declares a workspace (`pnpm-workspace.yaml` with `packages`, `workspaces` in `package.json`, a Cargo workspace, `go.work`, Nx, Turborepo, Lerna or Rush), or has no project of its own and two or more packages below it. Each package then becomes an area, shown as a room such as `shop › apps/web`; files at the root stay with the repository, and dependency and build folders like `node_modules` never count. It only splits a repository while two or more of its areas are busy, so most of the time it looks like any other repository. To name the areas yourself, add an `.orrery.json` at the root: `{"areas": ["apps/*", "services/*", "infra"]}`, where `*` stands for one folder.
 
 </details>
 
