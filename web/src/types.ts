@@ -119,6 +119,20 @@ export interface GraphSnapshot {
   nodes: AgentNode[]
   messages: MessageLink[]
   collisions?: Collision[]
+  // Your plan's usage, from the status line bridge; absent without it, and in a replay.
+  usage?: Usage | null
+}
+
+export interface UsageWindow {
+  percent: number
+  resetsAt: number | null
+}
+
+export interface Usage {
+  // When a status line last saw it.
+  at: number
+  fiveHour: UsageWindow | null
+  sevenDay: UsageWindow | null
 }
 
 export interface TimelineEvent {

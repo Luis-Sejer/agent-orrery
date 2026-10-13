@@ -207,6 +207,7 @@ export function withoutFinished(graph: GraphSnapshot, now: number, keep: string 
   if (nodes.length === graph.nodes.length) return graph
   const shown = new Set(nodes.map((node) => node.id))
   return {
+    ...graph,
     nodes,
     messages: graph.messages.filter(({ from, to }) => shown.has(from) && shown.has(to)),
     collisions: graph.collisions?.filter(({ a, b }) => shown.has(a) && shown.has(b)),

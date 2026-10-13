@@ -1931,6 +1931,75 @@ mark {
   font-variant-numeric: tabular-nums;
 }
 
+/* Plan usage, under Your turn's lede: as /usage shows it, amber near the limit, red at it. */
+.usage {
+  display: grid;
+  gap: 5px;
+  margin: 2px 0 14px;
+}
+
+.usage-row {
+  --usage: var(--green);
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) 38px auto;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-row.usage-warn {
+  --usage: var(--amber);
+}
+
+.usage-row.usage-full {
+  --usage: var(--waiting);
+}
+
+.usage-name {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.usage-bar {
+  height: 5px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--surface-container);
+}
+
+.usage-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--usage);
+}
+
+.usage-figure {
+  color: var(--ink);
+  font-weight: 600;
+  text-align: right;
+}
+
+.usage-full .usage-figure {
+  color: var(--waiting);
+}
+
+.usage-stale {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.core-readout.usage-warn {
+  color: var(--amber);
+}
+
+.core-readout.usage-full {
+  color: var(--waiting);
+}
+
 /* Artifacts: everything your agents published, newest first */
 
 .artifact-filter {

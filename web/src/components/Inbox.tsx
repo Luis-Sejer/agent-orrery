@@ -3,10 +3,11 @@ import { useEffect, useRef } from 'react'
 import { describeSpend, mergeUsage } from '../pricing'
 import { ago, describeStatus, isFreshWait, isQuiet, orbStateOf, statusOf, verbFor, waitingLine } from '../status'
 import type { Connection } from '../useGraph'
-import type { AgentNode, Collision } from '../types'
+import type { AgentNode, Collision, Usage } from '../types'
 import { beamStyle } from '../rhythm'
 import { duration, startOfDay, waitedOnYou } from '../waits'
 import { Orb } from './Orb'
+import { UsageMeter } from './UsageMeter'
 import { Wordmark } from './Wordmark'
 
 const RUNNING_SHOWN = 8
@@ -15,6 +16,7 @@ const RESTORE = 'restore'
 interface InboxProps {
   nodes: AgentNode[]
   collisions: Collision[]
+  usage: Usage | null
   now: number
   connection: Connection | 'replay'
   selectedId: string | null
@@ -67,7 +69,7 @@ function useFocusAfterDismiss(waiting: AgentNode[], onDismiss?: (node: AgentNode
   }
 }
 
-export function Inbox({ nodes, collisions, now, connection, selectedId, dismissedCount, onSelect, onDismiss, onRestoreDismissed }: InboxProps) {
+export function Inbox({ nodes, collisions, usage, now, connection, selectedId, dismissedCount, onSelect, onDismiss, onRestoreDismissed }: InboxProps) {
   const waiting = waitingOn(nodes, now)
   const runningNow = nodes
     .filter((node) => node.kind !== 'peer' && statusOf(node, now) === 'running')
@@ -91,6 +93,7 @@ export function Inbox({ nodes, collisions, now, connection, selectedId, dismisse
       <p className="lede" role="status">
         {waitingLede(waiting.length)}
       </p>
+      {usage && <UsageMeter usage={usage} now={now} />}
       <ol className="turns">
         {waiting.map((node) => (
           <li key={node.id} className="turn-item">

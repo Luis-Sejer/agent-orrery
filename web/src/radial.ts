@@ -21,7 +21,7 @@ import {
 import { phaseOf } from './rhythm'
 import { AREA_SEPARATOR, repositoryOf } from './rooms'
 import { statusOf } from './status'
-import type { AgentNode, GraphSnapshot, Status } from './types'
+import type { AgentNode, GraphSnapshot, Status, Usage } from './types'
 import { startOfDay, waitedOnYou } from './waits'
 
 // The orrery: you at the centre, agents further out the less they need you. Arranged by status, the rings
@@ -118,8 +118,9 @@ export type BackdropData = {
   // How far each ring has turned, by key.
   turns: Turns
   waiting: number
-  // How long agents waited on you today, in ms: T.Y.C.H.O. reads it out under the core.
+  // How long agents waited on you today, in ms, and your plan's usage: T.Y.C.H.O. reads them out under the core.
   waited: number
+  usage: Usage | null
   onCollapse: (room: string) => void
 }
 export type BackdropNode = Node<BackdropData, 'backdrop'>
@@ -439,6 +440,7 @@ export function buildOrrery(
         turns: turnsAt(rings, 0),
         waiting,
         waited: waitedOnYou(graph.nodes, now, startOfDay(now)),
+        usage: graph.usage ?? null,
         onCollapse: options.onCollapse,
       },
     },

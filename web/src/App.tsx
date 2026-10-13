@@ -205,6 +205,7 @@ export function App() {
         <Inbox
           nodes={graph.nodes}
           collisions={graph.collisions ?? []}
+          usage={graph.usage ?? null}
           now={now}
           connection={replay.open ? 'replay' : connection}
           selectedId={selectedId}

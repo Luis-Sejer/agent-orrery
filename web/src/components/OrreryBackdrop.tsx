@@ -4,6 +4,8 @@ import { MODE_FRAMES, resolvePreset, scaleCounts, scaleRadii } from 'thinking-or
 import { paintFrame } from 'thinking-orbs/engine'
 
 import { onStillChange, prefersStill } from '../motion'
+import { ago } from '../status'
+import { isStale, toneOf, windowsOf } from '../usage'
 import { duration } from '../waits'
 import { ROOM_LABEL_SIDE_REACH, type BackdropNode, type Box, type Sector, type System, type Turns } from '../radial'
 import { STILL_AT, toTint } from '../orbTicker'
@@ -173,7 +175,9 @@ function caption(waiting: number): string {
 // Rings, sector boundaries and room names, with you at the centre. It sits behind every agent
 // and lets clicks through, except on its own buttons. Labels turn with their rings.
 export function OrreryBackdrop({ data }: NodeProps<BackdropNode>) {
-  const { arrangement, box, rings, sectors, systems, lanes, turns, waiting, waited, onCollapse } = data
+  const { arrangement, box, rings, sectors, systems, lanes, turns, waiting, waited, usage, onCollapse } = data
+  const now = Date.now()
+  const windows = usage ? windowsOf(usage, now) : []
   const hud = useContext(HudContext)
   const id = useId()
   const outer = rings[rings.length - 1]
@@ -225,6 +229,12 @@ export function OrreryBackdrop({ data }: NodeProps<BackdropNode>) {
         <CoreOrb waiting={waiting > 0} />
         <span className={waiting > 0 ? 'core-caption why' : 'core-caption'}>{caption(waiting)}</span>
         {hud && waited >= MINUTE_MS && <span className="core-readout">{duration(waited)} on you today</span>}
+        {hud && windows.length > 0 && (
+          <span className={`core-readout usage-${toneOf(Math.max(...windows.map(({ window }) => window.percent)))}`}>
+            {windows.map(({ name, window }) => `${name} ${Math.round(window.percent)}%`).join(' · ')}
+            {usage && isStale(usage, now) ? ` · ${ago(usage.at, now)} ago` : ''}
+          </span>
+        )}
       </div>
 
       {/* A system's name and counts hang below its rings, where its orbs never pass over them. */}
