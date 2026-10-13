@@ -5,7 +5,8 @@ import { paintFrame } from 'thinking-orbs/engine'
 
 import { onStillChange, prefersStill } from '../motion'
 import { ago } from '../status'
-import { isStale, toneOf, windowsOf } from '../usage'
+import { current, isStale, toneOf, windowsOf } from '../usage'
+import type { Usage } from '../types'
 import { duration } from '../waits'
 import { ROOM_LABEL_SIDE_REACH, type BackdropNode, type Box, type Sector, type System, type Turns } from '../radial'
 import { STILL_AT, toTint } from '../orbTicker'
@@ -166,6 +167,38 @@ function AreaLabel({ sector, centre, turns, box, onCollapse }: { sector: Sector;
 }
 
 const MINUTE_MS = 60_000
+const HOUR_MS = 60 * MINUTE_MS
+// T.Y.C.H.O.'s usage gauge: the session's window on the inner ring, the week's outside it, both just
+// outside the turning dial. Each also marks how far through its window you are.
+const GAUGES = [
+  { key: 'fiveHour', r: 180, width: 3.5, span: 5 * HOUR_MS },
+  { key: 'sevenDay', r: 190, width: 2, span: 7 * 24 * HOUR_MS },
+] as const
+const TIME_TICK = 6
+
+// An arc that fills clockwise from the top to the share used, over a faint track. The tick says how
+// much of the window has gone, so an arc ahead of its tick is using the plan faster than time passes.
+function UsageGauge({ usage, now }: { usage: Usage; now: number }) {
+  return (
+    <g className="usage-gauge">
+      {GAUGES.map(({ key, r, width, span }) => {
+        const window = current(usage[key], now)
+        if (!window) return null
+        const gone = window.resetsAt === null ? null : 1 - Math.min(1, Math.max(0, (window.resetsAt - now) / span))
+        const angle = gone === null ? 0 : 2 * Math.PI * gone - Math.PI / 2
+        return (
+          <g key={key} className={`gauge usage-${toneOf(window.percent)}`}>
+            <circle className="gauge-track" r={r} strokeWidth={width} />
+            <circle className="gauge-fill" r={r} strokeWidth={width} pathLength={100} strokeDasharray={`${window.percent} 100`} transform="rotate(-90)" />
+            {gone !== null && (
+              <line className="gauge-time" x1={Math.cos(angle) * (r - TIME_TICK)} y1={Math.sin(angle) * (r - TIME_TICK)} x2={Math.cos(angle) * (r + TIME_TICK)} y2={Math.sin(angle) * (r + TIME_TICK)} />
+            )}
+          </g>
+        )
+      })}
+    </g>
+  )
+}
 
 function caption(waiting: number): string {
   if (waiting === 0) return 'Nothing needs you'
@@ -223,6 +256,7 @@ export function OrreryBackdrop({ data }: NodeProps<BackdropNode>) {
             <circle className="hud-arc" r={166} />
           </g>
         )}
+        {hud && usage && <UsageGauge usage={usage} now={now} />}
       </svg>
 
       <div className="orrery-core" style={{ left: -box.x, top: -box.y }}>

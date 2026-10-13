@@ -2895,6 +2895,41 @@ mark {
   animation: spin 26s linear infinite reverse;
 }
 
+/* The usage gauge: cyan while there's room, amber near the limit, red at it. It doesn't turn. */
+.usage-gauge .gauge {
+  color: var(--cyan);
+}
+
+.usage-gauge .gauge.usage-warn {
+  color: var(--amber);
+}
+
+.usage-gauge .gauge.usage-full {
+  color: var(--waiting);
+}
+
+.gauge-track,
+.gauge-fill {
+  fill: none;
+  stroke: currentColor;
+}
+
+.gauge-track {
+  opacity: 0.16;
+}
+
+.gauge-fill {
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.gauge-time {
+  stroke: var(--ink);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+
 .hud-arc {
   stroke: var(--cyan);
   stroke-width: 1.2;
