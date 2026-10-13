@@ -288,3 +288,45 @@ test('a subagent that hands back its report is finished, until someone messages 
   applyLines(graph, 'sub', lines({ type: 'user', timestamp: at(6), message: { content: 'One more thing' } }))
   assert.equal(snapshot(graph, 0).nodes[0].waiting, null)
 })
+
+test('in a monorepo, a path belongs to the outermost package below the root', () => {
+  const root = mkdtempSync(join(tmpdir(), 'agent-orrery-mono-'))
+  const make = (...parts) => mkdirSync(join(root, ...parts), { recursive: true })
+  const touch = (...parts) => writeFileSync(join(root, ...parts), '{}')
+  make('atlas', '.git')
+  make('atlas', '.github', 'workflows')
+  for (const app of ['atlas-web', 'atlas-api', 'types']) make('atlas', app, 'src'), touch('atlas', app, 'package.json')
+  make('atlas', 'atlas-web', 'node_modules', 'react')
+  touch('atlas', 'atlas-web', 'node_modules', 'react', 'package.json')
+  make('atlas', '.claude', 'worktrees', 'feat', 'atlas-api', 'src')
+  touch('atlas', '.claude', 'worktrees', 'feat', 'atlas-api', 'package.json')
+  make('shop', '.git')
+  make('shop', 'apps', 'web', 'src')
+  writeFileSync(join(root, 'shop', '.orrery.json'), JSON.stringify({ areas: ['apps/*'] }))
+  const resolve = createRepoResolver(root)
+  assert.equal(resolve(join(root, 'atlas', 'atlas-web', 'src', 'App.tsx')), 'atlas › atlas-web')
+  assert.equal(resolve(join(root, 'atlas', 'atlas-web', 'node_modules', 'react', 'index.js')), 'atlas › atlas-web')
+  assert.equal(resolve(join(root, 'atlas', 'types', 'src', 'index.ts')), 'atlas › types')
+  assert.equal(resolve(join(root, 'atlas', '.github', 'workflows', 'ci.yml')), 'atlas')
+  assert.equal(resolve(join(root, 'atlas', '.claude', 'worktrees', 'feat', 'atlas-api', 'src', 'a.ts')), 'atlas › atlas-api')
+  // .orrery.json names the areas instead of manifests.
+  assert.equal(resolve(join(root, 'shop', 'apps', 'web', 'src', 'page.tsx')), 'shop › apps/web')
+  assert.equal(resolve(join(root, 'shop', 'README.md')), 'shop')
+})
+
+test('a monorepo splits into rooms only while two areas are busy, and a session started at its root joins its area', () => {
+  const areaOf = (path) => path.match(/^\/code\/atlas\/([^/]+)\//)?.[1]
+  const resolveRepo = (path) => (path.startsWith('/code/atlas') ? (areaOf(path) ? `atlas › ${areaOf(path)}` : 'atlas') : null)
+  const build = (backend) => {
+    const graph = createGraph({ resolveRepo })
+    ensureNode(graph, 'lead', { kind: 'session', label: 'lead', sessionId: 'lead' })
+    applyLines(graph, 'lead', line({ type: 'assistant', timestamp: at(1), cwd: '/code/atlas', message: { content: [toolUse('r1', 'Read', { file_path: '/code/atlas/atlas-web/src/App.tsx' })] } }))
+    if (backend) {
+      ensureNode(graph, 'helper', { kind: 'subagent', label: 'helper', sessionId: 'lead' })
+      applyLines(graph, 'helper', line({ type: 'assistant', timestamp: at(2), cwd: '/code/atlas', message: { content: [toolUse('r2', 'Edit', { file_path: '/code/atlas/atlas-api/src/api.ts' })] } }))
+    }
+    return Object.fromEntries(snapshot(graph, 0).nodes.map((node) => [node.id, node.room]))
+  }
+  assert.deepEqual(build(false), { lead: 'atlas' })
+  assert.deepEqual(build(true), { lead: 'atlas › atlas-web', helper: 'atlas › atlas-api' })
+})

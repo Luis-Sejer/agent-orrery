@@ -2,7 +2,8 @@
 // the dashboard (and take screenshots) without showing anyone your real sessions.
 // The data goes through the real transcript parser, and a ticker keeps the agents busy.
 //
-//   pnpm demo            # http://127.0.0.1:4780
+//   pnpm demo              # http://127.0.0.1:4780
+//   pnpm demo --monorepo   # one made-up monorepo with eight packages instead
 //   AGENT_ORRERY_PORT=4790 pnpm demo
 
 import { spawn } from 'node:child_process'
@@ -21,6 +22,10 @@ const MINUTE = 60_000
 const SERVER = fileURLToPath(new URL('../server.mjs', import.meta.url))
 
 const REPOS = ['storefront-web', 'storefront-api', 'mobile-app', 'design-system', 'infra']
+const MONOREPO = process.argv.includes('--monorepo')
+// The monorepo: one repository whose packages each have a package.json, so each becomes an area.
+const ATLAS = 'atlas'
+const ATLAS_PACKAGES = ['apps/web', 'apps/admin', 'apps/mobile', 'services/api', 'services/billing', 'services/search', 'packages/ui', 'packages/config']
 
 let idCounter = 0
 const nextId = (prefix) => `${prefix}${(++idCounter).toString(16).padStart(15, '0')}`
@@ -137,6 +142,76 @@ function createSession({ n, title, repo, branch, alsoUses = null }) {
 
 function writeRepos() {
   for (const repo of REPOS) mkdirSync(repoPath(repo, '.git'), { recursive: true })
+  mkdirSync(repoPath(ATLAS, '.git'), { recursive: true })
+  for (const pkg of ATLAS_PACKAGES) {
+    mkdirSync(repoPath(ATLAS, pkg, 'src'), { recursive: true })
+    writeFileSync(repoPath(ATLAS, pkg, 'package.json'), '{}')
+  }
+}
+
+// The monorepo demo: every session starts at the repository's root and works in its packages.
+function writeMonorepo() {
+  const at = (pkg, file) => `${pkg}/src/${file}`
+
+  // 1. Search, across three packages, with helpers.
+  const search = createSession({ n: 1, title: 'Unified search', repo: ATLAS, branch: 'feat/unified-search', alsoUses: SONNET })
+  search.transcript.prompt(70)
+  search.transcript.tool(66, STEPS.read(ATLAS, at('services/search', 'index.ts')))
+  search.transcript.tool(60, STEPS.edit(ATLAS, at('services/search', 'ranking.ts')))
+  const indexer = search.subagent({ minutesAgo: 55, description: 'Index the product catalogue', agentType: 'general-purpose' })
+  indexer.tool(50, STEPS.write(ATLAS, at('services/search', 'indexer.ts')))
+  const bar = search.subagent({ minutesAgo: 45, description: 'Build the search bar', agentType: 'general-purpose' })
+  bar.tool(40, STEPS.edit(ATLAS, at('apps/web', 'SearchBar.tsx')))
+  search.transcript.tool(2, STEPS.grep(ATLAS))
+  running.push(
+    { transcript: search.transcript, repo: ATLAS, files: [at('services/search', 'ranking.ts'), at('services/search', 'query.ts')] },
+    { transcript: indexer, repo: ATLAS, files: [at('services/search', 'indexer.ts')], lead: search.id },
+    { transcript: bar, repo: ATLAS, files: [at('apps/web', 'SearchBar.tsx'), at('apps/web', 'results.tsx')], lead: search.id },
+  )
+
+  // 2. Asked you a question.
+  const invoices = createSession({ n: 2, title: 'Invoice PDFs', repo: ATLAS, branch: 'feat/invoice-pdf' })
+  invoices.transcript.prompt(30)
+  invoices.transcript.tool(25, STEPS.read(ATLAS, at('services/billing', 'invoice.ts')))
+  invoices.transcript.question(8)
+
+  // 3. Running, with a helper in the shared UI package.
+  const roles = createSession({ n: 3, title: 'Admin roles page', repo: ATLAS, branch: 'feat/admin-roles' })
+  roles.transcript.prompt(35)
+  roles.transcript.tool(30, STEPS.edit(ATLAS, at('apps/admin', 'Roles.tsx')))
+  const table = roles.subagent({ minutesAgo: 20, description: 'Sortable table component', agentType: 'general-purpose' })
+  table.tool(15, STEPS.edit(ATLAS, at('packages/ui', 'Table.tsx')))
+  roles.transcript.tool(1, STEPS.bash(ATLAS))
+  running.push(
+    { transcript: roles.transcript, repo: ATLAS, files: [at('apps/admin', 'Roles.tsx')] },
+    { transcript: table, repo: ATLAS, files: [at('packages/ui', 'Table.tsx'), at('packages/ui', 'Table.test.tsx')], lead: roles.id },
+  )
+
+  // 4. Finished, waiting on you.
+  const push = createSession({ n: 4, title: 'Mobile push notifications', repo: ATLAS, branch: 'feat/push' })
+  push.transcript.prompt(50)
+  push.transcript.tool(45, STEPS.write(ATLAS, at('apps/mobile', 'push.ts')))
+  push.transcript.endTurn(20)
+
+  // 5. Running in the API.
+  const limits = createSession({ n: 5, title: 'API rate limits', repo: ATLAS, branch: 'feat/rate-limits' })
+  limits.transcript.prompt(25)
+  limits.transcript.tool(3, STEPS.read(ATLAS, at('services/api', 'limits.ts')))
+  running.push({ transcript: limits.transcript, repo: ATLAS, files: [at('services/api', 'limits.ts'), at('services/api', 'routes.ts')] })
+
+  // 6. Finished a while ago.
+  const tokens = createSession({ n: 6, title: 'Design tokens v2', repo: ATLAS, branch: 'feat/tokens-v2' })
+  tokens.transcript.prompt(160)
+  tokens.transcript.tool(150, STEPS.edit(ATLAS, at('packages/ui', 'tokens.ts')))
+  tokens.transcript.tool(140, STEPS.bash(ATLAS))
+
+  // 7. Joins and leaves Your turn now and then.
+  const lint = createSession({ n: 7, title: 'Lint config bump', repo: ATLAS, branch: 'chore/lint' })
+  lint.transcript.prompt(12)
+  lint.transcript.tool(1, STEPS.edit(ATLAS, at('packages/config', 'eslint.js')))
+  running.push({ transcript: lint.transcript, repo: ATLAS, files: [at('packages/config', 'eslint.js')], waitsOnYou: true })
+
+  return [search, invoices, roles]
 }
 
 function writeSessions() {
@@ -340,7 +415,7 @@ function tick() {
 
 rmSync(ROOT, { recursive: true, force: true })
 writeRepos()
-const sessions = writeSessions()
+const sessions = MONOREPO ? writeMonorepo() : writeSessions()
 writeLibrary(sessions)
 
 const server = spawn(process.execPath, [SERVER], {

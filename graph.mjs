@@ -4,7 +4,7 @@
 
 import { basename } from 'node:path'
 
-import { pathsInToolInput } from './repos.mjs'
+import { AREA_SEPARATOR, pathsInToolInput } from './repos.mjs'
 
 const QUESTION_TOOL = 'AskUserQuestion'
 // Subagents end by handing their report back through this tool, not with an end_turn.
@@ -281,6 +281,28 @@ function mainRepo(repos) {
   return best
 }
 
+const repoOfRoom = (room) => room.split(AREA_SEPARATOR)[0]
+
+// A session's room is where it started. Started at a monorepo's root, that's the area it worked in most there.
+function sessionRoom(node) {
+  if (!node.home || node.home.includes(AREA_SEPARATOR)) return node.home ?? mainRepo(node.repos)
+  const inHome = Object.entries(node.repos).filter(([key]) => key.startsWith(node.home + AREA_SEPARATOR))
+  return mainRepo(Object.fromEntries(inHome)) ?? node.home
+}
+
+// A monorepo splits into a room per area only while two or more of its areas are busy; otherwise
+// it stays one room, so a repository used one area at a time looks the same as any other.
+function collapseAreas(nodes) {
+  const busy = new Map()
+  for (const { room } of nodes) if (room) busy.set(repoOfRoom(room), (busy.get(repoOfRoom(room)) ?? new Set()).add(room))
+  const keep = (key) => (key && (busy.get(repoOfRoom(key))?.size ?? 0) < 2 ? repoOfRoom(key) : key)
+  for (const node of nodes) {
+    node.room = keep(node.room)
+    node.home = keep(node.home)
+    node.repos = [...new Set(node.repos.map(keep))]
+  }
+}
+
 function oldestOpenTool(node) {
   let oldest = null
   for (const tool of node.openTools.values()) if (!oldest || tool.since < oldest.since) oldest = tool
@@ -289,7 +311,7 @@ function oldestOpenTool(node) {
 
 function publicNode(graph, node) {
   const parentId = node.kind === 'subagent' ? (graph.toolUseOwner.get(node.spawnToolUseId) ?? node.sessionId) : null
-  const room = node.kind === 'session' ? (node.home ?? mainRepo(node.repos)) : (mainRepo(node.repos) ?? graph.nodes.get(parentId)?.home ?? null)
+  const room = node.kind === 'session' ? sessionRoom(node) : (mainRepo(node.repos) ?? graph.nodes.get(parentId)?.home ?? null)
   return {
     id: node.id,
     kind: node.kind,
@@ -320,6 +342,7 @@ export function snapshot(graph, since, waitingSince = since) {
   const ids = new Set(visible.map((node) => node.id))
   const nodes = visible.map((node) => publicNode(graph, node))
   for (const node of nodes) if (!ids.has(node.parentId)) node.parentId = null
+  collapseAreas(nodes)
   const messages = [...graph.messages.values()].filter((edge) => ids.has(edge.from) && ids.has(edge.to))
   return { nodes, messages }
 }

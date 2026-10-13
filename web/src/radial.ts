@@ -15,6 +15,7 @@ import {
   type FlowOptions,
   type FoldData,
 } from './layout'
+import { phaseOf } from './rhythm'
 import { statusOf } from './status'
 import type { AgentNode, GraphSnapshot, Status } from './types'
 
@@ -189,9 +190,12 @@ function byRoom(planned: Planned[], status: (id: string) => Status): Plan {
   for (const { room, ids } of ordered) {
     r = Math.max(r + ROOM_RING_GAP, (ids.length * SLOT_ARC) / sweep)
     const key = `room:${room.name}`
+    // Each ring starts at its own angle, kept from its name, so rings with one agent each don't
+    // line up in a column, and their names spread around the orrery.
+    const gapAt = TOP + 2 * Math.PI * phaseOf(key)
     rings.push({ key, label: null, r, lap: LAP_SECONDS.waiting * (r / RINGS.waiting) ** KEPLER, tone: RING_ORDER[urgency(ids)] })
-    ids.forEach((id, slot) => slots.push({ id, angle: TOP + LABEL_GAP / 2 + ((slot + 0.5) * sweep) / ids.length, ring: key, offset: 0 }))
-    sectors.push({ name: room.name, start: TOP, mid: TOP, foldable: room.foldable, ring: key, r })
+    ids.forEach((id, slot) => slots.push({ id, angle: gapAt + LABEL_GAP / 2 + ((slot + 0.5) * sweep) / ids.length, ring: key, offset: 0 }))
+    sectors.push({ name: room.name, start: gapAt, mid: gapAt, foldable: room.foldable, ring: key, r })
   }
   return { slots, rings, sectors }
 }
