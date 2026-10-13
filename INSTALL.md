@@ -128,6 +128,6 @@ These also go in `.env`. Restart with `docker compose up -d` after changing them
 
 | Variable | Default | What it does |
 |---|---|---|
-| `AGENT_ORRERY_WINDOW_HOURS` | `6` | How far back to show sessions and agents |
-| `AGENT_ORRERY_WAITING_HOURS` | `24` | How long a session waiting on them stays listed |
+| `AGENT_ORRERY_WINDOW_HOURS` | `6` | How far back to show sessions and agents. They can also change it in Settings → Advanced |
+| `AGENT_ORRERY_WAITING_HOURS` | `24` | How long a session waiting on them stays listed. Also in Settings → Advanced |
 | `AGENT_ORRERY_VIEW`, `AGENT_ORRERY_ARRANGEMENT`, `AGENT_ORRERY_THEME`, … | unset | What every browser starts with; the README lists them all, and Settings → "Copy these settings for .env" writes them |

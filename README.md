@@ -40,7 +40,7 @@ Agent Orrery answers that at a glance. It reads the transcripts Claude Code alre
 - **Your turn.** Every session that finished, asked you something or is waiting on a permission prompt, oldest first, with how long it has waited. It comes from Claude Code's own status for each running session, so a closed terminal drops off at once. The tab title shows the count. Dismiss one until it does something new.
 - **Same files.** Two agents editing the same file within minutes of each other get a red line between them, and a warning in Your turn, before they undo each other's work.
 - **Day.** Today's sessions on one clock: when each worked, when it sat waiting on you, and how long something was waiting on you in total.
-- **Plan usage.** Your plan's session and weekly usage, the same numbers as `/usage`, live under Your turn, round T.Y.C.H.O.'s core and in the menu bar, amber near the limit and red at it. It takes [one line in your status line](#plan-usage).
+- **Plan usage.** Your plan's session and weekly usage, the same numbers as `/usage`, live under Your turn, round T.Y.C.H.O.'s core and in the menu bar, amber near the limit and red at it, with a forecast: "At this pace, you'll reach the limit around 17:40" It takes [one line in your status line](#plan-usage).
 - **Artifacts.** Every page your agents published on claude.ai, from all their sessions, newest first, with a filter and ⌘K search. Agents that published something carry a small mark, and their drawer lists what they made. Each one opens on claude.ai.
 - **Rooms per repository.** Each agent sits in the repo its work touches, not the folder its session started in. A session started in the API whose subagents edit the web app reaches across into the web app's room. In a monorepo, each busy package gets a room of its own.
 - **Focus.** Click an agent, or Tab to it and press Enter, to light up its parent, its subagents and everyone it messaged, and dim the rest. A drawer shows what it has done, step by step, and a command to resume the session.
@@ -53,7 +53,7 @@ Agent Orrery answers that at a glance. It reads the transcripts Claude Code alre
 <details>
 <summary><strong>And more:</strong> live state, search everything, notifications, menu bar, quiet agents, voice, plans and memory</summary>
 
-- **Live state.** Each agent's orb shows what it's doing now: reading, writing code, running a command, talking to other agents, or waiting on you. Messages between agents travel along the lines as they're sent.
+- **Live state.** Each agent's orb shows what it's doing now: reading, writing code, running a command, talking to other agents, or waiting on you. Messages between agents travel along the lines as they're sent, and every tool call a subagent makes sends a small packet to the session that started it.
 - **Search everything.** Press <kbd>⌘</kbd> <kbd>K</kbd> (<kbd>Ctrl</kbd> <kbd>K</kbd> elsewhere) to find agents by name, repo or branch, and plans and memory notes by what they say.
 - **Notifications.** Turn them on in the settings and your browser tells you when a session starts waiting on you while you're in another tab.
 - **Menu bar.** On a Mac, a small [menu bar app](#menu-bar-companion) shows how many sessions are waiting on you, and opens the one you pick.
@@ -223,8 +223,8 @@ Set these in your shell, or in a `.env` file next to `compose.yaml`.
 | `AGENT_ORRERY_CODE_DIR` | `~/Documents/GitHub` | Folder holding your repositories, shared read-only with the container so it can tell which repo an agent works in (Docker only) |
 | `AGENT_ORRERY_UID` / `AGENT_ORRERY_GID` | `501` / `20` | Your user and group id; Claude Code's files are readable only by you (Docker only) |
 | `AGENT_ORRERY_PORT` | `4777` | Port on this machine |
-| `AGENT_ORRERY_WINDOW_HOURS` | `6` | How far back to show sessions and agents |
-| `AGENT_ORRERY_WAITING_HOURS` | `24` | How long a session waiting on you stays listed |
+| `AGENT_ORRERY_WINDOW_HOURS` | `6` | How far back to show sessions and agents; also in Settings → Advanced |
+| `AGENT_ORRERY_WAITING_HOURS` | `24` | How long a session waiting on you stays listed; also in Settings → Advanced |
 | `AGENT_ORRERY_CLAUDE_DIR` | `~/.claude` | Where Claude Code keeps its files (from source only) |
 | `AGENT_ORRERY_DATA` | `./data` | Folder for its own settings and dismissed sessions, the only one it writes to (Docker only) |
 | `AGENT_ORRERY_DATA_DIR` | `~/.config/agent-orrery` | The same, running from source |
