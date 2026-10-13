@@ -10,6 +10,8 @@ import { edgeTypes, nodeTypes } from './FlowNodes'
 
 const FOCUS_ZOOM = 0.95
 const FOCUS_DURATION_MS = 600
+// About as long as agents take to glide to their new rings.
+const REARRANGE_MS = 700
 
 interface GraphCanvasProps extends FlowOptions {
   // Rooms in a grid (Agents), or rings around you (Orrery).
@@ -26,12 +28,12 @@ interface GraphCanvasProps extends FlowOptions {
 function minimapClass(node: CanvasNode, now: number): string {
   if (node.type === 'room') return 'mini-room'
   if (node.type === 'backdrop') return 'mini-backdrop'
-  if (node.type === 'fold') return 'mini-finished'
+  if (node.type === 'fold' || node.type === 'pile') return 'mini-finished'
   return `mini-${statusOf(node.data.node, now)}`
 }
 
 export function GraphCanvas({ layout, arrangement, graph, theme, focusRequest, onSelect, ...options }: GraphCanvasProps) {
-  const { fitView, setCenter } = useReactFlow()
+  const { fitView, fitBounds, setCenter } = useReactFlow()
   const { nodes: laidOut, edges, polar } = useMemo<{ nodes: CanvasNode[]; edges: Edge[]; polar: Map<string, Polar> | null }>(
     () => (layout === 'orrery' ? buildOrrery(graph, options, arrangement) : { ...buildFlow(graph, options), polar: null }),
     [layout, graph, options, arrangement],
@@ -47,6 +49,18 @@ export function GraphCanvas({ layout, arrangement, graph, theme, focusRequest, o
     hasFitted.current = true
     requestAnimationFrame(() => fitView({ padding: 0.12 }))
   }, [nodes.length, fitView])
+
+  // A new arrangement keeps the canvas: agents glide to their new rings while the view eases to the
+  // orrery's new size (the backdrop spans all of it). The first arrangement was fitted above.
+  const arrangedAs = useRef(arrangement)
+  useEffect(() => {
+    if (arrangedAs.current === arrangement) return
+    arrangedAs.current = arrangement
+    const backdrop = laidOut.find((node) => node.type === 'backdrop')
+    if (!backdrop) return
+    const still = matchMedia('(prefers-reduced-motion: reduce)').matches
+    fitBounds({ ...backdrop.position, width: backdrop.width!, height: backdrop.height! }, { padding: 0.12, duration: still ? 0 : REARRANGE_MS })
+  }, [arrangement, laidOut, fitBounds])
 
   useEffect(() => {
     if (!focusRequest) return

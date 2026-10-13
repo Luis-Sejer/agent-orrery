@@ -1,7 +1,7 @@
 import { BaseEdge, getBezierPath, Handle, Position, type Edge, type EdgeProps, type NodeProps } from '@xyflow/react'
 
 import type { CardNode, FoldNode, MessageData, RoomNode } from '../layout'
-import type { OrbitNode } from '../radial'
+import type { OrbitNode, PileNode } from '../radial'
 import { beamStyle } from '../rhythm'
 import { describeStatus, isQuiet, orbStateOf, statusOf } from '../status'
 import { Orb } from './Orb'
@@ -88,6 +88,19 @@ export function OrbitCard({ data }: NodeProps<OrbitNode>) {
   )
 }
 
+// The orrery's version of a pile: an orb-sized stack with its count, so it fits a slot on the ring.
+export function PileCard({ data }: NodeProps<PileNode>) {
+  const className = ['orbit-card', 'pile', 'nodrag', data.dimmed && 'dimmed', data.related && 'related'].filter(Boolean).join(' ')
+  return (
+    <button type="button" className={className} title={`${data.count} finished in ${data.room}. Show them`} onClick={() => data.onExpand(data.room)}>
+      <Handle type="target" position={Position.Top} isConnectable={false} />
+      <Handle type="source" position={Position.Top} isConnectable={false} />
+      <span className="pile-count" aria-hidden="true">{data.count}</span>
+      <span className="orbit-label">{data.count} finished</span>
+    </button>
+  )
+}
+
 export function FoldCard({ data }: NodeProps<FoldNode>) {
   return (
     <button type="button" className={`card fold nodrag${data.dimmed ? ' dimmed' : ''}${data.related ? ' related' : ''}`} onClick={() => data.onExpand(data.room)}>
@@ -128,5 +141,5 @@ export function MessageEdge(props: EdgeProps<Edge<MessageData, 'message'>>) {
   )
 }
 
-export const nodeTypes = { session: SessionCard, agent: AgentCard, fold: FoldCard, room: RoomBox, orbit: OrbitCard, backdrop: OrreryBackdrop }
+export const nodeTypes = { session: SessionCard, agent: AgentCard, fold: FoldCard, room: RoomBox, orbit: OrbitCard, pile: PileCard, backdrop: OrreryBackdrop }
 export const edgeTypes = { message: MessageEdge }

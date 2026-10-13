@@ -1139,6 +1139,20 @@ mark {
   overflow: visible;
 }
 
+/* Rings, their labels and room names fade in, so switching arrangement reads as the rings re-forming
+   while the agents glide across. */
+@keyframes ring-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.orrery-ring,
+.orrery-ring-label,
+.sector-label {
+  animation: ring-in 700ms var(--ease) both;
+}
+
 .orrery-ring {
   fill: none;
   stroke: var(--idle);
@@ -1264,9 +1278,40 @@ mark {
   top: 50%;
 }
 
-.react-flow__node.orrery-node .fold .react-flow__handle {
-  inset: 50% auto auto 50%;
-  transform: translate(-50%, -50%);
+/* A pile of finished agents in the orrery: a dashed stack with its count, the size of an orb. */
+.orbit-card.pile {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+}
+
+.pile-count {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1.5px dashed color-mix(in srgb, var(--muted) 60%, transparent);
+  border-radius: 50%;
+  background: var(--surface-card);
+  box-shadow: 3px -3px 0 -1px var(--surface), 3px -3px 0 0 color-mix(in srgb, var(--muted) 35%, transparent);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  transition: transform 200ms var(--ease);
+}
+
+.orbit-card.pile:hover .pile-count {
+  transform: scale(1.08);
+}
+
+.orbit-card.pile:focus-visible {
+  outline: none;
+}
+
+.orbit-card.pile:focus-visible .pile-count {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
 }
 
 /* The name sits outside the orb, on the side away from the centre (--cos, --sin set per frame). */
@@ -1977,6 +2022,12 @@ mark {
 
 :root[data-hud] :is(.react-flow__edge.lit path, .message-path) {
   filter: drop-shadow(0 0 3px var(--glow));
+}
+
+:root[data-hud] .pile-count {
+  border-color: var(--frame);
+  color: var(--amber);
+  font-family: var(--mono);
 }
 
 :root[data-hud] .orbit-label {

@@ -169,7 +169,7 @@ export function App() {
           {onCanvas && (
             <>
               {/* A new canvas when replay starts or ends, so it fits what's shown. */}
-              <ReactFlowProvider key={`${view}-${arrangement}-${replay.open ? (replay.view ? 'replay' : 'loading') : 'live'}`}>
+              <ReactFlowProvider key={`${view}-${replay.open ? (replay.view ? 'replay' : 'loading') : 'live'}`}>
                 <GraphCanvas
                   layout={view === 'orrery' ? 'orrery' : 'grid'}
                   arrangement={arrangement}

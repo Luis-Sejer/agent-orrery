@@ -3,7 +3,6 @@ import { Position, type Edge, type Node, type NodeHandle } from '@xyflow/react'
 
 import {
   buildEdges,
-  FOLD_SIZE,
   foldId,
   groupIntoRooms,
   matches,
@@ -14,7 +13,7 @@ import {
   Z_ROOM,
   type CardData,
   type FlowOptions,
-  type FoldNode,
+  type FoldData,
 } from './layout'
 import { statusOf } from './status'
 import type { AgentNode, GraphSnapshot, Status } from './types'
@@ -70,6 +69,8 @@ const TOP = -Math.PI / 2
 
 export type Arrangement = 'status' | 'room'
 export type OrbitNode = Node<CardData, 'orbit'>
+// A room's finished agents, folded into one orb-sized pile, so it takes one slot like an agent.
+export type PileNode = Node<FoldData, 'pile'>
 // A ring: its key (a status, or a room's name), its label along the top when it has one, and the most
 // urgent status on it, which colours it.
 export type Ring = { key: string; label: string | null; r: number; lap: number; tone: Status }
@@ -88,7 +89,7 @@ export type BackdropData = {
   onCollapse: (room: string) => void
 }
 export type BackdropNode = Node<BackdropData, 'backdrop'>
-export type OrreryNode = OrbitNode | FoldNode | BackdropNode
+export type OrreryNode = OrbitNode | PileNode | BackdropNode
 // Where a node sits before the rings turn, and which ring carries it.
 export type Polar = { angle: number; r: number; ring: string }
 
@@ -271,10 +272,10 @@ export function buildOrrery(
     polars.set(slot.id, at)
     nodes.push(placeAt({
       id: slot.id,
-      type: 'fold',
+      type: 'pile',
       position: { x: 0, y: 0 },
-      ...FOLD_SIZE,
-      ...fixedFrame(FOLD_SIZE, Position.Right, Position.Left),
+      ...ORBIT_SIZE,
+      ...fixedFrame(ORBIT_SIZE, Position.Top, Position.Top),
       className: 'orrery-node',
       zIndex: Z_CARD,
       data: {
@@ -284,7 +285,7 @@ export function buildOrrery(
         related: room.folded.some((member) => related.has(member.id)),
         onExpand: options.onExpand,
       },
-    } satisfies FoldNode, at.angle, at.r))
+    } satisfies PileNode, at.angle, at.r))
     for (const member of room.folded) {
       if (member.id === selectedId) nodes.push(orbit(member, { ...at, r: at.r + POPPED_OUT }))
       else foldedInto.set(member.id, slot.id)

@@ -12,6 +12,7 @@ All notable changes to Agent Orrery are documented here. The format is based on
 - The page remembers which view you were on (Agents, Orrery, Plans or Memory) when you reload.
 - Arrange the orrery by repository: each repository gets a ring of its own, the ones that need you innermost, so many repositories add rings instead of thinning sectors.
 - One settings menu holds the filters, the orrery's arrangement, the theme, replay, notifications and voice, leaving the toolbar with search and the views. Clean view hides the side panel, minimap and zoom as well.
+- Switching the orrery's arrangement glides every agent to its new ring while the view eases to the new size, instead of redrawing at once.
 - T.Y.C.H.O., a fourth theme: a holographic HUD in amber and orange on black, with a turning dial around you in the Orrery view.
 - Voice: turn it on in the settings and the page says out loud when a session starts waiting on you, using a voice on your machine.
 - Cost: an estimate for each agent, session (with its subagents) and room, and one line in the inbox for everything in view. Models without a known price show tokens only.
@@ -33,6 +34,7 @@ All notable changes to Agent Orrery are documented here. The format is based on
 - A session compacted while it waited on you no longer jumps to Running; compaction and other bookkeeping don't count as activity.
 - A subagent that hands back its report shows as finished straight away, instead of running for another 15 minutes.
 - A long branch name on a card or in the drawer is cut short with an ellipsis instead of pushing the column wider than the page.
+- A pile of finished agents in the orrery is an orb-sized stack with its count, so it no longer covers the agents beside it.
 - Selecting an agent no longer rearranges the canvas: piles of finished agents stay folded and light up instead.
 - Waiting cards glow on their own rhythm instead of all at once.
 - Renamed to Agent Orrery.

@@ -85,7 +85,7 @@ describe('buildOrrery', () => {
     const graph = graphOf([session('lead'), finished('f1'), finished('f2'), finished('f3')])
     const folded = buildOrrery(graph, options()).nodes
     expect(folded.filter((node) => node.type === 'orbit').map((node) => node.id)).toEqual(['lead'])
-    expect(folded.find((node) => node.type === 'fold')?.data).toMatchObject({ count: 3 })
+    expect(folded.find((node) => node.type === 'pile')?.data).toMatchObject({ count: 3 })
     const open = buildOrrery(graph, options({ expandedRooms: new Set(['api']) })).nodes
     expect(open.filter((node) => node.type === 'orbit')).toHaveLength(4)
     expect(backdrop(open).data.sectors[0].foldable).toBe(true)
@@ -119,8 +119,8 @@ describe('buildOrrery', () => {
 
   it('gives orbiting nodes a measured size and handles, so their edges stay drawn while they move', () => {
     const graph = graphOf([session('lead'), agent('child'), finished('f1'), finished('f2'), finished('f3')])
-    const moving = buildOrrery(graph, options()).nodes.filter((node) => node.type === 'orbit' || node.type === 'fold')
-    expect(moving.map((node) => node.type).sort()).toEqual(['fold', 'orbit', 'orbit'])
+    const moving = buildOrrery(graph, options()).nodes.filter((node) => node.type === 'orbit' || node.type === 'pile')
+    expect(moving.map((node) => node.type).sort()).toEqual(['orbit', 'orbit', 'pile'])
     for (const node of moving) {
       expect(node.measured).toEqual({ width: node.width, height: node.height })
       expect(node.handles?.map((handle) => handle.type).sort()).toEqual(['source', 'target'])
@@ -140,6 +140,18 @@ describe('buildOrrery', () => {
     expect(rings[0].r).toBeLessThan(rings[1].r)
     expect(rings[0].lap).toBeLessThan(rings[1].lap)
     expect(polar.get('asks')?.ring).toBe('room:gamma')
+  })
+
+  it('draws a pile as one orb-sized slot that overlaps nothing, in both arrangements', () => {
+    const graph = graphOf([session('lead'), agent('child'), agent('other'), finished('f1'), finished('f2'), finished('f3')])
+    for (const arrangement of ['status', 'room'] as const) {
+      const placed = buildOrrery(graph, options(), arrangement).nodes.filter((node) => node.type !== 'backdrop')
+      expect(placed.find((node) => node.type === 'pile')).toMatchObject(ORBIT_SIZE)
+      const centres = placed.map((node) => [node.position.x + node.width! / 2, node.position.y + node.height! / 2])
+      for (const [i, [x1, y1]] of centres.entries()) {
+        for (const [x2, y2] of centres.slice(i + 1)) expect(Math.hypot(x2 - x1, y2 - y1)).toBeGreaterThanOrEqual(ORBIT_SIZE.width)
+      }
+    }
   })
 
   it('shows the status rings when there is nothing to arrange by repository', () => {
