@@ -45,6 +45,8 @@ export interface AgentNode {
   plans: string[]
   // Set in the browser when you dismiss a waiting session.
   dismissed?: boolean
+  // Set in the browser: how many subagents a session that ended its turn is still waiting for.
+  awaitingAgents?: number
 }
 
 export interface MessageLink {

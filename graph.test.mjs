@@ -369,3 +369,13 @@ test('a monorepo splits into rooms only while two areas are busy, and a session 
   assert.deepEqual(build(false), { lead: 'atlas' })
   assert.deepEqual(build(true), { lead: 'atlas › atlas-web', helper: 'atlas › atlas-api' })
 })
+
+test('a session waiting on its own running subagents is not in the waiting list', () => {
+  const now = Date.parse(at(30))
+  const node = (fields) => ({ branch: null, room: 'app', waiting: null, pendingTool: null, lastAt: now - 60_000, ...fields })
+  const lead = node({ id: 'lead', kind: 'session', label: 'Lead', waiting: { reason: 'reply', since: now - 60_000 } })
+  const helper = node({ id: 'helper', kind: 'subagent', label: 'Helper', sessionId: 'lead' })
+  assert.deepEqual(waitingSessions({ nodes: [lead, helper] }, now), [])
+  const done = { ...helper, waiting: { reason: 'reply', since: now } }
+  assert.deepEqual(waitingSessions({ nodes: [lead, done] }, now).map((entry) => entry.id), ['lead'])
+})

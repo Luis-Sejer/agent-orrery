@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { describeSpend, costOf, mergeUsage, priceOf } from './pricing'
-import { describeStatus, isQuiet, statusOf } from './status'
+import { awaitAgents, describeStatus, isQuiet, statusOf } from './status'
 import type { AgentNode } from './types'
 
 const NOW = Date.parse('2026-10-12T12:00:00Z')
@@ -85,5 +85,25 @@ describe('request-dependent prices', () => {
   it('charges Haiku 5.5 long prompts the higher tier, and only Haiku 5.5', () => {
     expect(priceOf('claude-haiku-5-5 long')).toEqual({ input: 0.5, output: 2.5, cacheRead: 0.05 })
     expect(priceOf('claude-opus-5-5 long')).toEqual(priceOf('claude-opus-5-5'))
+  })
+})
+
+describe('waiting on its own agents', () => {
+  const NOW = Date.parse('2026-10-13T08:00:00Z')
+  const base = { branch: null, home: 'app', room: 'app', repos: [], activity: null, lastTool: null, pendingTool: null, usage: {}, agentType: null, model: null, plans: [] }
+  const session = (fields: Partial<AgentNode> = {}): AgentNode => ({ ...base, id: 'lead', kind: 'session', label: 'Lead', sessionId: 'lead', parentId: null, lastAt: NOW - 4 * 60_000, waiting: { reason: 'reply', since: NOW - 4 * 60_000 }, ...fields })
+  const helper = (fields: Partial<AgentNode> = {}): AgentNode => ({ ...base, id: 'helper', kind: 'subagent', label: 'Helper', sessionId: 'lead', parentId: 'lead', lastAt: NOW - 30_000, waiting: null, ...fields })
+
+  it('keeps a session running, not waiting on you, while a subagent it started still runs', () => {
+    const lead = awaitAgents({ nodes: [session(), helper()], messages: [] }, NOW).nodes[0]
+    expect(statusOf(lead, NOW)).toBe('running')
+    expect(describeStatus(lead, NOW)).toBe('Waiting on 1 agent')
+    expect(isQuiet(lead, NOW)).toBe(false)
+  })
+
+  it('waits on you again once its subagents are done, and always when it asked a question', () => {
+    expect(statusOf(awaitAgents({ nodes: [session(), helper({ waiting: { reason: 'reply', since: NOW } })], messages: [] }, NOW).nodes[0], NOW)).toBe('waiting')
+    const asked = session({ waiting: { reason: 'question', since: NOW } })
+    expect(statusOf(awaitAgents({ nodes: [asked, helper()], messages: [] }, NOW).nodes[0], NOW)).toBe('waiting')
   })
 })

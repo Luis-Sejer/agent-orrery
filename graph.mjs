@@ -365,9 +365,17 @@ export function replay(graph, at, windowMs, waitingWindowMs = windowMs) {
 }
 
 // The sessions waiting on you, oldest wait first: what the menu bar companion lists.
-export function waitingSessions({ nodes }) {
+// The same rule as statusOf in web/src/status.ts: a subagent runs until it hands back, for 15 minutes
+// after its last record, or two hours while a tool call is still open.
+const RUNNING_MS = 15 * 60_000
+const RUNNING_WITH_OPEN_TOOL_MS = 2 * 60 * 60_000
+const isRunning = (node, now) => !node.waiting && now - node.lastAt < (node.pendingTool ? RUNNING_WITH_OPEN_TOOL_MS : RUNNING_MS)
+
+// A session whose turn ended while its subagents still run is waiting on them, not on you.
+export function waitingSessions({ nodes }, now = Date.now()) {
+  const busy = new Set(nodes.filter((node) => node.kind === 'subagent' && isRunning(node, now)).map((node) => node.sessionId))
   return nodes
-    .filter((node) => node.kind === 'session' && node.waiting)
+    .filter((node) => node.kind === 'session' && node.waiting && (node.waiting.reason === 'question' || !busy.has(node.id)))
     .map((node) => ({ id: node.id, label: node.label, room: node.room, branch: node.branch, reason: node.waiting.reason, since: node.waiting.since }))
     .sort((a, b) => a.since - b.since)
 }

@@ -1,6 +1,6 @@
 import type { OrbState } from 'thinking-orbs'
 
-import type { AgentNode, Status } from './types'
+import type { AgentNode, GraphSnapshot, Status } from './types'
 
 // A running tool such as a long test suite writes nothing for minutes, so "running" lasts this long.
 const STALE_MS = 15 * 60_000
@@ -42,13 +42,14 @@ export function stateColour(state: OrbState, hud: boolean): string {
 
 export function statusOf(node: AgentNode, now: number): Status {
   if (node.dismissed) return 'finished'
+  if (node.awaitingAgents) return 'running'
   if (node.waiting && node.kind === 'session') return 'waiting'
   if (node.waiting) return 'finished'
   return now - node.lastAt < (node.pendingTool ? PENDING_STALE_MS : STALE_MS) ? 'running' : 'finished'
 }
 
 export function isQuiet(node: AgentNode, now: number): boolean {
-  return statusOf(node, now) === 'running' && now - node.lastAt >= QUIET_MS
+  return statusOf(node, now) === 'running' && !node.awaitingAgents && now - node.lastAt >= QUIET_MS
 }
 
 // MCP tools are named mcp__server__tool; the last part reads best.
@@ -58,6 +59,7 @@ export function orbStateOf(node: AgentNode, now: number): OrbState {
   const status = statusOf(node, now)
   if (status === 'waiting') return 'listening'
   if (status === 'finished') return 'breathing'
+  if (node.awaitingAgents) return 'connecting'
   return node.activity ?? 'solving'
 }
 
@@ -83,6 +85,7 @@ export function describeStatus(node: AgentNode, now: number): string {
     const what = node.waiting?.reason === 'question' ? 'Asked you a question' : 'Finished, waiting for you'
     return `${what}, ${ago(node.waiting?.since ?? node.lastAt, now)} ago`
   }
+  if (node.awaitingAgents) return `Waiting on ${node.awaitingAgents} ${node.awaitingAgents === 1 ? 'agent' : 'agents'}`
   if (isQuiet(node, now)) {
     if (!node.pendingTool) return `Quiet for ${ago(node.lastAt, now)}`
     return `${toolLabel(node.pendingTool.name)} has run for ${ago(node.pendingTool.since, now)}, may be waiting for your approval`
@@ -102,4 +105,19 @@ const VERBS: Partial<Record<OrbState, string>> = {
 
 export function verbFor(activity: OrbState | null): string {
   return (activity && VERBS[activity]) ?? 'Working'
+}
+
+// A session that ended its turn while subagents it started are still running isn't waiting on you:
+// they wake it when they report back. One that asked you a question still is.
+export function awaitAgents(graph: GraphSnapshot, now: number): GraphSnapshot {
+  const running = new Map<string, number>()
+  for (const node of graph.nodes) {
+    if (node.kind === 'subagent' && node.sessionId && statusOf(node, now) === 'running') running.set(node.sessionId, (running.get(node.sessionId) ?? 0) + 1)
+  }
+  if (running.size === 0) return graph
+  const nodes = graph.nodes.map((node) => {
+    const count = running.get(node.id)
+    return count && node.kind === 'session' && node.waiting?.reason === 'reply' ? { ...node, waiting: null, awaitingAgents: count } : node
+  })
+  return { ...graph, nodes }
 }

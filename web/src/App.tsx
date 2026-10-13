@@ -9,7 +9,7 @@ import { Library } from './components/Library'
 import { ReplayBar } from './components/ReplayBar'
 import { SearchPalette } from './components/SearchPalette'
 import { SettingsMenu } from './components/SettingsMenu'
-import { statusOf } from './status'
+import { awaitAgents, statusOf } from './status'
 import type { Filter, View } from './types'
 import { foldWorktrees } from './rooms'
 import { applyDismissals, useDismissed } from './useDismissed'
@@ -44,8 +44,8 @@ export function App() {
   const [worktreeRooms, setWorktreeRooms] = useWorktreeRooms()
   const graph = useMemo(() => {
     const shown = replay.view?.graph ?? applyDismissals(liveGraph, dismissals)
-    return worktreeRooms === 'on' ? shown : foldWorktrees(shown)
-  }, [replay.view, liveGraph, dismissals, worktreeRooms])
+    return awaitAgents(worktreeRooms === 'on' ? shown : foldWorktrees(shown), now)
+  }, [replay.view, liveGraph, dismissals, worktreeRooms, now])
   const dismissedCount = graph.nodes.filter((node) => node.dismissed).length
   const { view, setView, toCanvas } = useView()
   const [arrangement, arrange] = useArrangement()
