@@ -432,6 +432,15 @@ function writeLibrary(sessions) {
   for (const [name, content] of Object.entries(MEMORY)) writeFileSync(join(memoryDir, name), content)
 }
 
+// What the status line bridge (statusline/orrery-usage.sh) writes: made-up plan usage, kept fresh.
+const HOUR = 60 * MINUTE
+function writeUsage() {
+  const dir = join(CLAUDE_DIR, 'orrery')
+  mkdirSync(dir, { recursive: true })
+  const usage = { at: Date.now() / 1000, five_hour: { used_percentage: 62, resets_at: (Date.now() + 2.5 * HOUR) / 1000 }, seven_day: { used_percentage: 11, resets_at: (Date.now() + 4 * 24 * HOUR) / 1000 } }
+  writeFileSync(join(dir, 'usage.json'), JSON.stringify(usage))
+}
+
 const TICK_STEPS = ['read', 'edit', 'grep', 'bash', 'write']
 const WAIT_EVERY_TICKS = 12
 let ticks = 0
@@ -450,6 +459,7 @@ function toggleFlakyWait() {
 // Keeps the running agents busy so the orbs change and messages travel.
 function tick() {
   ticks += 1
+  if (ticks % WAIT_EVERY_TICKS === 0) writeUsage()
   if (ticks % WAIT_EVERY_TICKS === 0) {
     toggleFlakyWait()
     return
@@ -469,6 +479,7 @@ rmSync(ROOT, { recursive: true, force: true })
 writeRepos()
 const sessions = MONOREPO ? writeMonorepo() : writeSessions()
 writeLibrary(sessions)
+writeUsage()
 
 const server = spawn(process.execPath, [SERVER], {
   stdio: 'inherit',
