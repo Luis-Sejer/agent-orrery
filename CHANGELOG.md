@@ -38,6 +38,7 @@ All notable changes to Agent Orrery are documented here. The format is based on
 - A long branch name on a card or in the drawer is cut short with an ellipsis instead of pushing the column wider than the page.
 - A pile of finished agents in the orrery is an orb-sized stack with its count, so it no longer covers the agents beside it.
 - Monorepo detection only splits real monorepos (a declared workspace, or several packages with no project at the root), and never treats `node_modules` or build folders as packages. A single project with dependencies no longer grows rooms like `node_modules/mysql2`, and a dependency with its own `.git` belongs to the repository that installed it.
+- A session that ended its turn while subagents it started are still running shows as running, "Waiting on 2 agents", instead of waiting on you. It joins Your turn once they're done; a question to you still counts as waiting.
 - A worktree whose branch name has a slash (`feat/x`) joins its repository instead of showing up as a monorepo package of its own.
 - Dismissing a session sticks with the dashboard open in several tabs: each tab used to write back its own list and undo dismissals made in the others.
 - Selecting an agent no longer rearranges the canvas: piles of finished agents stay folded and light up instead.
