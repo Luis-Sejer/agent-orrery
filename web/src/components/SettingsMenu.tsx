@@ -1,7 +1,7 @@
 import { useId, useState, type FocusEvent, type ReactNode } from 'react'
 
 import type { Arrangement } from '../radial'
-import { settingsAsEnv } from '../settings'
+import { readNumberSetting, settingsAsEnv, writeSetting } from '../settings'
 import type { Filter } from '../types'
 import { THEMES, type ThemePreference } from '../useTheme'
 import { Icon } from './Icon'
@@ -109,6 +109,64 @@ function hideWhenFocusLeaves(event: FocusEvent<HTMLDivElement>) {
 
 const COPIED_MS = 1_800
 
+// The server's own settings, in whole hours, within the range the server accepts (NUMBER_SETTINGS in
+// store.mjs). They apply to every browser at once.
+const HOUR_SETTINGS = [
+  { name: 'window-hours', label: 'Show agents from the last', detail: 'Agents with nothing newer drop off the canvas.', min: 1, max: 72, fallback: 6 },
+  { name: 'waiting-hours', label: 'Keep a waiting session for', detail: 'How long a session waiting on you stays in Your turn.', min: 1, max: 168, fallback: 24 },
+] as const
+
+// Saved when you leave the field or press Enter, kept within its range; an empty field goes back.
+function HourSetting({ name, label, detail, min, max, fallback }: (typeof HOUR_SETTINGS)[number]) {
+  const id = useId()
+  const [saved, setSaved] = useState(() => readNumberSetting(name, fallback))
+  const [text, setText] = useState(String(saved))
+  function commit() {
+    const value = Number(text)
+    if (!text.trim() || !Number.isFinite(value)) return setText(String(saved))
+    const kept = Math.min(max, Math.max(min, Math.round(value)))
+    setText(String(kept))
+    if (kept === saved) return
+    setSaved(kept)
+    writeSetting(name, String(kept))
+  }
+  return (
+    <div className="setting hours">
+      <label htmlFor={id} className="setting-name">
+        {label}
+      </label>
+      <span className="hours-field">
+        <input
+          id={id}
+          type="number"
+          inputMode="numeric"
+          min={min}
+          max={max}
+          step={1}
+          value={text}
+          aria-describedby={`${id}-detail`}
+          onChange={(event) => setText(event.target.value)}
+          onBlur={commit}
+          onKeyDown={(event) => event.key === 'Enter' && commit()}
+        />
+        hours
+      </span>
+      <small id={`${id}-detail`}>{detail}</small>
+    </div>
+  )
+}
+
+function AdvancedSettings() {
+  return (
+    <details className="advanced">
+      <summary>Advanced</summary>
+      {HOUR_SETTINGS.map((setting) => (
+        <HourSetting key={setting.name} {...setting} />
+      ))}
+    </details>
+  )
+}
+
 // These settings as .env lines, the defaults for a fresh install or another machine.
 function CopyAsEnv() {
   const [copied, setCopied] = useState(false)
@@ -170,6 +228,7 @@ export function SettingsMenu(props: SettingsMenuProps) {
           <Toggle label="Clean view" detail="Only the canvas, with who's waiting on you in a corner" on={props.clean} onChange={() => props.onClean(!props.clean)} />
           <Toggle label="Pause motion" detail="Hold the rings, orbs and glows still" on={props.pauseMotion} onChange={() => props.onPauseMotion(!props.pauseMotion)} />
         </div>
+        <AdvancedSettings />
         <CopyAsEnv />
       </div>
     </>

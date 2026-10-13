@@ -63,6 +63,13 @@ export function readSetting<T extends string>(name: string, allowed: readonly T[
   return allowed.find((value) => value === settings[name]) ?? allowed.find((value) => value === defaults[name]) ?? fallback
 }
 
+// A whole-number setting (Settings → Advanced): chosen, else the server's default, else the fallback.
+export function readNumberSetting(name: string, fallback: number): number {
+  const { settings, defaults } = serverState()
+  const value = Number(settings[name] ?? defaults[name])
+  return Number.isInteger(value) && value > 0 ? value : fallback
+}
+
 export function writeSetting(name: string, value: string) {
   const current = serverState()
   if (current.settings[name] === value) return
@@ -122,6 +129,8 @@ export const SETTING_ENV: Record<string, string> = {
   still: 'AGENT_ORRERY_PAUSE_MOTION',
   voice: 'AGENT_ORRERY_VOICE',
   notifications: 'AGENT_ORRERY_NOTIFICATIONS',
+  'window-hours': 'AGENT_ORRERY_WINDOW_HOURS',
+  'waiting-hours': 'AGENT_ORRERY_WAITING_HOURS',
 }
 
 // The current settings as .env lines: the defaults for a fresh install, or another machine.
