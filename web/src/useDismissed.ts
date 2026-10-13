@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import type { AgentNode, GraphSnapshot } from './types'
 
@@ -32,15 +32,24 @@ function forgetOld(dismissals: Dismissals): Dismissals {
 export function useDismissed() {
   const [dismissals, setDismissals] = useState<Dismissals>(() => forgetOld(load()))
 
-  const update = useCallback((change: (current: Dismissals) => Dismissals) => {
-    setDismissals((current) => {
-      const next = change(current)
-      save(next)
-      return next
-    })
+  // Every change starts from what's stored, not this tab's copy: with the dashboard open in two tabs,
+  // the older one would otherwise write back its list and undo what you dismissed in the other.
+  const update = useCallback((change: (stored: Dismissals) => Dismissals) => {
+    const next = change(forgetOld(load()))
+    save(next)
+    setDismissals(next)
   }, [])
 
-  const dismiss = useCallback((node: AgentNode) => update((current) => forgetOld({ ...current, [node.id]: node.lastAt })), [update])
+  // And a dismissal in one tab shows in the others straight away.
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === STORAGE_KEY || event.key === null) setDismissals(forgetOld(load()))
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
+
+  const dismiss = useCallback((node: AgentNode) => update((stored) => ({ ...stored, [node.id]: node.lastAt })), [update])
   const restoreAll = useCallback(() => update(() => ({})), [update])
 
   return { dismissals, dismiss, restoreAll }
