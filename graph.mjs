@@ -272,8 +272,14 @@ function isToolResultOnly(record) {
   return Array.isArray(content) && content.length > 0 && content.every((block) => block?.type === 'tool_result')
 }
 
+// A forked subagent's transcript starts with a copy of the parent's message that spawned it. That
+// message is the parent's: its calls, its spawns and its tokens.
+const isCopiedSpawn = (node, record) =>
+  node.kind === 'subagent' && record.type === 'assistant' && Array.isArray(record.message?.content) && record.message.content.some((block) => block?.type === 'tool_use' && block.id === node.spawnToolUseId)
+
 export function applyRecord(graph, nodeId, record) {
   const node = graph.nodes.get(nodeId)
+  if (isCopiedSpawn(node, record)) return
   const at = Date.parse(record.timestamp ?? '') || 0
   if (isActivity(record)) {
     // After a tool result or a prompt the model owes a reply. Claude Code holds back a message that asks

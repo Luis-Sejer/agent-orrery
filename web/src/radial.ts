@@ -161,6 +161,9 @@ function treeOrder(members: AgentNode[]): AgentNode[] {
     for (const child of (children.get(node.id) ?? []).sort(byLabel)) visit(child)
   }
   roots.forEach(visit)
+  // An agent whose parents loop back on themselves is no one's child; it still gets its place.
+  const placed = new Set(ordered)
+  for (const node of members) if (!placed.has(node)) ordered.push(node)
   return ordered
 }
 

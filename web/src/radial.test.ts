@@ -53,6 +53,15 @@ function polarOf(nodes: OrreryNode[], id: string) {
 const backdrop = (nodes: OrreryNode[]) => nodes.find((node): node is BackdropNode => node.type === 'backdrop')!
 
 describe('buildOrrery', () => {
+  it('places an agent whose parent chain loops back on itself, in every arrangement', () => {
+    // A fork that claimed its own spawn was its own parent, and vanished; alone in a repository, the galaxy threw.
+    const graph = { nodes: [session('lead'), agent('loop', { room: 'web', parentId: 'loop' })], messages: [] }
+    for (const arrangement of ['status', 'room', 'galaxy'] as const) {
+      const { nodes } = buildOrrery(graph, options(), arrangement)
+      expect(nodes.some((node) => node.id === 'loop')).toBe(true)
+    }
+  })
+
   it('puts what waits on you innermost, then what runs, then what finished', () => {
     const graph = graphOf([session('waits', waitingOn()), session('runs', { room: 'web' }), session('done', { room: 'docs', lastAt: NOW - 60 * MINUTE })])
     const { nodes } = buildOrrery(graph, options())
