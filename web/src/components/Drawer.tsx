@@ -4,7 +4,9 @@ import { describeSpend, mergeUsage, modelOf } from '../pricing'
 import { ago, describeStatus, orbStateOf, stateColour, statusOf } from '../status'
 import { getJson } from '../useGraph'
 import { HudContext } from '../useTheme'
-import type { AgentNode, TimelineEvent } from '../types'
+import type { AgentNode, Collision, TimelineEvent } from '../types'
+import { duration, startOfDay, waitedFor } from '../waits'
+import { fileList } from './Inbox'
 import { Orb } from './Orb'
 
 const TIMELINE_REFRESH_MS = 3_000
@@ -15,6 +17,8 @@ interface DrawerProps {
   node: AgentNode
   parent: AgentNode | null
   children: AgentNode[]
+  // Collisions it is part of, with the other agent's node where it's in view.
+  clashes: { collision: Collision; other: AgentNode | null }[]
   now: number
   onClose: () => void
   onSelect: (id: string) => void
@@ -62,7 +66,7 @@ function clockTime(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
 }
 
-export function Drawer({ node, parent, children, now, onClose, onSelect, onOpenPlan, onDismiss }: DrawerProps) {
+export function Drawer({ node, parent, children, clashes, now, onClose, onSelect, onOpenPlan, onDismiss }: DrawerProps) {
   const events = useTimeline(node.id)
   const hud = useContext(HudContext)
   const [copied, setCopied] = useState(false)
@@ -79,6 +83,7 @@ export function Drawer({ node, parent, children, now, onClose, onSelect, onOpenP
   const ownSpend = describeSpend(node.usage)
   const totalSpend = children.length > 0 ? describeSpend(mergeUsage([node.usage, ...children.map((child) => child.usage)])) : null
   const models = [...new Set(Object.keys(node.usage).map(modelOf))]
+  const waited = node.kind === 'session' ? waitedFor(node, now, startOfDay(now)) : 0
 
   return (
     <aside className="drawer" aria-label={`Details for ${node.label}`}>
@@ -126,6 +131,30 @@ export function Drawer({ node, parent, children, now, onClose, onSelect, onOpenP
               {models.length > 1 && <small className="models">{models.join(', ')}</small>}
               {totalSpend && totalSpend !== ownSpend && <small className="models">With its subagents: {totalSpend}</small>}
             </dd>
+          </>
+        )}
+        {clashes.length > 0 && (
+          <>
+            <dt className="why">Same files</dt>
+            <dd>
+              {clashes.map(({ collision, other }) => {
+                const otherId = collision.a === node.id ? collision.b : collision.a
+                return (
+                  <span key={otherId} className="clash">
+                    <button type="button" className="link" onClick={() => onSelect(otherId)}>
+                      {other?.label ?? otherId}
+                    </button>{' '}
+                    also edited {fileList(collision.files)}, {ago(collision.at, now)} ago
+                  </span>
+                )
+              })}
+            </dd>
+          </>
+        )}
+        {waited > 0 && (
+          <>
+            <dt>Waited on you</dt>
+            <dd>{duration(waited)} today</dd>
           </>
         )}
         {node.home && (

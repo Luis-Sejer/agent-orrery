@@ -1,10 +1,12 @@
 import { createContext, useCallback, useEffect, useState } from 'react'
 
+import { readSetting, writeSetting } from './settings'
+
 // T.Y.C.H.O. is a HUD look laid over the dark theme: <html> gets data-theme="dark" and data-hud.
 export type ThemePreference = 'system' | 'light' | 'dark' | 'tycho'
 export type Theme = 'light' | 'dark'
 
-const STORAGE_KEY = 'agent-orrery:theme'
+const SETTING = 'theme'
 const DARK_QUERY = '(prefers-color-scheme: dark)'
 export const THEMES: { value: ThemePreference; label: string }[] = [
   { value: 'system', label: 'System' },
@@ -20,13 +22,7 @@ export function parsePreference(value: string | null): ThemePreference {
   return value === 'light' || value === 'dark' || value === 'tycho' ? value : 'system'
 }
 
-function storedPreference(): ThemePreference {
-  try {
-    return parsePreference(localStorage.getItem(STORAGE_KEY))
-  } catch {
-    return 'system'
-  }
-}
+const storedPreference = () => readSetting<ThemePreference>(SETTING, ['system', 'light', 'dark', 'tycho'], 'system')
 
 export function resolveTheme(preference: ThemePreference, systemDark: boolean): Theme {
   if (preference === 'tycho') return 'dark'
@@ -60,11 +56,7 @@ export function useTheme() {
 
   const choose = useCallback((next: ThemePreference) => {
     setPreference(next)
-    try {
-      localStorage.setItem(STORAGE_KEY, next)
-    } catch {
-      // Storage can be off (private window); the choice then lasts until the page reloads.
-    }
+    writeSetting(SETTING, next)
   }, [])
 
   return { preference, theme: resolveTheme(preference, systemDark), hud: preference === 'tycho', choose }

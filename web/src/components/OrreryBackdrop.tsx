@@ -4,6 +4,7 @@ import { MODE_FRAMES, resolvePreset, scaleCounts, scaleRadii } from 'thinking-or
 import { paintFrame } from 'thinking-orbs/engine'
 
 import { onStillChange, prefersStill } from '../motion'
+import { duration } from '../waits'
 import { ROOM_LABEL_SIDE_REACH, type BackdropNode, type Box, type Sector, type System, type Turns } from '../radial'
 import { STILL_AT, toTint } from '../orbTicker'
 import { HudContext } from '../useTheme'
@@ -162,6 +163,8 @@ function AreaLabel({ sector, centre, turns, box, onCollapse }: { sector: Sector;
   )
 }
 
+const MINUTE_MS = 60_000
+
 function caption(waiting: number): string {
   if (waiting === 0) return 'Nothing needs you'
   return `${waiting} ${waiting === 1 ? 'needs' : 'need'} you`
@@ -170,7 +173,7 @@ function caption(waiting: number): string {
 // Rings, sector boundaries and room names, with you at the centre. It sits behind every agent
 // and lets clicks through, except on its own buttons. Labels turn with their rings.
 export function OrreryBackdrop({ data }: NodeProps<BackdropNode>) {
-  const { arrangement, box, rings, sectors, systems, lanes, turns, waiting, onCollapse } = data
+  const { arrangement, box, rings, sectors, systems, lanes, turns, waiting, waited, onCollapse } = data
   const hud = useContext(HudContext)
   const id = useId()
   const outer = rings[rings.length - 1]
@@ -221,6 +224,7 @@ export function OrreryBackdrop({ data }: NodeProps<BackdropNode>) {
       <div className="orrery-core" style={{ left: -box.x, top: -box.y }}>
         <CoreOrb waiting={waiting > 0} />
         <span className={waiting > 0 ? 'core-caption why' : 'core-caption'}>{caption(waiting)}</span>
+        {hud && waited >= MINUTE_MS && <span className="core-readout">{duration(waited)} on you today</span>}
       </div>
 
       {/* A system's name and counts hang below its rings, where its orbs never pass over them. */}

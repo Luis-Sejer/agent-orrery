@@ -1,36 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { readSetting, writeSetting } from './settings'
+import { waitPhrase } from './status'
 import type { AgentNode } from './types'
 import { newWaits } from './useNotifications'
 
-const STORAGE_KEY = 'agent-orrery:voice'
+const SETTING = 'voice'
 // Spelled the way it's said; speech engines read "T.Y.C.H.O." letter by letter and "Tycho" wrongly.
 const GREETING = 'Tyko online.'
 // macOS novelty and compact voices, which sound like toys or robots.
 const NOVELTY = /\b(Fred|Albert|Bad News|Bells|Boing|Bubbles|Cellos|Good News|Jester|Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox|Eddy|Flo|Grandma|Grandpa|Reed|Rocko|Sandy|Shelley)\b/
 
-function storedOn(): boolean {
-  try {
-    return localStorage.getItem(STORAGE_KEY) === 'on'
-  } catch {
-    return false
-  }
-}
-
-function store(on: boolean) {
-  try {
-    localStorage.setItem(STORAGE_KEY, on ? 'on' : 'off')
-  } catch {
-    // Storage can be off (private window); the choice then lasts until the page reloads.
-  }
-}
+const storedOn = () => readSetting(SETTING, ['off', 'on'], 'off') === 'on'
+const store = (on: boolean) => writeSetting(SETTING, on ? 'on' : 'off')
 
 // "storefront-api" reads better aloud as "storefront api".
 const sayable = (text: string) => text.replace(/[-_/]+/g, ' ')
 
 export function announcement(node: AgentNode): string {
   const where = node.room ? ` in ${sayable(node.room)}` : ''
-  if (node.waiting?.reason === 'question') return `${node.label} ${node.waiting.probably ? 'is probably asking you a question' : 'asked you a question'}${where}.`
+  if (node.waiting && node.waiting.reason !== 'reply') return `${node.label} ${waitPhrase(node.waiting)}${where}.`
   return `${node.label} is waiting on you${where}.`
 }
 

@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildFlow, buildEdges, groupIntoRooms, relatedTo, type CardNode, type FlowOptions } from './layout'
+import { buildFlow, buildEdges, buildTree, groupIntoRooms, relatedTo, AGENT_SIZE, SESSION_SIZE, type CardNode, type FlowOptions } from './layout'
 import { foldWorktree } from './rooms'
 import { beamStyle, phaseOf } from './rhythm'
 import { statusOf } from './status'
 import type { AgentNode, GraphSnapshot } from './types'
-import { applyDismissals, parseDismissals } from './useDismissed'
+import { parseState } from './settings'
+import { applyDismissals } from './useDismissed'
 import { newWaits } from './useNotifications'
 import { THEMES, parsePreference, resolveTheme } from './useTheme'
 import { announcement, pickVoice } from './useVoice'
@@ -266,11 +267,43 @@ describe('worktrees', () => {
   })
 })
 
-describe('stored dismissals', () => {
-  it('ignores anything that is not an object of numbers', () => {
-    expect(parseDismissals('null')).toEqual({})
-    expect(parseDismissals('[1, 2]')).toEqual({})
-    expect(parseDismissals('not json')).toEqual({})
-    expect(parseDismissals('{"a": 1, "b": "x", "c": null}')).toEqual({ a: 1 })
+describe("the server's state", () => {
+  it('keeps only strings for settings and numbers for dismissals, and starts empty without any', () => {
+    const empty = { defaults: {}, settings: {}, dismissals: {} }
+    expect(parseState(undefined)).toEqual(empty)
+    expect(parseState('not json')).toEqual(empty)
+    expect(parseState('[1, 2]')).toEqual(empty)
+    expect(parseState('{"settings": {"theme": "dark", "x": 1}, "dismissals": {"a": 1, "b": "x", "c": null}, "defaults": []}')).toEqual({
+      defaults: {},
+      settings: { theme: 'dark' },
+      dismissals: { a: 1 },
+    })
+  })
+})
+
+describe('the tree', () => {
+  it('puts each subagent a column right of its parent, level with its first sibling, in name order', () => {
+    const graph = graphOf([lead, agent('b'), agent('a'), agent('deep', { parentId: 'a' }), agent('other', { kind: 'session', parentId: null, sessionId: 'other', room: 'web' })])
+    const at = Object.fromEntries(buildTree(graph, options()).nodes.map((node) => [node.id, node.position]))
+    expect(at.lead).toEqual({ x: 0, y: 0 })
+    expect(at.a.y).toBe(0)
+    expect(at.a.x).toBeGreaterThan(SESSION_SIZE.width)
+    expect(at.deep).toEqual({ x: at.a.x + AGENT_SIZE.width + 56, y: 0 })
+    // b comes after a's whole branch, and the next session after lead's.
+    expect(at.b).toEqual({ x: at.a.x, y: AGENT_SIZE.height + 14 })
+    expect(at.other.y).toBeGreaterThan(at.b.y + AGENT_SIZE.height)
+  })
+
+  it('still places agents whose parents loop back on themselves', () => {
+    const { nodes } = buildTree(graphOf([agent('x', { parentId: 'y' }), agent('y', { parentId: 'x' })]), options())
+    expect(nodes.map(({ id }) => id).sort()).toEqual(['x', 'y'])
+  })
+})
+
+describe('collisions', () => {
+  it('draw a line between two agents in the same files, unless one has gone into a pile', () => {
+    const graph = { ...graphOf([lead, agent('a'), agent('b')]), collisions: [{ a: 'a', b: 'b', files: ['cart.ts'], repo: 'api', at: NOW }] }
+    expect(buildEdges(graph, new Map(), null, NOW).filter(({ id }) => id.startsWith('collision:'))).toHaveLength(1)
+    expect(buildEdges(graph, new Map([['b', 'fold:api']]), null, NOW).filter(({ id }) => id.startsWith('collision:'))).toHaveLength(0)
   })
 })

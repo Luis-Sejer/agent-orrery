@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 
+import { parseState, receiveState } from './settings'
 import type { GraphSnapshot } from './types'
 
 const EMPTY: GraphSnapshot = { nodes: [], messages: [] }
@@ -20,6 +21,8 @@ export function useGraph(): { graph: GraphSnapshot; connection: Connection; load
       setGraph(JSON.parse(event.data) as GraphSnapshot)
       setLoaded(true)
     })
+    // Settings and dismissals changed in another page, or while this one was disconnected.
+    source.addEventListener('state', (event) => receiveState(parseState(event.data)))
     return () => source.close()
   }, [])
 

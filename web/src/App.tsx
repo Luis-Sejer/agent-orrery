@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
 
+import { DayView } from './components/DayView'
 import { Drawer } from './components/Drawer'
 import { GraphCanvas } from './components/GraphCanvas'
 import { Icon } from './components/Icon'
@@ -9,7 +10,7 @@ import { Library } from './components/Library'
 import { ReplayBar } from './components/ReplayBar'
 import { SearchPalette } from './components/SearchPalette'
 import { SettingsMenu } from './components/SettingsMenu'
-import { awaitAgents, statusOf } from './status'
+import { awaitAgents, statusOf, withoutFinished } from './status'
 import type { Filter, View } from './types'
 import { foldWorktrees } from './rooms'
 import { applyDismissals, useDismissed } from './useDismissed'
@@ -17,12 +18,13 @@ import { useGraph, useNow } from './useGraph'
 import { useNotifications } from './useNotifications'
 import { useReplay } from './useReplay'
 import { HudContext, useTheme } from './useTheme'
-import { useArrangement, useCleanView, usePauseMotion, useView, useWorktreeRooms } from './useView'
+import { useAgentsLayout, useArrangement, useCleanView, useHideFinished, usePauseMotion, useView, useWorktreeRooms } from './useView'
 import { useVoice } from './useVoice'
 
 const VIEWS: { value: View; label: string }[] = [
   { value: 'orrery', label: 'Orrery' },
   { value: 'graph', label: 'Agents' },
+  { value: 'day', label: 'Day' },
   { value: 'plans', label: 'Plans' },
   { value: 'memory', label: 'Memory' },
 ]
@@ -67,6 +69,8 @@ export function App() {
   const [arrangement, arrange] = useArrangement()
   const [clean, setClean] = useCleanView()
   const [pauseMotion, setPauseMotion] = usePauseMotion()
+  const [hideFinished, setHideFinished] = useHideFinished()
+  const [agentsLayout, setAgentsLayout] = useAgentsLayout()
   const onCanvas = view === 'graph' || view === 'orrery'
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [focusRequest, setFocusRequest] = useState<{ id: string; at: number } | null>(null)
@@ -80,6 +84,8 @@ export function App() {
   const selectedRef = useRef(selected)
   selectedRef.current = selected
   const waitingCount = graph.nodes.filter((node) => statusOf(node, now) === 'waiting').length
+  // Only the canvases leave finished agents out; the inbox, the day and search still know them.
+  const canvasGraph = useMemo(() => (hideFinished === 'on' ? withoutFinished(graph, now, selectedId) : graph), [graph, now, selectedId, hideFinished])
 
   useEffect(() => {
     document.title = waitingCount > 0 ? `(${waitingCount}) Agent Orrery` : 'Agent Orrery'
@@ -196,6 +202,7 @@ export function App() {
       <div className={`app${selected && onCanvas ? ' with-drawer' : ''}${clean === 'on' ? ' clean' : ''}`}>
         <Inbox
           nodes={graph.nodes}
+          collisions={graph.collisions ?? []}
           now={now}
           connection={replay.open ? 'replay' : connection}
           selectedId={selectedId}
@@ -221,6 +228,11 @@ export function App() {
           <SettingsMenu
             onCanvas={onCanvas}
             inOrrery={view === 'orrery'}
+            inAgents={view === 'graph'}
+            agentsLayout={agentsLayout}
+            onAgentsLayout={setAgentsLayout}
+            hideFinished={hideFinished === 'on'}
+            onHideFinished={(on) => setHideFinished(on ? 'on' : 'off')}
             filter={filter}
             onFilter={setFilter}
             arrangement={arrangement}
@@ -244,12 +256,12 @@ export function App() {
 
           {onCanvas && (
             <>
-              {/* A new canvas when replay starts or ends, so it fits what's shown. */}
-              <ReactFlowProvider key={`${view}-${replay.open ? (replay.view ? 'replay' : 'loading') : 'live'}`}>
+              {/* A new canvas when replay starts or ends, or the layout changes, so it fits what's shown. */}
+              <ReactFlowProvider key={`${view === 'graph' ? agentsLayout : view}-${replay.open ? (replay.view ? 'replay' : 'loading') : 'live'}`}>
                 <GraphCanvas
-                  layout={view === 'orrery' ? 'orrery' : 'grid'}
+                  layout={view === 'orrery' ? 'orrery' : agentsLayout === 'tree' ? 'tree' : 'grid'}
                   arrangement={arrangement}
-                  graph={graph}
+                  graph={canvasGraph}
                   theme={theme}
                   now={now}
                   selectedId={selectedId}
@@ -268,7 +280,8 @@ export function App() {
           {replay.open && (
             <ReplayBar at={replay.at} now={clock} windowMs={replay.windowMs} playing={replay.playing} onSeek={replay.seek} onTogglePlay={replay.togglePlay} onLive={replay.stop} />
           )}
-          {!onCanvas && <Library key={view} kind={view} nodes={graph.nodes} now={now} openRequest={openRequest} onSelectNode={selectAndFocus} />}
+          {view === 'day' && <DayView nodes={graph.nodes} now={now} onSelectNode={selectAndFocus} />}
+          {(view === 'plans' || view === 'memory') && <Library key={view} kind={view} nodes={graph.nodes} now={now} openRequest={openRequest} onSelectNode={selectAndFocus} />}
         </main>
 
         {selected && onCanvas && (
@@ -276,6 +289,9 @@ export function App() {
             node={selected}
             parent={selected.parentId ? (nodesById.get(selected.parentId) ?? null) : null}
             children={graph.nodes.filter((node) => node.parentId === selected.id)}
+            clashes={(graph.collisions ?? [])
+              .filter(({ a, b }) => a === selected.id || b === selected.id)
+              .map((collision) => ({ collision, other: nodesById.get(collision.a === selected.id ? collision.b : collision.a) ?? null }))}
             now={now}
             onClose={closeDrawer}
             onSelect={selectAndFocus}

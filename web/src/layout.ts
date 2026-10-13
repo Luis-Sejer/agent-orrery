@@ -277,6 +277,52 @@ export function buildFlow(graph: GraphSnapshot, options: FlowOptions): { nodes: 
   return { nodes, edges: buildEdges(graph, foldedInto, selectedId, now) }
 }
 
+const TREE_COLUMN_GAP = 56
+const TREE_ROOT_GAP = 32
+
+// Who started whom, left to right: sessions in the first column, each subagent a column to the right
+// of its parent and level with its first sibling. Ordered by repository and name, never by status, so
+// nothing jumps when an agent finishes.
+export function buildTree(graph: GraphSnapshot, options: FlowOptions): { nodes: FlowNode[]; edges: Edge[] } {
+  const { now, selectedId } = options
+  const related = relatedTo(graph, selectedId)
+  const ids = new Set(graph.nodes.map((node) => node.id))
+  const children = new Map<string, AgentNode[]>()
+  for (const node of graph.nodes) if (node.parentId && ids.has(node.parentId)) children.set(node.parentId, [...(children.get(node.parentId) ?? []), node])
+  const byPlace = (a: AgentNode, b: AgentNode) => roomOf(a).localeCompare(roomOf(b)) || a.label.localeCompare(b.label) || a.id.localeCompare(b.id)
+  const sessionsFirst = (a: AgentNode, b: AgentNode) => Number(b.kind === 'session') - Number(a.kind === 'session') || byPlace(a, b)
+  const roots = graph.nodes.filter((node) => !node.parentId || !ids.has(node.parentId)).sort(sessionsFirst)
+  const columnX = (depth: number) => (depth === 0 ? 0 : SESSION_SIZE.width + TREE_COLUMN_GAP + (depth - 1) * (AGENT_SIZE.width + TREE_COLUMN_GAP))
+
+  const nodes: FlowNode[] = []
+  const placed = new Set<string>()
+  // Places a node and everything below it from y; returns where the next sibling may start.
+  const place = (node: AgentNode, depth: number, y: number): number => {
+    placed.add(node.id)
+    const size = node.kind === 'session' ? SESSION_SIZE : AGENT_SIZE
+    const focused = node.id === selectedId
+    nodes.push({
+      id: node.id,
+      type: node.kind === 'session' ? 'session' : 'agent',
+      position: { x: columnX(depth), y },
+      ...size,
+      ...sideFrame(size),
+      zIndex: focused ? Z_FOCUSED : related.has(node.id) ? Z_RELATED : Z_CARD,
+      ...opensDetails(node, now),
+      data: { node, now, dimmed: (selectedId !== null && !related.has(node.id)) || !matches(node, options.filter, now), focused, related: related.has(node.id), alsoIn: [] },
+    })
+    let next = y
+    for (const child of (children.get(node.id) ?? []).sort(byPlace)) if (!placed.has(child.id)) next = place(child, depth + 1, next) + GAP
+    return Math.max(y + size.height, next - GAP)
+  }
+  let y = 0
+  for (const root of roots) y = place(root, 0, y) + TREE_ROOT_GAP
+  // An agent whose parents loop back on themselves is nobody's child; it still gets a row.
+  for (const node of graph.nodes) if (!placed.has(node.id)) y = place(node, 0, y) + TREE_ROOT_GAP
+
+  return { nodes, edges: buildEdges(graph, new Map(), selectedId, now) }
+}
+
 // Lines would be read out as "Edge from <id> to <id>"; the drawer already says who is connected to whom.
 const UNSPOKEN = { domAttributes: { 'aria-hidden': true } } as const
 
@@ -318,6 +364,14 @@ export function buildEdges(graph: GraphSnapshot, foldedInto: Map<string, string>
       ...UNSPOKEN,
       data: { recent: now - message.lastAt < RECENT_MESSAGE_MS, fresh: now - message.lastAt < FRESH_MS, count: message.count },
     })
+  }
+  // Two agents in the same files: a warning line between them, above everything but the selected card.
+  // An agent that has finished and gone into a pile has stopped editing, so it gets none.
+  for (const { a, b } of graph.collisions ?? []) {
+    if (endpoint(a) !== a || endpoint(b) !== b) continue
+    const id = `collision:${a}>${b}`
+    const { className } = style(a, b)
+    edges.set(id, { id, source: a, target: b, className: `collision ${className}`, zIndex: Z_LIT_EDGE, ...UNSPOKEN })
   }
   return [...edges.values()]
 }

@@ -1,6 +1,6 @@
 import type { OrbState } from 'thinking-orbs'
 
-import type { AgentNode, GraphSnapshot, Status } from './types'
+import type { AgentNode, GraphSnapshot, Status, Waiting } from './types'
 
 // A running tool such as a long test suite writes nothing for minutes, so "running" lasts this long.
 const STALE_MS = 15 * 60_000
@@ -48,7 +48,7 @@ export function stateColour(state: OrbState, hud: boolean): string {
 }
 
 export function statusOf(node: AgentNode, now: number): Status {
-  if (node.dismissed) return 'finished'
+  if (node.dismissed || node.live?.status === 'closed') return 'finished'
   if (node.awaiting) return 'running'
   if (node.waiting && node.kind === 'session') return 'waiting'
   if (node.waiting) return 'finished'
@@ -92,22 +92,34 @@ export function isFreshWait(node: AgentNode, now: number): boolean {
   return statusOf(node, now) === 'waiting' && now - waitingSince(node) < FRESH_MS
 }
 
+// What a waiting session wants from you, as "<label> …": "asked you a question", "needs your permission".
+export function waitPhrase(waiting: Waiting | null): string {
+  if (waiting?.reason === 'question') return waiting.probably ? 'is probably asking you a question' : 'asked you a question'
+  if (waiting?.reason === 'permission') return 'needs your permission'
+  if (waiting?.reason === 'dialog') return 'needs your input'
+  return 'finished'
+}
+
+// The same, standing alone: "Asked you a question", "Probably asking you a question".
+export const waitSentence = (waiting: Waiting | null) => waitPhrase(waiting).replace(/^is /, '').replace(/^./, (first) => first.toUpperCase())
+
 // A waiting session's line where it is already listed as waiting on you: Your turn, or a red card.
 export function waitingLine(node: AgentNode, now: number): string {
-  const what = node.waiting?.reason !== 'question' ? 'Finished' : node.waiting.probably ? 'Probably asking you a question' : 'Asked you a question'
-  return `${what}, ${ago(waitingSince(node), now)} ago`
+  return `${waitSentence(node.waiting)}, ${ago(waitingSince(node), now)} ago`
 }
 
 export function describeStatus(node: AgentNode, now: number): string {
   const status = statusOf(node, now)
   if (status === 'waiting') {
-    if (node.waiting?.reason === 'question') return waitingLine(node, now)
+    if (node.waiting?.reason !== 'reply') return waitingLine(node, now)
     return `Finished, waiting on you, ${ago(waitingSince(node), now)} ago`
   }
   if (node.awaiting) return `Waiting on ${awaitingText(node.awaiting)}`
   if (isQuiet(node, now)) {
     if (!node.pendingTool) return `Quiet for ${ago(node.lastAt, now)}`
-    return `${toolLabel(node.pendingTool.name)} has run for ${ago(node.pendingTool.since, now)}, may be waiting for your approval`
+    const running = `${toolLabel(node.pendingTool.name)} has run for ${ago(node.pendingTool.since, now)}`
+    // Claude Code says when a prompt is open, so with its status there's nothing to guess.
+    return node.live ? running : `${running}, may be waiting for your approval`
   }
   if (status === 'finished') return `Finished ${ago(node.lastAt, now)} ago`
   return node.lastTool ? `${verbFor(node.activity)} ${ago(node.lastAt, now)} ago` : 'Thinking'
@@ -131,7 +143,27 @@ const counted = (count: number, one: string, many: string) => (count === 1 ? one
 // "an agent", "2 agents and a shell"
 function awaitingText({ agents, shells }: { agents: number; shells: number }): string {
   const parts = [agents > 0 && counted(agents, 'an agent', 'agents'), shells > 0 && counted(shells, 'a shell', 'shells')].filter(Boolean)
-  return parts.join(' and ')
+  return parts.join(' and ') || 'its agents'
+}
+
+// Where Claude Code says what a session is doing, that settles it (liveWait in graph.mjs too): a
+// prompt or dialog is waiting on you, and so is a turn that's over with nothing left running. Busy
+// after its turn ended means background agents still run; shell, a background command.
+function settleLive(node: AgentNode, agents: number, shells: number): AgentNode {
+  const live = node.live!
+  const since = live.since ?? node.lastAt
+  switch (live.status) {
+    case 'waiting':
+      return { ...node, waiting: { reason: live.reason ?? 'dialog', since } }
+    case 'idle':
+      return { ...node, waiting: node.waiting ?? { reason: 'reply', since } }
+    case 'shell':
+      return { ...node, waiting: null, awaiting: { agents, shells: Math.max(1, shells) } }
+    case 'busy':
+      return node.waiting || agents > 0 ? { ...node, waiting: null, awaiting: { agents, shells } } : node
+    default:
+      return { ...node, waiting: null }
+  }
 }
 
 // A session that ended its turn while its subagents or background shells are still running isn't
@@ -146,6 +178,10 @@ export function awaitAgents(graph: GraphSnapshot, now: number): GraphSnapshot {
   const shellsOf = (node: AgentNode) => (node.background ?? []).filter((task) => now - task.since < BACKGROUND_MS).length
   let changed = false
   const nodes = graph.nodes.map((node) => {
+    if (node.kind === 'session' && node.live) {
+      changed = true
+      return settleLive(node, agents.get(node.id) ?? 0, shellsOf(node))
+    }
     // Silent right after a tool result, with nothing running: Claude Code is holding back a message
     // until you answer it, which in practice is a question.
     if (node.kind === 'session' && node.owesReply && !node.waiting && !node.pendingTool && now - node.lastAt >= HELD_REPLY_MS) {
@@ -162,4 +198,17 @@ export function awaitAgents(graph: GraphSnapshot, now: number): GraphSnapshot {
     return { ...node, waiting: null, awaiting }
   })
   return changed ? { ...graph, nodes } : graph
+}
+
+// The canvas without finished agents, so rooms and systems with nothing going on disappear with them.
+// The selected agent stays, so its details stay open.
+export function withoutFinished(graph: GraphSnapshot, now: number, keep: string | null): GraphSnapshot {
+  const nodes = graph.nodes.filter((node) => node.id === keep || statusOf(node, now) !== 'finished')
+  if (nodes.length === graph.nodes.length) return graph
+  const shown = new Set(nodes.map((node) => node.id))
+  return {
+    nodes,
+    messages: graph.messages.filter(({ from, to }) => shown.has(from) && shown.has(to)),
+    collisions: graph.collisions?.filter(({ a, b }) => shown.has(a) && shown.has(b)),
+  }
 }

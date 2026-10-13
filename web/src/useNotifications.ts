@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { statusOf } from './status'
+import { readSetting, writeSetting } from './settings'
+import { statusOf, waitSentence } from './status'
 import type { AgentNode } from './types'
 
-const STORAGE_KEY = 'agent-orrery:notifications'
+const SETTING = 'notifications'
 
 // One key per wait, so a session that waits again after you reply notifies again.
 const waitKey = (node: AgentNode) => `${node.id}:${node.waiting?.since ?? 0}`
@@ -15,21 +16,8 @@ export function newWaits(seen: ReadonlySet<string> | null, nodes: AgentNode[], n
   return { fresh, keys: new Set(waiting.map(waitKey)) }
 }
 
-function storedOn(): boolean {
-  try {
-    return localStorage.getItem(STORAGE_KEY) === 'on'
-  } catch {
-    return false
-  }
-}
-
-function store(on: boolean) {
-  try {
-    localStorage.setItem(STORAGE_KEY, on ? 'on' : 'off')
-  } catch {
-    // Storage can be off (private window); the choice then lasts until the page reloads.
-  }
-}
+const storedOn = () => readSetting(SETTING, ['off', 'on'], 'off') === 'on'
+const store = (on: boolean) => writeSetting(SETTING, on ? 'on' : 'off')
 
 function lookingElsewhere(): boolean {
   return document.visibilityState !== 'visible' || !document.hasFocus()
@@ -58,8 +46,7 @@ export function useNotifications({ nodes, now, loaded, onOpen }: NotificationOpt
     if (enabled && lookingElsewhere()) {
       for (const node of fresh) {
         const where = node.room ? ` in ${node.room}` : ''
-        const asked = node.waiting?.probably ? 'Probably asking you a question' : 'Asked you a question'
-        const body = node.waiting?.reason === 'question' ? `${asked}${where}` : `Finished${where}, waiting on you`
+        const body = node.waiting && node.waiting.reason !== 'reply' ? `${waitSentence(node.waiting)}${where}` : `Finished${where}, waiting on you`
         const notification = new Notification(node.label, { body, tag: node.id })
         notification.onclick = () => {
           window.focus()

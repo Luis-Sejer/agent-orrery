@@ -9,8 +9,10 @@ import '@xyflow/react/dist/style.css'
 import './styles.css'
 
 import { App } from './App'
+import { moveOldSettings } from './settings'
 import { applyStoredTheme } from './useTheme'
 
+moveOldSettings()
 applyStoredTheme()
 
 createRoot(document.getElementById('root')!).render(

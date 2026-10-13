@@ -2,8 +2,11 @@ import type { OrbState } from 'thinking-orbs'
 
 export type NodeKind = 'session' | 'subagent' | 'peer'
 
+// question: AskUserQuestion; permission: a permission prompt; dialog: some other dialog; reply: its turn is over.
+export type WaitReason = 'question' | 'permission' | 'dialog' | 'reply'
+
 export interface Waiting {
-  reason: 'question' | 'reply'
+  reason: WaitReason
   since: number
   // Inferred, not written: Claude Code writes a question only once you've answered it.
   probably?: boolean
@@ -29,6 +32,15 @@ export interface BackgroundTask {
   name: string
   since: number
 }
+
+// What Claude Code itself says a session is doing (~/.claude/sessions). closed: the session has ended.
+export interface Live {
+  status: 'busy' | 'shell' | 'idle' | 'waiting' | 'closed'
+  since?: number
+  reason?: Exclude<WaitReason, 'reply'>
+}
+
+export type Span = [start: number, end: number]
 
 export interface AgentNode {
   id: string
@@ -58,6 +70,26 @@ export interface AgentNode {
   owesReply?: boolean
   // Set in the browser: what a session that ended its turn is still waiting for.
   awaiting?: { agents: number; shells: number }
+  // Null while unknown: older Claude Code, a replay, or the status folder not shared with Docker.
+  live?: Live | null
+  // When it waited on you, and you answered.
+  youWaits?: Span[]
+}
+
+// Two agents that edited the same files lately.
+export interface Collision {
+  a: string
+  b: string
+  files: string[]
+  repo: string | null
+  at: number
+}
+
+// A session's day: when it worked, and when its subagents did.
+export interface DayRow {
+  id: string
+  runs: Span[]
+  agentRuns: Span[]
 }
 
 export interface MessageLink {
@@ -70,6 +102,7 @@ export interface MessageLink {
 export interface GraphSnapshot {
   nodes: AgentNode[]
   messages: MessageLink[]
+  collisions?: Collision[]
 }
 
 export interface TimelineEvent {
@@ -102,4 +135,4 @@ export type Status = 'waiting' | 'running' | 'finished'
 
 export type Filter = 'all' | Status
 
-export type View = 'graph' | 'orrery' | 'plans' | 'memory'
+export type View = 'graph' | 'orrery' | 'day' | 'plans' | 'memory'

@@ -3,8 +3,9 @@ import { useEffect, useRef } from 'react'
 import { describeSpend, mergeUsage } from '../pricing'
 import { ago, describeStatus, isFreshWait, isQuiet, orbStateOf, statusOf, verbFor, waitingLine } from '../status'
 import type { Connection } from '../useGraph'
-import type { AgentNode } from '../types'
+import type { AgentNode, Collision } from '../types'
 import { beamStyle } from '../rhythm'
+import { duration, startOfDay, waitedOnYou } from '../waits'
 import { Orb } from './Orb'
 import { Wordmark } from './Wordmark'
 
@@ -13,6 +14,7 @@ const RESTORE = 'restore'
 
 interface InboxProps {
   nodes: AgentNode[]
+  collisions: Collision[]
   now: number
   connection: Connection | 'replay'
   selectedId: string | null
@@ -30,6 +32,12 @@ function waitingLede(count: number): string {
 }
 
 const CONNECTION_LABELS = { connecting: 'Reconnecting', reconnecting: 'Reconnecting', live: 'Live', replay: 'Replay' }
+
+// "cart.ts", "cart.ts and api.ts", "cart.ts and 3 more"
+export function fileList(files: string[]): string {
+  if (files.length <= 2) return files.join(' and ')
+  return `${files[0]} and ${files.length - 1} more`
+}
 
 // Listed under Quiet already, so the line says what is open, or how long it has been silent.
 function quietLine(node: AgentNode, now: number): string {
@@ -59,7 +67,7 @@ function useFocusAfterDismiss(waiting: AgentNode[], onDismiss?: (node: AgentNode
   }
 }
 
-export function Inbox({ nodes, now, connection, selectedId, dismissedCount, onSelect, onDismiss, onRestoreDismissed }: InboxProps) {
+export function Inbox({ nodes, collisions, now, connection, selectedId, dismissedCount, onSelect, onDismiss, onRestoreDismissed }: InboxProps) {
   const waiting = waitingOn(nodes, now)
   const runningNow = nodes
     .filter((node) => node.kind !== 'peer' && statusOf(node, now) === 'running')
@@ -68,6 +76,8 @@ export function Inbox({ nodes, now, connection, selectedId, dismissedCount, onSe
   const quiet = runningNow.filter((node) => isQuiet(node, now))
   const spend = describeSpend(mergeUsage(nodes.map((node) => node.usage)))
   const dismiss = useFocusAfterDismiss(waiting, onDismiss)
+  const waited = waitedOnYou(nodes, now, startOfDay(now))
+  const labelOf = new Map(nodes.map((node) => [node.id, node.label]))
 
   return (
     <aside className="inbox" aria-label="Your turn">
@@ -119,6 +129,25 @@ export function Inbox({ nodes, now, connection, selectedId, dismissedCount, onSe
         </button>
       )}
 
+      {/* Agents editing the same files may be undoing each other's work: worth a look before anything else. */}
+      {collisions.length > 0 && (
+        <>
+          <h2 className="clash-heading">Same files</h2>
+          <ol className="running clash-list">
+            {collisions.map(({ a, b, files, at }) => (
+              <li key={`${a}>${b}`}>
+                <button type="button" onClick={() => onSelect(a)}>
+                  <span className="clash-mark" aria-hidden="true" />
+                  <span>
+                    <b>{labelOf.get(a) ?? a}</b> and <b>{labelOf.get(b) ?? b}</b> both edited {fileList(files)}, {ago(at, now)} ago
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
+
       {/* Quiet agents may be waiting on an approval, so they come before the busy ones. */}
       {quiet.length > 0 && (
         <>
@@ -154,6 +183,7 @@ export function Inbox({ nodes, now, connection, selectedId, dismissedCount, onSe
       {running.length > RUNNING_SHOWN && <p className="empty-note">And {running.length - RUNNING_SHOWN} more.</p>}
       {running.length === 0 && <p className="empty-note">No agents are running.</p>}
       {spend && <p className="spend-note">Everything in view: {spend}</p>}
+      {waited > 0 && <p className="spend-note">Agents waited {duration(waited)} on you today</p>}
     </aside>
   )
 }

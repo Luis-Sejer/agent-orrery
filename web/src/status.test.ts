@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { describeSpend, costOf, formatTokens, mergeUsage, priceOf } from './pricing'
-import { awaitAgents, describeStatus, isFreshWait, isQuiet, statusOf, waitingLine } from './status'
+import { awaitAgents, describeStatus, isFreshWait, isQuiet, statusOf, waitingLine, withoutFinished } from './status'
 import { applyDismissals } from './useDismissed'
 import type { AgentNode } from './types'
 
@@ -180,5 +180,57 @@ describe('a held-back question', () => {
     for (const fields of [{ lastAt: NOW - 60_000 }, { pendingTool: { name: 'Bash', since: NOW - 7 * 60_000 } }, { owesReply: false }]) {
       expect(statusOf(awaitAgents({ nodes: [session(fields)], messages: [] }, NOW).nodes[0], NOW)).not.toBe('waiting')
     }
+  })
+})
+
+describe("Claude Code's own status", () => {
+  const session = (fields: Partial<AgentNode> = {}) => node({ id: 's', kind: 'session', sessionId: 's', ...fields })
+  const settle = (...nodes: AgentNode[]) => awaitAgents({ nodes, messages: [] }, NOW).nodes
+  const turnOver = { reason: 'reply' as const, since: NOW - 10 * MINUTE }
+
+  it('waits on you for a permission prompt, even mid-turn, and says what it needs', () => {
+    const [prompt] = settle(session({ live: { status: 'waiting', reason: 'permission', since: NOW - 2 * MINUTE } }))
+    expect(statusOf(prompt, NOW)).toBe('waiting')
+    expect(waitingLine(prompt, NOW)).toBe('Needs your permission, 2 min ago')
+  })
+
+  it('is busy after its turn ended while background agents run, even ones Orrery cannot see', () => {
+    const [busy] = settle(session({ waiting: turnOver, live: { status: 'busy', since: NOW } }))
+    expect(statusOf(busy, NOW)).toBe('running')
+    expect(describeStatus(busy, NOW)).toBe('Waiting on its agents')
+  })
+
+  it('waits on a background shell, and on you once idle', () => {
+    const [shell] = settle(session({ waiting: turnOver, live: { status: 'shell', since: NOW } }))
+    expect(describeStatus(shell, NOW)).toBe('Waiting on a shell')
+    const [idle] = settle(session({ lastAt: NOW - 30 * MINUTE, live: { status: 'idle', since: NOW - MINUTE } }))
+    expect(statusOf(idle, NOW)).toBe('waiting')
+  })
+
+  it('is finished once its session is closed, subagents too, whatever the transcript says', () => {
+    const [closed, child] = settle(session({ waiting: turnOver, live: { status: 'closed' } }), node({ id: 'c', sessionId: 's', live: { status: 'closed' } }))
+    expect(statusOf(closed, NOW)).toBe('finished')
+    expect(statusOf(child, NOW)).toBe('finished')
+  })
+
+  it('no longer guesses at a held-back question or an approval when the status is known', () => {
+    const silent = { owesReply: true, lastAt: NOW - 10 * MINUTE, pendingTool: { name: 'Bash', since: NOW - 10 * MINUTE } }
+    const [known] = settle(session({ ...silent, live: { status: 'busy', since: NOW } }))
+    expect(describeStatus(known, NOW)).toBe('Bash has run for 10 min')
+    const [guessed] = settle(session(silent))
+    expect(describeStatus(guessed, NOW)).toBe('Bash has run for 10 min, may be waiting for your approval')
+  })
+})
+
+describe('hiding finished agents', () => {
+  it('drops them and their lines from the canvas, but keeps the selected one', () => {
+    const done = node({ id: 'done', lastAt: NOW - 30 * MINUTE })
+    const kept = node({ id: 'kept', lastAt: NOW - 30 * MINUTE })
+    const busy = node({ id: 'busy' })
+    const graph = { nodes: [done, kept, busy], messages: [{ from: 'busy', to: 'done', count: 1, lastAt: NOW }], collisions: [{ a: 'busy', b: 'kept', files: ['a.ts'], repo: null, at: NOW }] }
+    const shown = withoutFinished(graph, NOW, 'kept')
+    expect(shown.nodes.map(({ id }) => id)).toEqual(['kept', 'busy'])
+    expect(shown.messages).toEqual([])
+    expect(shown.collisions).toHaveLength(1)
   })
 })

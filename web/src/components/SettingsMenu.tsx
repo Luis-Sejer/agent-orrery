@@ -1,6 +1,7 @@
-import { useId, type FocusEvent, type ReactNode } from 'react'
+import { useId, useState, type FocusEvent, type ReactNode } from 'react'
 
 import type { Arrangement } from '../radial'
+import { settingsAsEnv } from '../settings'
 import type { Filter } from '../types'
 import { THEMES, type ThemePreference } from '../useTheme'
 import { Icon } from './Icon'
@@ -10,6 +11,13 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: 'waiting', label: 'Waiting' },
   { value: 'running', label: 'Running' },
   { value: 'finished', label: 'Finished' },
+]
+
+export type AgentsLayout = 'rooms' | 'tree'
+
+const AGENTS_LAYOUTS: { value: AgentsLayout; label: string }[] = [
+  { value: 'rooms', label: 'Rooms' },
+  { value: 'tree', label: 'Tree' },
 ]
 
 const ARRANGEMENTS: { value: Arrangement; label: string }[] = [
@@ -29,6 +37,11 @@ interface SettingsMenuProps {
   // Filters and the arrangement only mean something on a canvas, and the arrangement only in the orrery.
   onCanvas: boolean
   inOrrery: boolean
+  inAgents: boolean
+  agentsLayout: AgentsLayout
+  onAgentsLayout: (layout: AgentsLayout) => void
+  hideFinished: boolean
+  onHideFinished: (on: boolean) => void
   filter: Filter
   onFilter: (filter: Filter) => void
   arrangement: Arrangement
@@ -94,12 +107,35 @@ function hideWhenFocusLeaves(event: FocusEvent<HTMLDivElement>) {
   if (next instanceof Node && !event.currentTarget.contains(next) && !(next instanceof Element && next.closest('.settings-button'))) event.currentTarget.hidePopover()
 }
 
+const COPIED_MS = 1_800
+
+// These settings as .env lines, the defaults for a fresh install or another machine.
+function CopyAsEnv() {
+  const [copied, setCopied] = useState(false)
+  async function copy() {
+    await navigator.clipboard.writeText(`${settingsAsEnv()}\n`)
+    setCopied(true)
+    setTimeout(() => setCopied(false), COPIED_MS)
+  }
+  return (
+    <div className="setting copy-env">
+      <button type="button" className="link" onClick={copy}>
+        {copied ? 'Copied' : 'Copy these settings for .env'}
+      </button>
+      <small>Settings are saved for every browser. Paste these into another install's .env to start it the same way.</small>
+      <span className="visually-hidden" role="status">
+        {copied ? 'Copied the settings' : ''}
+      </span>
+    </div>
+  )
+}
+
 // Everything that isn't search or a view, behind one button, so the dashboard stays clean.
 // A native popover: it opens over the page, closes on Escape or a click outside, and needs no state here.
 export function SettingsMenu(props: SettingsMenuProps) {
   const { notifications, voice } = props
   // A dot on the button while a filter narrows what you see, so nothing is hidden silently.
-  const narrowed = props.onCanvas && props.filter !== 'all'
+  const narrowed = props.onCanvas && (props.filter !== 'all' || props.hideFinished)
   return (
     <>
       <button type="button" className={`icon-button settings-button${narrowed ? ' narrowed' : ''}`} popoverTarget="settings" aria-label="Settings" title="Settings">
@@ -111,6 +147,7 @@ export function SettingsMenu(props: SettingsMenuProps) {
       <div id="settings" popover="auto" className="settings" role="dialog" aria-label="Settings" onBlur={hideWhenFocusLeaves}>
         {props.onCanvas && <Choice label="Show" options={FILTERS} value={props.filter} onChange={props.onFilter} />}
         {props.inOrrery && <Choice label="Arrange the orrery" options={ARRANGEMENTS} value={props.arrangement} onChange={props.onArrange} />}
+        {props.inAgents && <Choice label="Lay out agents" options={AGENTS_LAYOUTS} value={props.agentsLayout} onChange={props.onAgentsLayout} />}
         <Choice label="Theme" options={THEMES} value={props.theme} onChange={props.onTheme} />
         <div className="setting-group">
           <Toggle label="Replay" detail="Scrub back through the last hours" on={props.replaying} onChange={props.onReplay} />
@@ -125,11 +162,15 @@ export function SettingsMenu(props: SettingsMenuProps) {
           )}
           {voice.supported && <Toggle label="Voice" detail="Says which session is waiting on you" on={voice.enabled} onChange={voice.toggle} />}
           {props.onCanvas && (
+            <Toggle label="Hide finished" detail="Rooms and systems with nothing going on go too" on={props.hideFinished} onChange={() => props.onHideFinished(!props.hideFinished)} />
+          )}
+          {props.onCanvas && (
             <Toggle label="Worktrees as their own rooms" detail="Each worktree's branch gets a room" on={props.worktreeRooms} onChange={() => props.onWorktreeRooms(!props.worktreeRooms)} />
           )}
           <Toggle label="Clean view" detail="Only the canvas, with who's waiting on you in a corner" on={props.clean} onChange={() => props.onClean(!props.clean)} />
           <Toggle label="Pause motion" detail="Hold the rings, orbs and glows still" on={props.pauseMotion} onChange={() => props.onPauseMotion(!props.pauseMotion)} />
         </div>
+        <CopyAsEnv />
       </div>
     </>
   )
