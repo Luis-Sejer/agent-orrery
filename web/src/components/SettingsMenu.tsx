@@ -15,6 +15,7 @@ const FILTERS: { value: Filter; label: string }[] = [
 const ARRANGEMENTS: { value: Arrangement; label: string }[] = [
   { value: 'status', label: 'By status' },
   { value: 'room', label: 'By repository' },
+  { value: 'galaxy', label: 'Galaxy' },
 ]
 
 interface Switch {

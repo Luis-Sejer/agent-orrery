@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import type { FlowNode } from './layout'
-import { placeAt, type BackdropNode, type OrreryNode, type Polar, type Turns } from './radial'
+import { placeAt, type BackdropNode, type OrreryNode, type Polar, type System, type Turns } from './radial'
 
 export type CanvasNode = FlowNode | OrreryNode
 
@@ -19,9 +19,13 @@ const SETTLED_PX = 0.3
 
 const shortest = (from: number, to: number) => Math.atan2(Math.sin(to - from), Math.cos(to - from))
 
+type Centre = { cx: number; cy: number }
+type Shown = { angle: number; r: number } & Centre
+
 // Turns the orrery's rings, and glides agents between rings when their status changes. Positions
 // are worked out each frame from the layout and how far the rings have turned, so edges, the
 // minimap and focus all follow. Rings ease to a stop while paused, and never turn under reduced motion.
+// In a galaxy, agents circle their system's sun, and a system glides between lanes with its agents.
 export function useOrbit(nodes: CanvasNode[], polar: Map<string, Polar> | null, paused: boolean): CanvasNode[] {
   const [frame, setFrame] = useState<CanvasNode[] | null>(null)
   const input = useRef({ nodes, polar, paused })
@@ -31,7 +35,8 @@ export function useOrbit(nodes: CanvasNode[], polar: Map<string, Polar> | null, 
   useEffect(() => {
     if (!orbiting) return
     const reduced = matchMedia('(prefers-reduced-motion: reduce)')
-    const shown = new Map<string, { angle: number; r: number }>()
+    const shown = new Map<string, Shown>()
+    const suns = new Map<string, Centre>()
     // How far each ring has turned. Each one adds up its own turning, so a ring that changes
     // speed (moving in or out, arranged by repository) speeds up or slows down rather than jumping.
     const turned = new Map<string, number>()
@@ -58,18 +63,30 @@ export function useOrbit(nodes: CanvasNode[], polar: Map<string, Polar> | null, 
       const turns: Turns = Object.fromEntries(rings.map((ring) => [ring.key, still ? 0 : turned.get(ring.key)!]))
       const ease = still ? 1 : 1 - Math.exp(-EASE_RATE * step)
       settled = true
+      // Every agent of a system eases from the same centre at the same rate as its sun, so they move as one.
+      const glide = (was: Centre, goal: Centre): Centre => {
+        const centre = { cx: was.cx + (goal.cx - was.cx) * ease, cy: was.cy + (goal.cy - was.cy) * ease }
+        if (Math.hypot(goal.cx - centre.cx, goal.cy - centre.cy) > SETTLED_PX) settled = false
+        return centre
+      }
+      const sun = (system: System): System => {
+        const centre = glide(suns.get(system.name) ?? system, system)
+        suns.set(system.name, centre)
+        return { ...system, ...centre }
+      }
       const next = nodes.map((node) => {
-        if (node.type === 'backdrop') return { ...node, data: { ...node.data, turns } }
+        if (node.type === 'backdrop') return { ...node, data: { ...node.data, turns, systems: node.data.systems.map(sun) } }
         const at = polar.get(node.id)
         if (!at) return node
-        const goal = { angle: at.angle + turns[at.ring], r: at.r }
+        const goal = { angle: at.angle + turns[at.ring], r: at.r, cx: at.cx ?? 0, cy: at.cy ?? 0 }
         const was = shown.get(node.id) ?? goal
         const turn = shortest(was.angle, goal.angle)
         const angle = was.angle + turn * ease
         const r = was.r + (goal.r - was.r) * ease
+        const { cx, cy } = glide(was, goal)
         if (Math.abs(turn) > SETTLED_RADIANS || Math.abs(goal.r - r) > SETTLED_PX) settled = false
-        shown.set(node.id, { angle, r })
-        return placeAt(node as OrreryNode, angle, r)
+        shown.set(node.id, { angle, r, cx, cy })
+        return placeAt(node as OrreryNode, angle, r, cx, cy)
       })
       drawn = nodes
       setFrame(next)

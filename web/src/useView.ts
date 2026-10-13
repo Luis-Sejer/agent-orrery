@@ -65,8 +65,9 @@ function useStored<T extends string>(key: string, allowed: readonly T[]): [T, (n
   return [value, choose]
 }
 
-// How the orrery is arranged: rings by status (the default), or a ring per repository.
-export const useArrangement = () => useStored<Arrangement>('agent-orrery:arrangement', ['status', 'room'])
+// How the orrery is arranged: rings by status (the default), a ring per repository, or a galaxy of
+// repositories, each a solar system of its own.
+export const useArrangement = () => useStored<Arrangement>('agent-orrery:arrangement', ['status', 'room', 'galaxy'])
 
 // The clean view hides the side panel, the minimap and the zoom buttons, for a dashboard on a wall.
 export const useCleanView = () => useStored<'off' | 'on'>('agent-orrery:clean', ['off', 'on'])

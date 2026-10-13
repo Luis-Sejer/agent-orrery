@@ -1183,8 +1183,6 @@ mark {
 
 .orrery-core {
   position: absolute;
-  left: 50%;
-  top: 50%;
   display: grid;
   justify-items: center;
   /* Centred on the orb; the caption hangs below it. */
@@ -1370,6 +1368,123 @@ mark {
     opacity: 0.35;
     transform: scale(1.1);
   }
+}
+
+/* Galaxy: a solar system per repository around you. Faint lanes, spokes from you to each system,
+   and a small sun with the repository's name under it. */
+
+.galaxy-lane {
+  fill: none;
+  stroke: var(--ghost);
+  stroke-width: 1;
+}
+
+.spoke {
+  stroke: var(--ghost);
+  stroke-width: 1.2;
+}
+
+.spoke-running {
+  stroke: var(--line);
+}
+
+.spoke-waiting {
+  stroke: color-mix(in srgb, var(--waiting) 55%, transparent);
+  stroke-width: 1.6;
+}
+
+.sun-light.calm {
+  stop-color: var(--ink);
+  stop-opacity: 0.14;
+}
+
+.sun-light.waiting {
+  stop-color: var(--waiting);
+  stop-opacity: 0.28;
+}
+
+.sun-disc {
+  fill: var(--ink);
+}
+
+.sun.waiting .sun-disc {
+  fill: var(--waiting);
+}
+
+.galaxy-lane,
+.spoke,
+.sun,
+.system-label {
+  animation: ring-in 700ms var(--ease) both;
+}
+
+/* A system's rings are lighter than the orrery's, so a galaxy of them stays calm. */
+.orrery-ring.in-system {
+  stroke-width: 1.2;
+}
+
+/* Zoomed out past a hold, names (and, from further out, suns) grow against the zoom, keeping the size
+   they have at that zoom, so a big galaxy stays readable. */
+.react-flow.galaxy {
+  --grow: max(1, calc(0.7 / var(--zoom, 1)));
+  --sun-grow: max(1, calc(0.35 / var(--zoom, 1)));
+}
+
+/* Hung from the bottom of a system's rings, so it grows downwards, away from them, on a plate that
+   spokes and lanes pass behind. */
+.system-label {
+  position: absolute;
+  margin-top: 10px;
+  display: grid;
+  justify-items: center;
+  padding: 1px 8px 3px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  transform: translateX(-50%) scale(var(--grow, 1));
+  transform-origin: top center;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.sun-body {
+  transform: scale(var(--sun-grow, 1));
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.system-name {
+  font-size: 19px;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.system-count {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.system-count.why {
+  color: var(--waiting);
+}
+
+.sector-label.area {
+  gap: 2px;
+}
+
+.area-name {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+/* Names hang off orbs on small rings, so they stay short. */
+.react-flow.galaxy .orbit-label {
+  max-width: 20ch;
+}
+
+/* Zoomed out, a galaxy shows its suns, names, counts and orbs; agents' names come back as you zoom in. */
+.react-flow.galaxy.far :is(.orbit-card:not(.focused) .orbit-label, .area-name) {
+  display: none;
 }
 
 /* Drawer */
@@ -2052,6 +2167,64 @@ mark {
 
 :root[data-hud] .orrery-ring.ring-finished {
   stroke: rgba(255, 154, 46, 0.25);
+}
+
+:root[data-hud] .orrery-ring.in-system {
+  stroke-width: 0.8;
+  filter: none;
+}
+
+:root[data-hud] .galaxy-lane {
+  stroke: rgba(255, 154, 46, 0.22);
+  stroke-dasharray: 2 6;
+}
+
+/* Spokes glow amber like the rest of the HUD, red while a system waits on you. */
+:root[data-hud] .spoke {
+  stroke: rgba(255, 154, 46, 0.16);
+}
+
+:root[data-hud] .spoke-running {
+  stroke: rgba(255, 154, 46, 0.42);
+  filter: drop-shadow(0 0 4px var(--glow));
+}
+
+:root[data-hud] .spoke-waiting {
+  stroke: rgba(255, 90, 100, 0.7);
+  filter: drop-shadow(0 0 5px rgba(255, 60, 70, 0.7));
+}
+
+:root[data-hud] .sun-light.calm {
+  stop-color: var(--amber);
+  stop-opacity: 0.35;
+}
+
+:root[data-hud] .sun-light.waiting {
+  stop-opacity: 0.4;
+}
+
+:root[data-hud] .sun-disc {
+  fill: var(--amber);
+}
+
+:root[data-hud] .sun.waiting .sun-disc {
+  fill: var(--waiting);
+}
+
+:root[data-hud] .system-name {
+  font-family: var(--mono);
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--amber);
+  text-shadow: 0 0 10px var(--glow);
+}
+
+:root[data-hud] :where(.system-count, .area-name) {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
 }
 
 :root[data-hud] .orrery-boundary {

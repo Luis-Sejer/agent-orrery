@@ -3,7 +3,7 @@ import type { NodeProps } from '@xyflow/react'
 import { MODE_FRAMES, resolvePreset, scaleCounts, scaleRadii } from 'thinking-orbs'
 import { paintFrame } from 'thinking-orbs/engine'
 
-import { ROOM_LABEL_SIDE_REACH, type BackdropNode } from '../radial'
+import { ROOM_LABEL_SIDE_REACH, type BackdropNode, type Box, type Sector, type System, type Turns } from '../radial'
 import { HudContext } from '../useTheme'
 
 const TOP = -Math.PI / 2
@@ -21,6 +21,12 @@ const CORE_LINE_WIDTH = 1.1
 const CORE_SPEED = 0.25
 // Where a still (reduced-motion) orb is painted, in seconds.
 const STILL_AT = 0.6
+// Galaxy: a sun is a small disc in a soft glow. Spokes start outside the core's dial and stop at a
+// system's outer ring.
+const SUN_RADIUS = 7
+const SUN_GLOW = 24
+const SPOKE_FROM = 190
+const ORIGIN = { cx: 0, cy: 0 }
 
 function toTint(colour: string) {
   const [r, g, b] = colour.match(/[\da-f]{2}/gi)!.map((pair) => parseInt(pair, 16))
@@ -89,6 +95,69 @@ function topArc(r: number): string {
 
 const degrees = (radians: number) => (radians * 180) / Math.PI
 
+// What a system's agents are doing, the parts that need you first.
+function countLine({ waiting, running, finished }: System): string {
+  const parts = [waiting > 0 && `${waiting} waiting`, running > 0 && `${running} running`].filter(Boolean)
+  return parts.length > 0 ? parts.join(' · ') : `${finished} finished`
+}
+
+const spokeTone = (system: System) => (system.waiting > 0 ? 'waiting' : system.running > 0 ? 'running' : 'idle')
+
+// Galactic lanes, a spoke from you to each system, and each system's sun. Spokes and suns redden
+// while a system has anything waiting on you.
+function Galaxy({ id, systems, lanes }: { id: string; systems: System[]; lanes: BackdropNode['data']['lanes'] }) {
+  return (
+    <g className="galaxy">
+      <defs>
+        {['calm', 'waiting'].map((tone) => (
+          <radialGradient key={tone} id={`${id}-sun-${tone}`}>
+            <stop offset="0" className={`sun-light ${tone}`} />
+            <stop offset="1" className={`sun-light ${tone}`} stopOpacity={0} />
+          </radialGradient>
+        ))}
+      </defs>
+      {lanes.map((lane) => (
+        <circle key={lane.tone} className={`galaxy-lane lane-${lane.tone}`} r={lane.r} />
+      ))}
+      {systems.map((system) => {
+        const distance = Math.hypot(system.cx, system.cy) || 1
+        const [cos, sin] = [system.cx / distance, system.cy / distance]
+        const to = Math.max(SPOKE_FROM, distance - system.r)
+        return <line key={system.name} className={`spoke spoke-${spokeTone(system)}`} x1={cos * SPOKE_FROM} y1={sin * SPOKE_FROM} x2={cos * to} y2={sin * to} />
+      })}
+      {systems.map((system) => {
+        const tone = system.waiting > 0 ? 'waiting' : 'calm'
+        return (
+          <g key={system.name} className={`sun ${tone}`} transform={`translate(${system.cx} ${system.cy})`}>
+            <g className="sun-body">
+              <circle r={SUN_GLOW} fill={`url(#${id}-sun-${tone})`} />
+              <circle className="sun-disc" r={SUN_RADIUS} />
+            </g>
+          </g>
+        )
+      })}
+    </g>
+  )
+}
+
+// A monorepo area's name, or a room's "Hide finished" button, just outside its system's rings,
+// turning with them.
+function AreaLabel({ sector, centre, turns, box, onCollapse }: { sector: Sector; centre: { cx: number; cy: number }; turns: Turns; box: Box; onCollapse: (room: string) => void }) {
+  if (!sector.label && !sector.foldable) return null
+  const angle = sector.mid + turns[sector.ring]
+  const [cos, sin] = [Math.cos(angle), Math.sin(angle)]
+  return (
+    <div className="sector-label area" style={{ left: centre.cx + cos * sector.r - box.x, top: centre.cy + sin * sector.r - box.y, '--cos': cos, '--sin': sin } as CSSProperties}>
+      {sector.label && <span className="area-name">{sector.label}</span>}
+      {sector.foldable && (
+        <button type="button" className="room-fold nodrag" onClick={() => onCollapse(sector.name)}>
+          Hide finished
+        </button>
+      )}
+    </div>
+  )
+}
+
 function caption(waiting: number): string {
   if (waiting === 0) return 'Nothing needs you'
   return `${waiting} ${waiting === 1 ? 'needs' : 'need'} you`
@@ -97,22 +166,25 @@ function caption(waiting: number): string {
 // Rings, sector boundaries and room names, with you at the centre. It sits behind every agent
 // and lets clicks through, except on its own buttons. Labels turn with their rings.
 export function OrreryBackdrop({ data }: NodeProps<BackdropNode>) {
-  const { arrangement, radius, rings, sectors, turns, waiting, onCollapse } = data
+  const { arrangement, box, rings, sectors, systems, lanes, turns, waiting, onCollapse } = data
   const hud = useContext(HudContext)
   const id = useId()
   const outer = rings[rings.length - 1]
   const labelled = rings.filter((ring) => ring.label)
+  const centres = new Map(systems.map((system) => [system.name, system]))
+  const centreOf = (system?: string) => (system && centres.get(system)) || ORIGIN
 
   return (
     <div className="orrery-backdrop">
-      <svg viewBox={`${-radius} ${-radius} ${radius * 2} ${radius * 2}`} aria-hidden="true">
+      <svg viewBox={`${box.x} ${box.y} ${box.width} ${box.height}`} aria-hidden="true">
         <defs>
           {labelled.map((ring) => (
             <path key={ring.key} id={`${id}-${ring.key}`} d={topArc(ring.r)} />
           ))}
         </defs>
+        {systems.length > 0 && <Galaxy id={id} systems={systems} lanes={lanes} />}
         {rings.map((ring) => (
-          <circle key={ring.key} className={`orrery-ring ring-${ring.tone}`} r={ring.r} />
+          <circle key={ring.key} className={`orrery-ring ring-${ring.tone}${ring.system ? ' in-system' : ''}`} {...centreOf(ring.system)} r={ring.r} />
         ))}
         <g transform={`rotate(${degrees(turns[outer.key])})`}>
           {arrangement === 'status' && sectors.slice(1).map((sector) => (
@@ -142,12 +214,21 @@ export function OrreryBackdrop({ data }: NodeProps<BackdropNode>) {
         )}
       </svg>
 
-      <div className="orrery-core">
+      <div className="orrery-core" style={{ left: -box.x, top: -box.y }}>
         <CoreOrb waiting={waiting > 0} />
         <span className={waiting > 0 ? 'core-caption why' : 'core-caption'}>{caption(waiting)}</span>
       </div>
 
+      {/* A system's name and counts hang below its rings, where its orbs never pass over them. */}
+      {systems.map((system) => (
+        <div key={system.name} className="system-label" style={{ left: system.cx - box.x, top: system.cy + system.drop - box.y }}>
+          <span className="system-name serif">{system.name}</span>
+          <span className={system.waiting > 0 ? 'system-count why' : 'system-count'}>{countLine(system)}</span>
+        </div>
+      ))}
+
       {sectors.map((sector) => {
+        if (sector.system) return <AreaLabel key={sector.name} sector={sector} centre={centreOf(sector.system)} turns={turns} box={box} onCollapse={onCollapse} />
         const angle = sector.mid + turns[sector.ring]
         const [cos, sin] = [Math.cos(angle), Math.sin(angle)]
         // A sector's name sits outside the rings, pushed further out at the sides; a room ring's sits in its gap.
@@ -156,7 +237,7 @@ export function OrreryBackdrop({ data }: NodeProps<BackdropNode>) {
           <div
             key={sector.name}
             className={arrangement === 'status' ? 'sector-label' : 'sector-label on-ring'}
-            style={{ left: cos * reach + radius, top: sin * reach + radius, '--cos': cos, '--sin': sin } as CSSProperties}
+            style={{ left: cos * reach - box.x, top: sin * reach - box.y, '--cos': cos, '--sin': sin } as CSSProperties}
           >
             <span className="serif">{sector.name}</span>
             {sector.foldable && (

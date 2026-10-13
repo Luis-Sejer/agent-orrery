@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Background, BackgroundVariant, Controls, MiniMap, ReactFlow, useReactFlow, type Edge } from '@xyflow/react'
+import { Background, BackgroundVariant, Controls, MiniMap, ReactFlow, useReactFlow, useStore, useStoreApi, type Edge } from '@xyflow/react'
 
 import { buildFlow, type FlowOptions } from '../layout'
 import { buildOrrery, type Arrangement, type Polar } from '../radial'
@@ -12,6 +12,8 @@ const FOCUS_ZOOM = 0.95
 const FOCUS_DURATION_MS = 600
 // About as long as agents take to glide to their new rings.
 const REARRANGE_MS = 700
+// Zoomed out further than this, a galaxy shows suns, repository names and orbs, and hides agents' names.
+const FAR_ZOOM = 0.55
 
 interface GraphCanvasProps extends FlowOptions {
   // Rooms in a grid (Agents), or rings around you (Orrery).
@@ -41,14 +43,27 @@ export function GraphCanvas({ layout, arrangement, graph, theme, focusRequest, o
   // The orrery's rings steady themselves while you point at an agent or a pile, or have one selected.
   const [pointing, setPointing] = useState(false)
   const nodes = useOrbit(laidOut, polar, pointing || options.selectedId !== null)
-  const hasFitted = useRef(false)
-
-  // Fit once, when the first data arrives; after that the viewport is the user's.
+  // Fitted to what's there before the first data arrives, and once more when it does.
+  const fitted = useRef<'nothing' | 'empty' | 'data'>('nothing')
+  const far = useStore((state) => state.transform[2] < FAR_ZOOM)
+  const galaxy = layout === 'orrery' && arrangement === 'galaxy'
+  // The zoom, as --zoom on the canvas, so a galaxy's names and suns keep a readable size however far
+  // out you are. Set straight on the element, as it changes every frame of a zoom.
+  const store = useStoreApi()
+  const canvas = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    if (hasFitted.current || nodes.length === 0) return
-    hasFitted.current = true
+    const show = (zoom: number) => canvas.current?.style.setProperty('--zoom', String(zoom))
+    show(store.getState().transform[2])
+    return store.subscribe((state) => show(state.transform[2]))
+  }, [store])
+
+  // Fit when the first data arrives (and to the empty orrery until then); after that the viewport is the user's.
+  const loaded = graph.nodes.length > 0
+  useEffect(() => {
+    if (nodes.length === 0 || fitted.current === 'data' || fitted.current === (loaded ? 'data' : 'empty')) return
+    fitted.current = loaded ? 'data' : 'empty'
     requestAnimationFrame(() => fitView({ padding: 0.12 }))
-  }, [nodes.length, fitView])
+  }, [nodes.length, loaded, fitView])
 
   // A new arrangement keeps the canvas: agents glide to their new rings while the view eases to the
   // orrery's new size (the backdrop spans all of it). The first arrangement was fitted above.
@@ -75,11 +90,13 @@ export function GraphCanvas({ layout, arrangement, graph, theme, focusRequest, o
 
   return (
     <ReactFlow
+      ref={canvas}
       nodes={nodes}
       edges={edges}
       nodeTypes={nodeTypes}
       edgeTypes={edgeTypes}
       colorMode={theme}
+      className={galaxy ? `galaxy${far ? ' far' : ''}` : undefined}
       onNodeClick={(_, node) => (node.type === 'session' || node.type === 'agent' || node.type === 'orbit') && onSelect(node.id)}
       onPaneClick={() => onSelect(null)}
       onNodeMouseEnter={(_, node) => setPointing(node.type !== 'backdrop' && node.type !== 'room')}
