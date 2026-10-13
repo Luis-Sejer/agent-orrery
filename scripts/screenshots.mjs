@@ -68,7 +68,7 @@ const TYPE_SEARCH = (text) => setInput('.palette input', `'${text}'`)
 const ZOOM_IN = `document.querySelector('.react-flow__controls-zoomin').click()`
 const SCRUB_BACK = (minutes) => setInput('.replay-bar input[type=range]', `Date.now() - ${minutes} * 60_000`)
 
-// Each shot sets its view, theme, arrangement and clean view in localStorage first, so it never
+// Each shot saves its view, theme, arrangement and clean view on the demo's server first, so it never
 // depends on the defaults; a shot lists only what differs from these.
 const DEFAULTS = { view: 'orrery', theme: 'light', arrangement: 'status', clean: 'off' }
 const SHOTS = [
@@ -118,13 +118,14 @@ try {
 
   let origin = null
   for (const shot of shots) {
-    // localStorage belongs to the page's origin, so load each demo once before writing to it.
+    // Settings are saved from the page, as the server takes them only from its own origin.
     if (urlOf(shot) !== origin) {
       origin = urlOf(shot)
       await page.send('Page.navigate', { url: origin })
       await waitFor(() => page.evaluate("document.readyState === 'complete'"), 'the page')
     }
-    for (const key of Object.keys(DEFAULTS)) await page.evaluate(`localStorage.setItem('agent-orrery:${key}', '${shot[key]}')`)
+    const settings = Object.fromEntries(Object.keys(DEFAULTS).map((key) => [key, shot[key]]))
+    await page.evaluate(`fetch('/api/settings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(${JSON.stringify(settings)}) }).then((response) => response.ok)`)
     await page.evaluate('window.previousShot = true')
     await page.send('Page.navigate', { url: origin })
     // The flag goes with the old page, so this can't pass on the shot before.

@@ -54,7 +54,7 @@ try {
 
   // Start light, by status, with the side panel shown, whatever the defaults become.
   await chrome.open(URL_, VIEWPORT)
-  await chrome.evaluate(`localStorage.setItem('agent-orrery:theme', 'light'), localStorage.setItem('agent-orrery:view', 'orrery'), localStorage.setItem('agent-orrery:arrangement', 'status'), localStorage.setItem('agent-orrery:clean', 'off'), true`)
+  await chrome.evaluate(`fetch('/api/settings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ theme: 'light', view: 'orrery', arrangement: 'status', clean: 'off' }) }).then((response) => response.ok)`)
   await chrome.open(URL_, VIEWPORT)
   await waitFor(async () => (await chrome.evaluate("document.querySelectorAll('.orbit-card').length")) > 5, 'the orrery')
   await addCursor(chrome, OFF_SCREEN)

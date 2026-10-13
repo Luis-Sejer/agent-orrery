@@ -126,6 +126,18 @@ class Transcript {
 
 const running = []
 
+// Claude Code's own status file for a running session (~/.claude/sessions/<pid>.json). Its pid domain
+// isn't this machine's, so the server doesn't look for the made-up process.
+let pidCounter = 40_000
+function setStatus(session, status, { waitingFor = null, minutesAgo = 0 } = {}) {
+  session.pid ??= ++pidCounter
+  const dir = join(CLAUDE_DIR, 'sessions')
+  mkdirSync(dir, { recursive: true })
+  const at = Date.now() - minutesAgo * MINUTE
+  const file = { pid: session.pid, sessionId: session.id, status, ...(waitingFor && { waitingFor }), statusUpdatedAt: at, updatedAt: at, kind: 'interactive', entrypoint: 'cli', pidDomain: 'demo' }
+  writeFileSync(join(dir, `${session.pid}.json`), JSON.stringify(file))
+}
+
 function createSession({ n, title, repo, branch, alsoUses = null }) {
   const id = sessionId(n)
   const projectDir = join(CLAUDE_DIR, 'projects', repoPath(repo).replaceAll('/', '-'))
@@ -216,7 +228,12 @@ function writeMonorepo() {
   const lint = createSession({ n: 7, title: 'Lint config bump', repo: ATLAS, branch: 'chore/lint' })
   lint.transcript.prompt(12)
   lint.transcript.tool(1, STEPS.edit(ATLAS, at('packages/config', 'eslint.js')))
-  running.push({ transcript: lint.transcript, repo: ATLAS, files: [at('packages/config', 'eslint.js')], waitsOnYou: true })
+  running.push({ transcript: lint.transcript, repo: ATLAS, files: [at('packages/config', 'eslint.js')], waitsOnYou: true, session: lint })
+
+  for (const session of [search, roles, limits, lint]) setStatus(session, 'busy')
+  setStatus(invoices, 'waiting', { waitingFor: 'input needed', minutesAgo: 8 })
+  setStatus(push, 'idle', { minutesAgo: 20 })
+  // Design tokens v2 has been closed: no status file.
 
   return [search, invoices, roles]
 }
@@ -240,6 +257,7 @@ function writeSessions() {
   accessibility.endTurn(26)
   const contract = checkout.subagent({ minutesAgo: 22, description: 'Write the order API contract', agentType: 'general-purpose' })
   contract.tool(20, STEPS.read('storefront-api', 'src/orders/routes.ts'))
+  contract.tool(4, STEPS.edit('storefront-api', 'src/orders/routes.ts'))
   contract.tool(2, STEPS.write('storefront-api', 'src/orders/schema.ts'))
   contract.tool(1, [`SendMessage`, { to: checkout.id, message: '…' }])
   checkout.transcript.messageFrom(1, contract.id, 'general-purpose')
@@ -282,7 +300,7 @@ function writeSessions() {
   logs.tool(1, STEPS.grep('mobile-app'))
   flaky.transcript.tool(0.3, STEPS.bash('mobile-app'))
   running.push(
-    { transcript: flaky.transcript, repo: 'mobile-app', files: ['test/login.test.ts', 'src/auth/session.ts'], waitsOnYou: true },
+    { transcript: flaky.transcript, repo: 'mobile-app', files: ['test/login.test.ts', 'src/auth/session.ts'], waitsOnYou: true, session: flaky },
     { transcript: logs, repo: 'mobile-app', files: ['ci/logs/run-4812.txt'] },
   )
 
@@ -292,7 +310,7 @@ function writeSessions() {
   drift.transcript.tool(150, STEPS.bash('infra'))
   drift.transcript.endTurn(140)
 
-  // 6. Quiet: a shell call left open for eight minutes, as when Claude waits for your approval.
+  // 6. Waiting for your permission to run a shell command, for eight minutes.
   const migration = createSession({ n: 6, title: 'Backfill order totals', repo: 'storefront-api', branch: 'fix/order-totals' })
   migration.transcript.prompt(30)
   migration.transcript.tool(24, STEPS.read('storefront-api', 'src/orders/totals.ts'))
@@ -311,6 +329,20 @@ function writeSessions() {
   onboarding.transcript.tool(112, STEPS.write('mobile-app', 'src/emails/reminder.ts'))
   onboarding.transcript.tool(100, STEPS.bash('mobile-app'))
   onboarding.transcript.stopped(98)
+
+  // 8. Another session in the order routes, at the same time as the checkout's API contract: a collision.
+  const history = createSession({ n: 8, title: 'Order history export', repo: 'storefront-api', branch: 'feat/order-export' })
+  history.transcript.prompt(14)
+  history.transcript.tool(9, STEPS.read('storefront-api', 'src/orders/routes.ts'))
+  history.transcript.tool(3, STEPS.edit('storefront-api', 'src/orders/routes.ts'))
+  running.push({ transcript: history.transcript, repo: 'storefront-api', files: ['src/orders/routes.ts', 'src/orders/export.ts'] })
+
+  for (const session of [checkout, flaky, history]) setStatus(session, 'busy')
+  setStatus(limiter, 'waiting', { waitingFor: 'input needed', minutesAgo: 6 })
+  setStatus(deps, 'idle', { minutesAgo: 18 })
+  setStatus(drift, 'idle', { minutesAgo: 140 })
+  setStatus(migration, 'waiting', { waitingFor: 'permission prompt', minutesAgo: 8 })
+  // Onboarding emails has been closed: no status file.
 
   return [checkout, limiter, deps]
 }
@@ -401,6 +433,7 @@ function toggleFlakyWait() {
   if (flakyWaiting) flaky.transcript.prompt(0)
   else flaky.transcript.endTurn(0)
   flakyWaiting = !flakyWaiting
+  setStatus(flaky.session, flakyWaiting ? 'idle' : 'busy')
 }
 
 // Keeps the running agents busy so the orbs change and messages travel.
@@ -428,7 +461,8 @@ writeLibrary(sessions)
 
 const server = spawn(process.execPath, [SERVER], {
   stdio: 'inherit',
-  env: { ...process.env, AGENT_ORRERY_PORT: PORT, AGENT_ORRERY_CLAUDE_DIR: CLAUDE_DIR },
+  // Its settings stay with the demo, never in your own data folder.
+  env: { ...process.env, AGENT_ORRERY_PORT: PORT, AGENT_ORRERY_CLAUDE_DIR: CLAUDE_DIR, AGENT_ORRERY_DATA_DIR: join(ROOT, 'data') },
 })
 const ticker = setInterval(tick, TICK_MS)
 const stop = () => {

@@ -36,7 +36,7 @@ try {
   mkdirSync(OUT, { recursive: true })
 
   await chrome.open(URL_, VIEWPORT)
-  await chrome.evaluate(`localStorage.setItem('agent-orrery:theme', '${DARK ? 'dark' : 'light'}'), localStorage.setItem('agent-orrery:view', 'orrery'), localStorage.setItem('agent-orrery:arrangement', 'status'), localStorage.setItem('agent-orrery:clean', 'off'), true`)
+  await chrome.evaluate(`fetch('/api/settings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ theme: '${DARK ? 'dark' : 'light'}', view: 'orrery', arrangement: 'status', clean: 'off' }) }).then((response) => response.ok)`)
   await chrome.open(URL_, VIEWPORT)
   await waitFor(async () => (await chrome.evaluate("document.querySelectorAll('.orbit-card').length")) > 5, 'the orrery')
   await sleep(1_000)
