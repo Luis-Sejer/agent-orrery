@@ -114,6 +114,13 @@ class Transcript {
     this.add({ type: 'assistant', timestamp: ago(minutesAgo), message: { ...messageMeta(this.model), stop_reason: null, content: [{ type: 'thinking', thinking: '…' }] } })
   }
 
+  // A page published on claude.ai, as the Artifact tool records it. The address is made up.
+  artifact(minutesAgo, title, slug) {
+    const id = nextId('toolu_')
+    this.openTool(minutesAgo, ['Artifact', { title, file_path: `/tmp/${slug}.html` }], id)
+    this.add({ type: 'user', timestamp: ago(minutesAgo), message: { content: [{ type: 'tool_result', tool_use_id: id, content: `Published at https://claude.ai/artifact/demo-${slug}` }] } })
+  }
+
   endTurn(minutesAgo) {
     this.add({ type: 'assistant', timestamp: ago(minutesAgo), message: { ...messageMeta(this.model), stop_reason: 'end_turn', content: [{ type: 'text', text: '…' }] } })
   }
@@ -243,6 +250,7 @@ function writeSessions() {
   const checkout = createSession({ n: 1, title: 'Checkout redesign', repo: 'storefront-web', branch: 'feat/checkout-redesign', alsoUses: SONNET })
   checkout.transcript.prompt(95)
   checkout.transcript.tool(93, ['Write', { file_path: join(CLAUDE_DIR, 'plans', 'checkout-redesign.md'), content: '…' }])
+  checkout.transcript.artifact(80, 'Checkout, before and after', 'checkout-before-after')
   const exploreNames = ['Map the cart state', 'Find price formatting', 'List the checkout routes', 'Audit form validation']
   exploreNames.forEach((description, index) => {
     const agent = checkout.subagent({ minutesAgo: 90 - index, description, agentType: 'Explore', model: 'haiku' })
@@ -254,6 +262,7 @@ function writeSessions() {
   const accessibility = checkout.subagent({ minutesAgo: 40, description: 'Review accessibility of the form', agentType: 'general-purpose' })
   accessibility.tool(38, STEPS.read('design-system', 'src/components/Field.tsx'))
   accessibility.tool(30, STEPS.edit('design-system', 'src/components/Field.tsx'))
+  accessibility.artifact(27, 'Checkout form accessibility review', 'form-accessibility')
   accessibility.endTurn(26)
   const contract = checkout.subagent({ minutesAgo: 22, description: 'Write the order API contract', agentType: 'general-purpose' })
   contract.tool(20, STEPS.read('storefront-api', 'src/orders/routes.ts'))
@@ -282,6 +291,7 @@ function writeSessions() {
   limiter.transcript.tool(20, ['Write', { file_path: join(CLAUDE_DIR, 'plans', 'rate-limiter.md'), content: '…' }])
   limiter.transcript.tool(8, [`SendMessage`, { to: checkout.id, message: '…' }])
   checkout.transcript.messageFrom(8, limiter.id, 'Rate limiter for the public API')
+  limiter.transcript.artifact(10, 'Rate limits by plan', 'rate-limits-by-plan')
   limiter.transcript.question(6)
 
   // 3. Waiting on you: it finished.
@@ -324,6 +334,7 @@ function writeSessions() {
   onboarding.transcript.question(172)
   onboarding.transcript.prompt(165)
   onboarding.transcript.tool(160, STEPS.edit('mobile-app', 'src/emails/welcome.ts'))
+  onboarding.transcript.artifact(152, 'Onboarding email drafts', 'onboarding-drafts')
   onboarding.transcript.endTurn(150)
   onboarding.transcript.prompt(120)
   onboarding.transcript.tool(112, STEPS.write('mobile-app', 'src/emails/reminder.ts'))
