@@ -2186,7 +2186,9 @@ mark {
 }
 
 :root[data-hud] body {
-  background: radial-gradient(ellipse 80% 70% at 60% 45%, #140d05, var(--surface) 70%) fixed;
+  /* Not background-attachment: fixed. The page never scrolls, and a fixed background makes the browser
+     repaint the whole screen whenever anything moves, which flickered during camera moves. */
+  background: radial-gradient(ellipse 80% 70% at 60% 45%, #140d05, var(--surface) 70%);
 }
 
 /* Scanlines, faint enough to read through. */
@@ -2197,6 +2199,8 @@ mark {
   z-index: 100;
   background: repeating-linear-gradient(to bottom, rgba(255, 176, 70, 0.035) 0 1px, transparent 1px 3px);
   pointer-events: none;
+  /* Its own layer, composited over the page rather than repainted with it. */
+  will-change: transform;
 }
 
 /* Frames with corner brackets. */
@@ -2325,7 +2329,9 @@ mark {
 }
 
 :root[data-hud] .core-orb {
-  filter: drop-shadow(0 0 6px var(--glow));
+  /* A shadow, not a filter: the canvas redraws 30 times a second and a filter would be redone each time. */
+  border-radius: 50%;
+  box-shadow: 0 0 42px -6px var(--glow);
 }
 
 :root[data-hud] .core-caption {
@@ -2373,13 +2379,15 @@ mark {
   fill: #3dffa2;
 }
 
-/* Orbs and lit lines glow. */
-:root[data-hud] .orb canvas {
-  filter: drop-shadow(0 0 3px var(--state));
+/* Orbs glow with a static shadow round the orb, not a filter on its ever-redrawn canvas. */
+:root[data-hud] .orb {
+  box-shadow: 0 0 10px -2px var(--state);
 }
 
 :root[data-hud] :is(.react-flow__edge.lit path, .message-path) {
-  filter: drop-shadow(0 0 3px var(--glow));
+  /* Lines are redrawn as the orbit turns, so they glow by brightness, not a filter redone each frame. */
+  stroke-width: 2.25;
+  stroke-opacity: 1;
 }
 
 :root[data-hud] .pile-count {
@@ -2399,14 +2407,13 @@ mark {
 /* The orrery's rings become solid, glowing tracks, and a dial turns around you. */
 :root[data-hud] .orrery-ring {
   stroke: rgba(255, 154, 46, 0.5);
-  stroke-width: 1;
+  stroke-width: 1.4;
   stroke-dasharray: none;
-  filter: drop-shadow(0 0 5px var(--glow));
 }
 
 :root[data-hud] .orrery-ring.ring-waiting {
-  stroke: rgba(255, 90, 100, 0.7);
-  filter: drop-shadow(0 0 6px rgba(255, 60, 70, 0.7));
+  stroke: rgba(255, 100, 110, 0.85);
+  stroke-width: 1.8;
 }
 
 :root[data-hud] .orrery-ring.ring-finished {
@@ -2429,13 +2436,12 @@ mark {
 }
 
 :root[data-hud] .spoke-running {
-  stroke: rgba(255, 154, 46, 0.42);
-  filter: drop-shadow(0 0 4px var(--glow));
+  stroke: rgba(255, 164, 66, 0.55);
 }
 
 :root[data-hud] .spoke-waiting {
-  stroke: rgba(255, 90, 100, 0.7);
-  filter: drop-shadow(0 0 5px rgba(255, 60, 70, 0.7));
+  stroke: rgba(255, 100, 110, 0.85);
+  stroke-width: 1.6;
 }
 
 :root[data-hud] .sun-light.calm {
@@ -2494,7 +2500,6 @@ mark {
   stroke: var(--green);
   stroke-width: 3;
   stroke-dasharray: 64 12 10 12 4 22;
-  filter: drop-shadow(0 0 4px var(--glow));
   animation: spin 26s linear infinite reverse;
 }
 
