@@ -126,6 +126,16 @@ export interface GraphSnapshot {
 export interface UsageWindow {
   percent: number
   resetsAt: number | null
+  // The session window only: where it's heading at the last hour's pace; null until there's enough to go on.
+  forecast?: UsageForecast | null
+}
+
+export interface UsageForecast {
+  perHour: number
+  // Where it will be when the window resets, at most 100.
+  atReset: number
+  // When it reaches 100 %, if that's before the reset.
+  limitAt: number | null
 }
 
 export interface Usage {

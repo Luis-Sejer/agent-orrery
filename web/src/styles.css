@@ -1986,6 +1986,21 @@ mark {
   color: var(--waiting);
 }
 
+.usage-forecast {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.usage-forecast.usage-warn {
+  color: var(--quiet-ink);
+}
+
+.usage-forecast.usage-full {
+  color: var(--waiting);
+  font-weight: 500;
+}
+
 .usage-stale {
   margin: 0;
   color: var(--muted);
@@ -2981,6 +2996,21 @@ mark {
 .gauge-fill {
   stroke-linecap: round;
   transition: stroke-dasharray 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Its dash pattern draws only the stretch still to come, so it can't take a dotted style of its own. */
+.gauge-ghost {
+  fill: none;
+  stroke: currentColor;
+  opacity: 0.38;
+}
+
+.gauge-ghost.usage-warn {
+  color: var(--amber);
+}
+
+.gauge-ghost.usage-full {
+  color: var(--waiting);
 }
 
 .gauge-time {

@@ -5,7 +5,7 @@ import { paintFrame } from 'thinking-orbs/engine'
 
 import { onStillChange, prefersStill } from '../motion'
 import { ago } from '../status'
-import { current, isStale, toneOf, windowsOf } from '../usage'
+import { current, forecastOf, isStale, toneOf, windowsOf } from '../usage'
 import type { Usage } from '../types'
 import { duration } from '../waits'
 import { ROOM_LABEL_SIDE_REACH, type BackdropNode, type Box, type Sector, type System, type Turns } from '../radial'
@@ -179,6 +179,7 @@ const TIME_TICK = 6
 // An arc that fills clockwise from the top to the share used, over a faint track. The tick says how
 // much of the window has gone, so an arc ahead of its tick is using the plan faster than time passes.
 function UsageGauge({ usage, now }: { usage: Usage; now: number }) {
+  const ahead = forecastOf(usage, now)
   return (
     <g className="usage-gauge">
       {GAUGES.map(({ key, r, width, span }) => {
@@ -189,6 +190,17 @@ function UsageGauge({ usage, now }: { usage: Usage; now: number }) {
         return (
           <g key={key} className={`gauge usage-${toneOf(window.percent)}`}>
             <circle className="gauge-track" r={r} strokeWidth={width} />
+            {/* Where the session will be at its reset, at this pace: a ghost of the arc still to come. */}
+            {key === 'fiveHour' && ahead && ahead.atReset > window.percent && (
+              <circle
+                className={`gauge-ghost usage-${ahead.tone}`}
+                r={r}
+                strokeWidth={width}
+                pathLength={100}
+                strokeDasharray={`0 ${window.percent} ${ahead.atReset - window.percent} 100`}
+                transform="rotate(-90)"
+              />
+            )}
             <circle className="gauge-fill" r={r} strokeWidth={width} pathLength={100} strokeDasharray={`${window.percent} 100`} transform="rotate(-90)" />
             {gone !== null && (
               <line className="gauge-time" x1={Math.cos(angle) * (r - TIME_TICK)} y1={Math.sin(angle) * (r - TIME_TICK)} x2={Math.cos(angle) * (r + TIME_TICK)} y2={Math.sin(angle) * (r + TIME_TICK)} />
@@ -211,6 +223,7 @@ export function OrreryBackdrop({ data }: NodeProps<BackdropNode>) {
   const { arrangement, box, rings, sectors, systems, lanes, turns, waiting, waited, usage, onCollapse } = data
   const now = Date.now()
   const windows = usage ? windowsOf(usage, now) : []
+  const forecast = usage ? forecastOf(usage, now) : null
   const hud = useContext(HudContext)
   const id = useId()
   const outer = rings[rings.length - 1]
@@ -266,6 +279,7 @@ export function OrreryBackdrop({ data }: NodeProps<BackdropNode>) {
         {hud && windows.length > 0 && (
           <span className={`core-readout usage-${toneOf(Math.max(...windows.map(({ window }) => window.percent)))}`}>
             {windows.map(({ name, window }) => `${name} ${Math.round(window.percent)}%`).join(' · ')}
+            {forecast?.limitAt ? ` · limit ~${new Date(forecast.limitAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}` : ''}
             {usage && isStale(usage, now) ? ` · ${ago(usage.at, now)} ago` : ''}
           </span>
         )}

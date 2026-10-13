@@ -38,20 +38,26 @@ func configuredPort() -> Int {
 
 // Matches GET /api/usage: your plan's windows, when the status line bridge is set up; {} when not.
 struct PlanUsage: Decodable, Sendable {
+    struct Forecast: Decodable, Sendable {
+        let limitAt: Double?  // milliseconds since the epoch, when it reaches 100 % before the reset
+    }
     struct Window: Decodable, Sendable {
         let percent: Double
         let resetsAt: Double?  // milliseconds since the epoch
+        let forecast: Forecast?
     }
     let fiveHour: Window?
     let sevenDay: Window?
 
-    // "Session 66 %, resets 18:30 · Week 11 %"; nil without any window.
+    // "Session 66 %, resets 18:30 · Week 11 %", or "limit around 17:40" when that comes first; nil without any window.
     var summary: String? {
         let format = Date.FormatStyle(date: .omitted, time: .shortened)
         let parts = [("Session", fiveHour), ("Week", sevenDay)].compactMap { name, window -> String? in
             guard let window else { return nil }
-            let reset = window.resetsAt.map { ", resets \(Date(timeIntervalSince1970: $0 / 1000).formatted(format))" } ?? ""
-            return "\(name) \(Int(window.percent.rounded())) %\(name == "Session" ? reset : "")"
+            let at = { (ms: Double) in Date(timeIntervalSince1970: ms / 1000).formatted(format) }
+            // At this pace, the limit before the reset matters more than the reset itself.
+            let when = window.forecast?.limitAt.map { ", limit around \(at($0))" } ?? window.resetsAt.map { ", resets \(at($0))" } ?? ""
+            return "\(name) \(Int(window.percent.rounded())) %\(name == "Session" ? when : "")"
         }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }

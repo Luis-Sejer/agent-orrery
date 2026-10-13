@@ -30,6 +30,18 @@ export function resetText(resetsAt: number | null, now: number): string {
 
 export const isStale = (usage: Usage, now: number) => now - usage.at > USAGE_STALE_MS
 
+const clock = (at: number) => new Date(at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+
+// The session's forecast, if it's fresh and going anywhere: its tone, and a line to say it.
+export function forecastOf(usage: Usage, now: number): { tone: UsageTone; text: string; limitAt: number | null; atReset: number } | null {
+  const window = current(usage.fiveHour, now)
+  const forecast = window?.forecast
+  if (!window || !forecast || forecast.perHour <= 0 || isStale(usage, now)) return null
+  if (forecast.limitAt !== null) return { tone: 'full', text: `At this pace, you'll reach the limit around ${clock(forecast.limitAt)}`, limitAt: forecast.limitAt, atReset: forecast.atReset }
+  const by = window.resetsAt === null ? '' : ` by ${clock(window.resetsAt)}`
+  return { tone: toneOf(forecast.atReset), text: `At this pace, about ${Math.round(forecast.atReset)}%${by}`, limitAt: null, atReset: forecast.atReset }
+}
+
 // The windows worth showing, named as /usage names them.
 export function windowsOf(usage: Usage, now: number): { name: string; window: UsageWindow }[] {
   return [

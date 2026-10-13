@@ -1,10 +1,11 @@
 import { ago } from '../status'
 import type { Usage } from '../types'
-import { isStale, resetText, toneOf, windowsOf } from '../usage'
+import { forecastOf, isStale, resetText, toneOf, windowsOf } from '../usage'
 
 // Your plan's session and weekly use, as /usage shows them, amber near the limit and red at it.
 export function UsageMeter({ usage, now }: { usage: Usage; now: number }) {
   const windows = windowsOf(usage, now)
+  const ahead = forecastOf(usage, now)
   if (windows.length === 0) return null
   return (
     <section className="usage" aria-label="Plan usage">
@@ -18,6 +19,7 @@ export function UsageMeter({ usage, now }: { usage: Usage; now: number }) {
           <span className="usage-reset">{resetText(window.resetsAt, now)}</span>
         </div>
       ))}
+      {ahead && <p className={`usage-forecast usage-${ahead.tone}`}>{ahead.text}</p>}
       {isStale(usage, now) && <p className="usage-stale">As of {ago(usage.at, now)} ago, when a status line last ran</p>}
     </section>
   )
