@@ -68,9 +68,9 @@ const TYPE_SEARCH = (text) => setInput('.palette input', `'${text}'`)
 const ZOOM_IN = `document.querySelector('.react-flow__controls-zoomin').click()`
 const SCRUB_BACK = (minutes) => setInput('.replay-bar input[type=range]', `Date.now() - ${minutes} * 60_000`)
 
-// Each shot saves its view, theme, arrangement and clean view on the demo's server first, so it never
-// depends on the defaults; a shot lists only what differs from these.
-const DEFAULTS = { view: 'orrery', theme: 'light', arrangement: 'status', clean: 'off' }
+// Each shot saves its view, theme, arrangement, layout and switches on the demo's server first, so it
+// never depends on the defaults; a shot lists only what differs from these.
+const DEFAULTS = { view: 'orrery', theme: 'light', arrangement: 'status', clean: 'off', 'agents-layout': 'rooms', 'hide-finished': 'off' }
 const SHOTS = [
   { name: 'orrery', steps: [ZOOM_IN] },
   { name: 'orrery-dark', theme: 'dark', steps: [ZOOM_IN] },
@@ -82,6 +82,11 @@ const SHOTS = [
   { name: 'dark', view: 'graph', theme: 'dark', steps: [] },
   { name: 'search', view: 'graph', steps: [OPEN_SEARCH, TYPE_SEARCH('checkout')] },
   { name: 'focus', view: 'graph', steps: [clickNode('Checkout redesign')] },
+  { name: 'tree', view: 'graph', 'agents-layout': 'tree', 'hide-finished': 'on', steps: [] },
+  // Two sessions in the same file: the red line, and the drawer saying who else edited it.
+  { name: 'same-files', view: 'graph', steps: [clickNode('Order history export')] },
+  { name: 'day', view: 'day', steps: [] },
+  { name: 'artifacts', view: 'artifacts', steps: [] },
   { name: 'replay', steps: [OPEN_SETTINGS, toggleSetting('Replay'), CLOSE_SETTINGS, SCRUB_BACK(90), ZOOM_IN] },
   { name: 'plans', view: 'plans', steps: [] },
   { name: 'memory', view: 'memory', steps: [`[...document.querySelectorAll('.library-list button')][2].click()`] },
@@ -92,6 +97,8 @@ const READY = {
   orrery: "document.querySelectorAll('.orbit-card').length > 5",
   graph: "document.querySelectorAll('.card').length > 5",
   plans: "document.querySelectorAll('.library-list li').length > 0",
+  day: "document.querySelectorAll('.day-row').length > 3",
+  artifacts: "document.querySelectorAll('.artifact-list li').length > 2",
   memory: "document.querySelectorAll('.library-list button').length > 2",
 }
 
