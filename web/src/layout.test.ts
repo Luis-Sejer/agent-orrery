@@ -307,3 +307,14 @@ describe('collisions', () => {
     expect(buildEdges(graph, new Map([['b', 'fold:api']]), null, NOW).filter(({ id }) => id.startsWith('collision:'))).toHaveLength(0)
   })
 })
+
+describe('artifact links', () => {
+  it('opens only claude.ai artifact addresses', async () => {
+    const { isArtifactUrl } = await import('./artifacts')
+    expect(isArtifactUrl('https://claude.ai/artifact/MadeUpPage1234')).toBe(true)
+    expect(isArtifactUrl('https://claude.ai/code/artifact/0123-abcd-ef')).toBe(true)
+    expect(isArtifactUrl('javascript:alert(1)')).toBe(false)
+    expect(isArtifactUrl('https://claude.ai.evil.example/artifact/abcdef')).toBe(false)
+    expect(isArtifactUrl('https://claude.ai/artifact/abcdef/../../settings')).toBe(false)
+  })
+})

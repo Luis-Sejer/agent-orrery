@@ -6,7 +6,7 @@ import type { View } from './types'
 
 const VIEW_KEY = 'view'
 const CANVAS_KEY = 'canvas'
-const VIEWS: readonly View[] = ['graph', 'orrery', 'day', 'plans', 'memory']
+const VIEWS: readonly View[] = ['graph', 'orrery', 'day', 'artifacts', 'plans', 'memory']
 const CANVASES: readonly View[] = ['graph', 'orrery']
 // The Orrery is where a first visit lands; Agents is the denser view for reading names and branches.
 const DEFAULT_VIEW: View = 'orrery'

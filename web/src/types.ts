@@ -74,6 +74,22 @@ export interface AgentNode {
   live?: Live | null
   // When it waited on you, and you answered.
   youWaits?: Span[]
+  // Artifacts it published on claude.ai, newest first.
+  artifacts?: Artifact[]
+}
+
+export interface Artifact {
+  title: string
+  url: string
+  at: number
+}
+
+// An artifact from any transcript, with where it was made, for the Artifacts view and search.
+export interface ArtifactEntry extends Artifact {
+  sessionId: string
+  agentId: string | null
+  session: string | null
+  repo: string | null
 }
 
 // Two agents that edited the same files lately.
@@ -135,4 +151,4 @@ export type Status = 'waiting' | 'running' | 'finished'
 
 export type Filter = 'all' | Status
 
-export type View = 'graph' | 'orrery' | 'day' | 'plans' | 'memory'
+export type View = 'graph' | 'orrery' | 'day' | 'artifacts' | 'plans' | 'memory'

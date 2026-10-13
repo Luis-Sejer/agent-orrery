@@ -36,6 +36,20 @@ function cardClass(kind: string, data: CardNode['data']): string {
     .join(' ')
 }
 
+// A small mark on an agent that published artifacts, with how many; the drawer lists them.
+function ArtifactMark({ count }: { count: number }) {
+  if (count === 0) return null
+  const name = `${count} ${count === 1 ? 'artifact' : 'artifacts'}`
+  return (
+    <span className="artifact-mark" title={`Published ${name}`} aria-label={`Published ${name}`}>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M7 3h7l5 5v13H7z M14 3v5h5" />
+      </svg>
+      {count > 1 && count}
+    </span>
+  )
+}
+
 // Status lines are cut short on a card; the whole line is a hover away.
 function CardLine({ className = 'card-line', children }: { className?: string; children: string }) {
   return (
@@ -55,6 +69,7 @@ export function SessionCard({ data }: NodeProps<CardNode>) {
       <div className="card-text">
         <strong className="card-title serif" title={node.label}>
           {node.label}
+          <ArtifactMark count={node.artifacts?.length ?? 0} />
         </strong>
         <span className="card-line" title={[node.branch, alsoIn.length > 0 && `Also in ${alsoIn.join(', ')}`].filter(Boolean).join('. ')}>
           {node.branch && <span className="branch">{node.branch}</span>}
@@ -75,6 +90,7 @@ export function AgentCard({ data }: NodeProps<CardNode>) {
       <div className="card-text">
         <strong className="card-title" title={node.label}>
           {node.label}
+          <ArtifactMark count={node.artifacts?.length ?? 0} />
         </strong>
         <CardLine>{node.kind === 'peer' ? 'Another session' : (node.agentType ?? '')}</CardLine>
         <CardLine>{describeStatus(node, now)}</CardLine>
@@ -95,7 +111,10 @@ export function OrbitCard({ data }: NodeProps<OrbitNode>) {
       <Handle type="target" position={Position.Top} isConnectable={false} />
       <Handle type="source" position={Position.Top} isConnectable={false} />
       <Orb state={orbStateOf(node, now)} size={32} ring={node.kind === 'session'} seed={node.id} />
-      <span className={node.kind === 'session' ? 'orbit-label serif' : 'orbit-label'}>{node.label}</span>
+      <span className={node.kind === 'session' ? 'orbit-label serif' : 'orbit-label'}>
+        {node.label}
+        <ArtifactMark count={node.artifacts?.length ?? 0} />
+      </span>
     </div>
   )
 }

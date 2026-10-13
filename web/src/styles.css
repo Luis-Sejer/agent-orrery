@@ -1931,6 +1931,126 @@ mark {
   font-variant-numeric: tabular-nums;
 }
 
+/* Artifacts: everything your agents published, newest first */
+
+.artifact-filter {
+  width: min(100%, 420px);
+  margin-top: 16px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--surface-card);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+  font: inherit;
+}
+
+.artifact-day {
+  max-width: 900px;
+  margin-top: 22px;
+}
+
+.artifact-day h2 {
+  margin: 0 0 6px;
+  font-size: 21px;
+  font-weight: 400;
+}
+
+.artifact-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.artifact-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 2px 16px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: var(--surface-card);
+}
+
+.artifact-title {
+  overflow: hidden;
+  color: var(--ink);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-title:hover {
+  color: var(--green-deep);
+}
+
+.artifact-meta {
+  grid-column: 1;
+  display: flex;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.artifact-list .link {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  font-size: 12.5px;
+}
+
+/* In the drawer: an agent's own artifacts. */
+.artifact-links {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.artifact-links li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13.5px;
+}
+
+.artifact-links a {
+  overflow: hidden;
+  color: var(--green-deep);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-links time {
+  flex: none;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* The mark beside an agent's name when it published artifacts. */
+.artifact-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+  color: var(--green-deep);
+  font: 600 11px/1 var(--sans);
+  vertical-align: 1px;
+}
+
+.artifact-mark svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
 /* Day: today's sessions on one clock */
 
 .day {

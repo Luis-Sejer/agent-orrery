@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 
-import { orbStateOf, statusOf } from '../status'
+import { isArtifactUrl, openArtifact } from '../artifacts'
+import { ago, orbStateOf, statusOf } from '../status'
 import { getJson } from '../useGraph'
-import type { AgentNode } from '../types'
+import type { AgentNode, ArtifactEntry } from '../types'
 import { Icon } from './Icon'
 import { Orb } from './Orb'
 
@@ -28,11 +29,14 @@ interface NoteHit {
 interface SearchResults {
   plans: PlanHit[]
   notes: NoteHit[]
+  artifacts: ArtifactEntry[]
 }
+
+const NO_RESULTS: SearchResults = { plans: [], notes: [], artifacts: [] }
 
 interface Result {
   key: string
-  group: 'Agents' | 'Plans' | 'Memory'
+  group: 'Agents' | 'Artifacts' | 'Plans' | 'Memory'
   title: string
   detail: string
   node?: AgentNode
@@ -76,16 +80,16 @@ function matchAgents(nodes: AgentNode[], needle: string, now: number): AgentNode
 }
 
 function useLibrarySearch(needle: string): SearchResults {
-  const [results, setResults] = useState<SearchResults>({ plans: [], notes: [] })
+  const [results, setResults] = useState<SearchResults>(NO_RESULTS)
   useEffect(() => {
     if (needle.length < MIN_QUERY) {
-      setResults({ plans: [], notes: [] })
+      setResults(NO_RESULTS)
       return
     }
     let cancelled = false
     const timer = setTimeout(() => {
       getJson<SearchResults>(`/api/search?q=${encodeURIComponent(needle)}`).then((found) => {
-        if (!cancelled && found) setResults(found)
+        if (!cancelled && found) setResults({ ...NO_RESULTS, ...found })
       })
     }, DEBOUNCE_MS)
     return () => {
@@ -124,6 +128,13 @@ export function SearchPalette({ open, nodes, now, onClose, onSelectNode, onOpenP
       node,
       open: () => onSelectNode(node.id),
     }))
+    const artifacts = library.artifacts.filter(({ url }) => isArtifactUrl(url)).map((artifact) => ({
+      key: `artifact:${artifact.url}`,
+      group: 'Artifacts' as const,
+      title: artifact.title,
+      detail: [artifact.session, artifact.repo, `${ago(artifact.at, now)} ago`].filter(Boolean).join(', '),
+      open: () => openArtifact(artifact.url),
+    }))
     const plans = library.plans.map((plan) => ({
       key: `plan:${plan.name}`,
       group: 'Plans' as const,
@@ -138,7 +149,7 @@ export function SearchPalette({ open, nodes, now, onClose, onSelectNode, onOpenP
       detail: `${note.label}: ${note.snippet}`,
       open: () => onOpenNote(note.project, note.name),
     }))
-    return [...agents, ...plans, ...notes]
+    return [...agents, ...artifacts, ...plans, ...notes]
   }, [needle, nodes, now, library, onSelectNode, onOpenPlan, onOpenNote])
 
   useEffect(() => setActive(0), [needle])
@@ -168,7 +179,7 @@ export function SearchPalette({ open, nodes, now, onClose, onSelectNode, onOpenP
     <dialog
       ref={dialog}
       className="palette"
-      aria-label="Search agents, plans and memory"
+      aria-label="Search agents, artifacts, plans and memory"
       onClose={onClose}
       onClick={(event) => event.target === dialog.current && onClose()}
     >
@@ -177,10 +188,10 @@ export function SearchPalette({ open, nodes, now, onClose, onSelectNode, onOpenP
         <input
           type="search"
           role="combobox"
-          aria-label="Search agents, plans and memory"
+          aria-label="Search agents, artifacts, plans and memory"
           aria-expanded={results.length > 0}
           aria-autocomplete="list"
-          placeholder="Search agents, plans and memory"
+          placeholder="Search agents, artifacts, plans and memory"
           value={query}
           autoFocus
           onChange={(event) => setQuery(event.target.value)}
@@ -190,7 +201,7 @@ export function SearchPalette({ open, nodes, now, onClose, onSelectNode, onOpenP
         />
         <kbd>esc</kbd>
       </div>
-      {!searched && <p className="palette-hint">Type to search agents by name, repo or branch, and the text of plans and memory notes.</p>}
+      {!searched && <p className="palette-hint">Type to search agents by name, repo or branch, artifacts by title, and the text of plans and memory notes.</p>}
       {searched && results.length === 0 && <p className="palette-hint">Nothing matches “{query.trim()}”.</p>}
       <p className="visually-hidden" role="status">
         {searched ? (results.length === 0 ? 'No results' : `${results.length} ${results.length === 1 ? 'result' : 'results'}`) : ''}

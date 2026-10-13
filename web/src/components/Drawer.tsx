@@ -1,5 +1,6 @@
 import { useContext, useEffect, useState, type CSSProperties } from 'react'
 
+import { isArtifactUrl } from '../artifacts'
 import { describeSpend, mergeUsage, modelOf } from '../pricing'
 import { ago, describeStatus, orbStateOf, stateColour, statusOf } from '../status'
 import { getJson } from '../useGraph'
@@ -209,6 +210,22 @@ export function Drawer({ node, parent, children, clashes, now, onClose, onSelect
             {copied ? 'Copied the resume command' : ''}
           </span>
         </div>
+      )}
+
+      {(node.artifacts?.length ?? 0) > 0 && (
+        <>
+          <h3 className="serif">Artifacts</h3>
+          <ul className="artifact-links">
+            {node.artifacts!.filter(({ url }) => isArtifactUrl(url)).map((artifact) => (
+              <li key={artifact.url}>
+                <a href={artifact.url} target="_blank" rel="noopener noreferrer">
+                  {artifact.title}
+                </a>
+                <time dateTime={new Date(artifact.at).toISOString()}>{ago(artifact.at, now)} ago</time>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
 
       {children.length > 0 && (

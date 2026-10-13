@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
 
+import { ArtifactsView } from './components/ArtifactsView'
 import { DayView } from './components/DayView'
 import { Drawer } from './components/Drawer'
 import { GraphCanvas } from './components/GraphCanvas'
@@ -25,6 +26,7 @@ const VIEWS: { value: View; label: string }[] = [
   { value: 'orrery', label: 'Orrery' },
   { value: 'graph', label: 'Agents' },
   { value: 'day', label: 'Day' },
+  { value: 'artifacts', label: 'Artifacts' },
   { value: 'plans', label: 'Plans' },
   { value: 'memory', label: 'Memory' },
 ]
@@ -281,6 +283,7 @@ export function App() {
             <ReplayBar at={replay.at} now={clock} windowMs={replay.windowMs} playing={replay.playing} onSeek={replay.seek} onTogglePlay={replay.togglePlay} onLive={replay.stop} />
           )}
           {view === 'day' && <DayView nodes={graph.nodes} now={now} onSelectNode={selectAndFocus} />}
+          {view === 'artifacts' && <ArtifactsView nodes={graph.nodes} now={now} onSelectNode={selectAndFocus} />}
           {(view === 'plans' || view === 'memory') && <Library key={view} kind={view} nodes={graph.nodes} now={now} openRequest={openRequest} onSelectNode={selectAndFocus} />}
         </main>
 
