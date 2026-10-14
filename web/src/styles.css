@@ -688,17 +688,100 @@ mark {
 .inbox {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 22px 18px;
   background: var(--surface-low);
+  overflow: hidden;
+}
+
+/* The top stays put; everything below it scrolls. */
+.inbox-fixed {
+  flex: none;
+  display: grid;
+  gap: 4px;
+  padding: 22px 18px 10px;
+}
+
+.inbox-scroll {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 6px 18px 22px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.inbox-section {
+  display: grid;
+  gap: 8px;
+}
+
+.inbox-section > div {
+  display: grid;
+  gap: 10px;
+}
+
+/* Folded: display: grid above would otherwise win over the hidden attribute. */
+.inbox-section > div[hidden] {
+  display: none;
+}
+
+/* A section's heading is the button that folds it, and keeps the heading's own look. */
+.section-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.section-count {
+  padding: 1px 7px;
+  border-radius: 3px;
+  background: var(--surface-container);
+  color: var(--muted);
+  font: 600 11.5px/1.5 var(--sans);
+  font-style: normal;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.section-chevron {
+  width: 16px;
+  height: 16px;
+  margin-left: auto;
+  flex: none;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.section-toggle[aria-expanded='false'] .section-chevron {
+  transform: rotate(-90deg);
+}
+
+.section-toggle:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+  border-radius: 3px;
 }
 
 .inbox-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
 .wordmark {
@@ -782,7 +865,7 @@ mark {
 }
 
 .inbox h2 {
-  margin: 20px 0 2px;
+  margin: 14px 0 0;
   font-size: 20px;
 }
 
@@ -1947,7 +2030,7 @@ mark {
 .usage {
   display: grid;
   gap: 5px;
-  margin: 2px 0 14px;
+  margin: 0 0 4px;
 }
 
 .usage-row {
@@ -3061,6 +3144,11 @@ mark {
   }
   .stage {
     height: 70vh;
+  }
+  /* Stacked, the side panel is as long as it needs to be, and nothing in it is pinned. */
+  .inbox,
+  .inbox-scroll {
+    overflow: visible;
   }
   /* Plans and Memory are as long as they need to be, the list above the reader. */
   .stage.reading {

@@ -7,6 +7,7 @@ import { rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 const ON_OFF = ['on', 'off']
+const OPEN_CLOSED = ['open', 'closed']
 // Each setting, the environment variable that gives its default, and the values it may take.
 export const SETTINGS = {
   view: ['AGENT_ORRERY_VIEW', ['orrery', 'graph', 'day', 'artifacts', 'plans', 'memory']],
@@ -21,6 +22,11 @@ export const SETTINGS = {
   still: ['AGENT_ORRERY_PAUSE_MOTION', ON_OFF],
   voice: ['AGENT_ORRERY_VOICE', ON_OFF],
   notifications: ['AGENT_ORRERY_NOTIFICATIONS', ON_OFF],
+  // Which sections of the side panel are open.
+  'inbox-turn': [null, OPEN_CLOSED],
+  'inbox-same': [null, OPEN_CLOSED],
+  'inbox-quiet': [null, OPEN_CLOSED],
+  'inbox-running': [null, OPEN_CLOSED],
 }
 
 // The server's own settings, Settings → Advanced on the page: a whole number of hours in a range,

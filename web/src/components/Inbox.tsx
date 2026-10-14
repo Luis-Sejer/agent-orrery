@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useId, useRef, type ReactNode } from 'react'
 
 import { describeSpend, mergeUsage } from '../pricing'
 import { ago, describeStatus, isFreshWait, isQuiet, orbStateOf, statusOf, verbFor, waitingLine } from '../status'
@@ -8,6 +8,7 @@ import { beamStyle } from '../rhythm'
 import { duration, startOfDay, waitedOnYou } from '../waits'
 import { Orb } from './Orb'
 import { UsageMeter } from './UsageMeter'
+import { useInboxSection } from '../useView'
 import { Wordmark } from './Wordmark'
 
 const RUNNING_SHOWN = 8
@@ -69,6 +70,41 @@ function useFocusAfterDismiss(waiting: AgentNode[], onDismiss?: (node: AgentNode
   }
 }
 
+interface SectionProps {
+  // Saved as inbox-<name>: open unless you fold it.
+  name: string
+  title: string
+  count: number
+  // Your turn is the panel's main heading; the rest sit under it.
+  level?: 1 | 2
+  headingClass: string
+  children: ReactNode
+}
+
+// A section of the side panel that folds away under its heading, with its count still showing.
+function Section({ name, title, count, level = 2, headingClass, children }: SectionProps) {
+  const [open, setOpen] = useInboxSection(name)
+  const id = useId()
+  const Heading = level === 1 ? 'h1' : 'h2'
+  const expanded = open === 'open'
+  return (
+    <section className="inbox-section" aria-labelledby={`${id}-title`}>
+      <Heading className={headingClass}>
+        <button type="button" id={`${id}-title`} className="section-toggle" aria-expanded={expanded} aria-controls={`${id}-body`} onClick={() => setOpen(expanded ? 'closed' : 'open')}>
+          <span>{title}</span>
+          {count > 0 && <span className="section-count">{count}</span>}
+          <svg className="section-chevron" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
+      </Heading>
+      <div id={`${id}-body`} hidden={!expanded}>
+        {children}
+      </div>
+    </section>
+  )
+}
+
 export function Inbox({ nodes, collisions, usage, now, connection, selectedId, dismissedCount, onSelect, onDismiss, onRestoreDismissed }: InboxProps) {
   const waiting = waitingOn(nodes, now)
   const runningNow = nodes
@@ -83,110 +119,117 @@ export function Inbox({ nodes, collisions, usage, now, connection, selectedId, d
 
   return (
     <aside className="inbox" aria-label="Your turn">
-      <div className="inbox-top">
-        <Wordmark />
-        <span className={`connection connection-${connection}`} role="status">
-          {CONNECTION_LABELS[connection]}
-        </span>
+      {/* The top stays put: who you are, whether it's live, and how much of your plan is left. */}
+      <div className="inbox-fixed">
+        <div className="inbox-top">
+          <Wordmark />
+          <span className={`connection connection-${connection}`} role="status">
+            {CONNECTION_LABELS[connection]}
+          </span>
+        </div>
+        {usage && <UsageMeter usage={usage} now={now} />}
       </div>
-      <h1 className="serif">Your turn</h1>
-      <p className="lede" role="status">
-        {waitingLede(waiting.length)}
-      </p>
-      {usage && <UsageMeter usage={usage} now={now} />}
-      <ol className="turns">
-        {waiting.map((node) => (
-          <li key={node.id} className="turn-item">
-            <button
-              type="button"
-              data-id={node.id}
-              className={`turn ${beamClass(node, now)}${node.id === selectedId ? ' selected' : ''}`}
-              style={beamStyle(node.id)}
-              onClick={() => onSelect(node.id)}
-            >
-              <Orb state="listening" size={20} seed={node.id} />
-              <strong className="serif">{node.label}</strong>
-              <span className="where">
-                {node.room && (
-                  <span className="repo-name" title={node.room}>
-                    {node.room}
-                  </span>
-                )}
-                {node.branch && <span className="branch">{node.branch}</span>}
-              </span>
-              <span className="why">{waitingLine(node, now)}</span>
-            </button>
-            {dismiss && (
-              <button type="button" className="dismiss" aria-label={`Dismiss ${node.label}`} title="Dismiss until it does something new" onClick={() => dismiss(node)}>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M7 7l10 10M17 7L7 17" />
-                </svg>
-              </button>
-            )}
-          </li>
-        ))}
-      </ol>
-      {dismissedCount > 0 && (
-        <button type="button" className="link restore" onClick={onRestoreDismissed}>
-          Show {dismissedCount} dismissed
-        </button>
-      )}
 
-      {/* Agents editing the same files may be undoing each other's work: worth a look before anything else. */}
-      {collisions.length > 0 && (
-        <>
-          <h2 className="clash-heading">Same files</h2>
-          <ol className="running clash-list">
-            {collisions.map(({ a, b, files, at }) => (
-              <li key={`${a}>${b}`}>
-                <button type="button" onClick={() => onSelect(a)}>
-                  <span className="clash-mark" aria-hidden="true" />
-                  <span>
-                    <b>{labelOf.get(a) ?? a}</b> and <b>{labelOf.get(b) ?? b}</b> both edited {fileList(files)}, {ago(at, now)} ago
+      <div className="inbox-scroll">
+        <Section name="turn" title="Your turn" count={waiting.length} level={1} headingClass="serif">
+          <p className="lede" role="status">
+            {waitingLede(waiting.length)}
+          </p>
+          <ol className="turns">
+            {waiting.map((node) => (
+              <li key={node.id} className="turn-item">
+                <button
+                  type="button"
+                  data-id={node.id}
+                  className={`turn ${beamClass(node, now)}${node.id === selectedId ? ' selected' : ''}`}
+                  style={beamStyle(node.id)}
+                  onClick={() => onSelect(node.id)}
+                >
+                  <Orb state="listening" size={20} seed={node.id} />
+                  <strong className="serif">{node.label}</strong>
+                  <span className="where">
+                    {node.room && (
+                      <span className="repo-name" title={node.room}>
+                        {node.room}
+                      </span>
+                    )}
+                    {node.branch && <span className="branch">{node.branch}</span>}
                   </span>
+                  <span className="why">{waitingLine(node, now)}</span>
                 </button>
+                {dismiss && (
+                  <button type="button" className="dismiss" aria-label={`Dismiss ${node.label}`} title="Dismiss until it does something new" onClick={() => dismiss(node)}>
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M7 7l10 10M17 7L7 17" />
+                    </svg>
+                  </button>
+                )}
               </li>
             ))}
           </ol>
-        </>
-      )}
+          {dismissedCount > 0 && (
+            <button type="button" className="link restore" onClick={onRestoreDismissed}>
+              Show {dismissedCount} dismissed
+            </button>
+          )}
+        </Section>
 
-      {/* Quiet agents may be waiting on an approval, so they come before the busy ones. */}
-      {quiet.length > 0 && (
-        <>
-          <h2 className="quiet-heading">Quiet</h2>
-          <ol className="running quiet-list">
-            {quiet.map((node) => (
+        {/* Agents editing the same files may be undoing each other's work: worth a look before anything else. */}
+        {collisions.length > 0 && (
+          <Section name="same" title="Same files" count={collisions.length} headingClass="clash-heading">
+            <ol className="running clash-list">
+              {collisions.map(({ a, b, files, at }) => (
+                <li key={`${a}>${b}`}>
+                  <button type="button" onClick={() => onSelect(a)}>
+                    <span className="clash-mark" aria-hidden="true" />
+                    <span>
+                      <b>{labelOf.get(a) ?? a}</b> and <b>{labelOf.get(b) ?? b}</b> both edited {fileList(files)}, {ago(at, now)} ago
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </Section>
+        )}
+
+        {/* Quiet agents may be waiting on an approval, so they come before the busy ones. */}
+        {quiet.length > 0 && (
+          <Section name="quiet" title="Quiet" count={quiet.length} headingClass="quiet-heading">
+            <ol className="running quiet-list">
+              {quiet.map((node) => (
+                <li key={node.id}>
+                  <button type="button" onClick={() => onSelect(node.id)}>
+                    <Orb state={orbStateOf(node, now)} size={20} seed={node.id} />
+                    <span>
+                      <b>{node.label}</b> {quietLine(node, now)}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </Section>
+        )}
+
+        <Section name="running" title="Running now" count={running.length} headingClass="serif">
+          <ol className="running">
+            {running.slice(0, RUNNING_SHOWN).map((node) => (
               <li key={node.id}>
                 <button type="button" onClick={() => onSelect(node.id)}>
                   <Orb state={orbStateOf(node, now)} size={20} seed={node.id} />
                   <span>
-                    <b>{node.label}</b> {quietLine(node, now)}
+                    <b>{node.label}</b> {verbFor(node.activity).toLowerCase()} in {node.room}
                   </span>
                 </button>
               </li>
             ))}
           </ol>
-        </>
-      )}
+          {running.length > RUNNING_SHOWN && <p className="empty-note">And {running.length - RUNNING_SHOWN} more.</p>}
+          {running.length === 0 && <p className="empty-note">No agents are running.</p>}
+        </Section>
 
-      <h2 className="serif">Running now</h2>
-      <ol className="running">
-        {running.slice(0, RUNNING_SHOWN).map((node) => (
-          <li key={node.id}>
-            <button type="button" onClick={() => onSelect(node.id)}>
-              <Orb state={orbStateOf(node, now)} size={20} seed={node.id} />
-              <span>
-                <b>{node.label}</b> {verbFor(node.activity).toLowerCase()} in {node.room}
-              </span>
-            </button>
-          </li>
-        ))}
-      </ol>
-      {running.length > RUNNING_SHOWN && <p className="empty-note">And {running.length - RUNNING_SHOWN} more.</p>}
-      {running.length === 0 && <p className="empty-note">No agents are running.</p>}
-      {spend && <p className="spend-note">Everything in view: {spend}</p>}
-      {waited > 0 && <p className="spend-note">Something waited on you for {duration(waited)} today</p>}
+        {spend && <p className="spend-note">Everything in view: {spend}</p>}
+        {waited > 0 && <p className="spend-note">Something waited on you for {duration(waited)} today</p>}
+      </div>
     </aside>
   )
 }

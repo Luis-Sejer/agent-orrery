@@ -67,3 +67,6 @@ export const useHideFinished = () => useStored<'off' | 'on'>('hide-finished', ['
 
 // Agents as rooms of cards (the default), or as a tree of who started whom.
 export const useAgentsLayout = () => useStored<'rooms' | 'tree'>('agents-layout', ['rooms', 'tree'])
+
+// Whether a section of the side panel (Your turn, Same files, Quiet, Running now) is open.
+export const useInboxSection = (section: string) => useStored<'open' | 'closed'>(`inbox-${section}`, ['open', 'closed'])
