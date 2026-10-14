@@ -763,3 +763,12 @@ test('sessions talking to each other by name or socket are joined, not shown as 
   assert.deepEqual(timeline(graph, 's1').filter(({ text }) => text.startsWith('Message')).map(({ text }) => text), ['Message from beta'])
   assert.ok(!JSON.stringify(view).includes('SECRET'))
 })
+
+test('a name you give a session wins over the title Claude Code keeps writing, until you clear it', () => {
+  const graph = createGraph({ resolveRepo })
+  ensureNode(graph, 's1', { kind: 'session', label: 's1', sessionId: 's1' })
+  applyLines(graph, 's1', line({ type: 'ai-title', aiTitle: 'Research on plugins' }) + line({ type: 'custom-title', customTitle: 'agent-orrery' }) + line({ type: 'ai-title', aiTitle: 'Research on plugins' }))
+  assert.equal(snapshot(graph, 0).nodes[0].label, 'agent-orrery')
+  applyLines(graph, 's1', line({ type: 'custom-title', customTitle: '' }) + line({ type: 'ai-title', aiTitle: 'Research on plugins' }))
+  assert.equal(snapshot(graph, 0).nodes[0].label, 'Research on plugins')
+})

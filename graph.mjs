@@ -419,7 +419,14 @@ export function applyRecord(graph, nodeId, record) {
   if (record.gitBranch) node.branch = record.gitBranch
   if (record.cwd && !node.home) node.home = graph.resolveRepo(record.cwd) ?? basename(record.cwd)
 
-  if (record.type === 'ai-title' && node.kind === 'session') node.label = String(record.aiTitle)
+  // A name you give a session (/rename) wins over the title Claude Code keeps writing for it; an empty
+  // one hands the title back.
+  if (record.type === 'custom-title' && node.kind === 'session') {
+    const name = String(record.customTitle ?? '').trim().slice(0, MAX_TITLE_LENGTH)
+    node.customTitle = name || null
+    if (name) node.label = name
+  }
+  if (record.type === 'ai-title' && node.kind === 'session' && !node.customTitle) node.label = String(record.aiTitle)
 
   if (record.type === 'user' && isActivity(record)) {
     // The handback's own tool result doesn't wake a subagent; a new message to it does.

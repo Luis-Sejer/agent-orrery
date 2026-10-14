@@ -12,7 +12,7 @@ const READ_CHUNK_BYTES = 4 * 1024 * 1024
 const MAX_RESULTS = 20
 const MIN_QUERY = 2
 // Cheap checks before a line is parsed: most lines are none of these.
-const MIGHT_MATTER = ['"Artifact"', 'claude.ai/', '"ai-title"']
+const MIGHT_MATTER = ['"Artifact"', 'claude.ai/', '"ai-title"', '"custom-title"']
 
 // Everything worth reading: sessions, and their subagents beside them.
 async function transcripts(projectsDir) {
@@ -33,8 +33,15 @@ export function createArtifactIndex({ projectsDir, resolveRepo = () => null }) {
   // reply, and what it found.
   const files = new Map()
   const sessionTitles = new Map()
+  const customTitles = new Map()
 
   function apply(file, record) {
+    // A name you gave the session (/rename) wins over Claude Code's own title, as in the live graph.
+    if (record.type === 'custom-title' && !file.agentId) {
+      const name = String(record.customTitle ?? '').trim().slice(0, 200)
+      if (name) customTitles.set(file.sessionId, name)
+      else customTitles.delete(file.sessionId)
+    }
     if (record.type === 'ai-title' && !file.agentId) sessionTitles.set(file.sessionId, String(record.aiTitle).slice(0, 200))
     if (record.cwd && !file.repo) file.repo = resolveRepo(record.cwd) ?? basename(record.cwd)
     const content = Array.isArray(record.message?.content) ? record.message.content : []
@@ -102,7 +109,7 @@ export function createArtifactIndex({ projectsDir, resolveRepo = () => null }) {
       latest.set(artifact.url, { title, url: artifact.url, at: artifact.at, sessionId: file.sessionId, agentId: file.agentId, repo: file.repo })
     }
     for (const [url, at] of deleted) if ((latest.get(url)?.at ?? Infinity) < at) latest.delete(url)
-    return [...latest.values()].map((artifact) => ({ ...artifact, session: sessionTitles.get(artifact.sessionId) ?? null })).sort((a, b) => b.at - a.at)
+    return [...latest.values()].map((artifact) => ({ ...artifact, session: customTitles.get(artifact.sessionId) ?? sessionTitles.get(artifact.sessionId) ?? null })).sort((a, b) => b.at - a.at)
   }
 
   async function search(query) {

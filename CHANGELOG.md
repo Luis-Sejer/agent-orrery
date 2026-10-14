@@ -47,6 +47,7 @@ All notable changes to Agent Orrery are documented here. The format is based on
 
 ### Changed
 
+- A session you rename with `/rename` shows that name, everywhere Orrery names it. Orrery read only the title Claude Code writes on its own, and kept showing it.
 - Sessions talking to each other are joined properly. They address each other by name or by socket, not by id, so Orrery showed the other side as an empty placeholder in "elsewhere", with no history, and missed messages that arrived while a session was busy. It now learns each session's names and socket from Claude Code's status files, draws the line between the real sessions as a hollow cable, unlike a session's messages to its own helpers, counts each message once, and lists the sessions one is talking with in its drawer.
 - The page's styles are split by part of the page into `web/src/styles/`, imported in their old order, so a change reads one short file instead of a 3,400-line stylesheet. The built CSS is unchanged.
 - Scrollbars match the theme: thin, with no track, in a faint ink grey, a pale grey in dark, and dim amber in T.Y.C.H.O., brightening while you're in the panel.
