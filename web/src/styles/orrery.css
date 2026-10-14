@@ -1,0 +1,416 @@
+/* Orrery: you at the centre, rings by how much each agent needs you, a sector per repository */
+
+/* React Flow sets pointer-events inline; the backdrop lets clicks through to the canvas. */
+.react-flow__node-backdrop {
+  pointer-events: none !important;
+}
+
+.react-flow__minimap-node.mini-backdrop {
+  fill: transparent;
+}
+
+.orrery-backdrop {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.orrery-backdrop svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* Rings, their labels and room names fade in, so switching arrangement reads as the rings re-forming
+   while the agents glide across. */
+@keyframes ring-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.orrery-ring,
+.orrery-ring-label,
+.sector-label {
+  animation: ring-in 700ms var(--ease) both;
+}
+
+.orrery-ring {
+  fill: none;
+  stroke: var(--idle);
+  stroke-width: 1.4;
+  stroke-dasharray: 2 6;
+  stroke-linecap: round;
+}
+
+.orrery-ring.ring-waiting {
+  stroke: color-mix(in srgb, var(--waiting) 60%, transparent);
+}
+
+.orrery-ring.ring-running {
+  stroke: var(--rule);
+}
+
+.orrery-boundary {
+  stroke: var(--ghost);
+  stroke-width: 1;
+}
+
+.orrery-ring-label {
+  --text: 15;
+  fill: var(--muted);
+  font: italic calc(15px * var(--counter)) var(--serif);
+  letter-spacing: 0.02em;
+  text-anchor: middle;
+}
+
+.orrery-core {
+  position: absolute;
+  display: grid;
+  justify-items: center;
+  /* Centred on the orb; the caption hangs below it. */
+  transform: translate(-50%, -160px);
+}
+
+/* The constellation's ink: the theme's, or red while anything waits on you. */
+.core-orb {
+  --core: var(--ink);
+  width: 320px;
+  height: 320px;
+}
+
+.core-orb.waiting {
+  --core: var(--waiting);
+}
+
+.core-caption {
+  --text: 19;
+  font: italic 19px/1.2 var(--serif);
+  color: var(--muted);
+  white-space: nowrap;
+  transform: scale(var(--counter));
+  transform-origin: top center;
+}
+
+.core-caption.why {
+  color: var(--waiting);
+  font-weight: 400;
+}
+
+/* T.Y.C.H.O.'s readout of the time agents spent waiting on you today. */
+.core-readout {
+  display: block;
+  margin-top: 10px;
+  font: 500 12.5px/1 var(--mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+  transform: scale(var(--counter));
+  transform-origin: top center;
+}
+
+.sector-label {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  /* Anchored on the side facing the centre, so names never reach back over the rings, and grown from there. */
+  --text: 26;
+  transform: translate(calc((var(--cos) - 1) * 50%), calc((var(--sin) - 1) * 50%)) scale(var(--counter));
+  transform-origin: calc((1 - var(--cos)) * 50%) calc((1 - var(--sin)) * 50%);
+}
+
+.sector-label .serif {
+  font-size: 26px;
+  line-height: 1;
+  color: var(--muted);
+}
+
+.sector-label .room-fold {
+  margin: 0;
+  pointer-events: auto;
+}
+
+/* Arranged by repository, a room's name sits in the gap of its own ring, on a pill so the ring
+   doesn't run through it. */
+.sector-label.on-ring {
+  /* Serif: a floor of about 16 px rather than 12. */
+  --text: 16;
+  flex-direction: row;
+  gap: 10px;
+  padding: 4px 14px;
+  border-radius: 8px;
+  background: var(--surface-card);
+  box-shadow: var(--shadow);
+  transform: translate(-50%, -50%) scale(var(--counter));
+  transform-origin: center;
+}
+
+.sector-label.on-ring .serif {
+  font-size: 22px;
+  color: var(--ink);
+}
+
+.sector-label.area {
+  --text: 11.5;
+}
+
+/* The arrangement switch sits on the canvas, out of the toolbar's way. */
+.react-flow__panel .tabs.arrange {
+  box-shadow: var(--shadow);
+}
+
+.orbit-card {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: opacity 300ms var(--ease);
+}
+
+.orbit-card .orb {
+  align-self: center;
+  transition: transform 200ms var(--ease), box-shadow 200ms var(--ease);
+}
+
+.orbit-card:hover .orb {
+  transform: scale(1.08);
+}
+
+.orbit-card .react-flow__handle-top {
+  top: 50%;
+}
+
+/* A pile of finished agents in the orrery: a dashed stack with its count, the size of an orb. */
+.orbit-card.pile {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+}
+
+.pile-count {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1.5px dashed color-mix(in srgb, var(--muted) 60%, transparent);
+  border-radius: 50%;
+  background: var(--surface-card);
+  box-shadow: 3px -3px 0 -1px var(--surface), 3px -3px 0 0 color-mix(in srgb, var(--muted) 35%, transparent);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  transition: transform 200ms var(--ease);
+}
+
+.orbit-card.pile:hover .pile-count {
+  transform: scale(1.08);
+}
+
+.orbit-card.pile:focus-visible {
+  outline: none;
+}
+
+.orbit-card.pile:focus-visible .pile-count {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+}
+
+/* Labels on a canvas grow against the zoom (--zoom, set by GraphCanvas) so they never read smaller
+   than about 12 px, up to a cap, so zoomed far out they don't swamp the agents. --text is a label's
+   own size in px. */
+:is(.orbit-label, .core-caption, .sector-label, .orrery-ring-label) {
+  --text: 12.5;
+  --counter: clamp(1, calc(12 / (var(--text) * var(--zoom, 1))), 2.5);
+}
+
+/* The name sits outside the orb, on the side away from the centre (--cos, --sin set per frame), and
+   grows from the side nearest the orb. */
+.orbit-label {
+  position: absolute;
+  left: calc(50% + var(--cos, 0) * 30px);
+  top: calc(50% + var(--sin, 1) * 30px);
+  transform: translate(calc((var(--cos, 0) - 1) * 50%), calc((var(--sin, 1) - 1) * 50%)) scale(var(--counter));
+  transform-origin: calc((1 - var(--cos, 0)) * 50%) calc((1 - var(--sin, 1)) * 50%);
+  max-width: 24ch;
+  padding: 0 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orbit-label.serif {
+  /* Instrument Serif reads small; its floor is about 16 px rather than 12. */
+  --text: 12;
+  font-size: 16.5px;
+  line-height: 1.25;
+}
+
+.orbit-card.status-finished .orbit-label {
+  color: var(--muted);
+}
+
+.orbit-card.focused .orb {
+  box-shadow: 0 0 0 2px var(--green), var(--shadow-lifted);
+}
+
+.orbit-card.focused .orbit-label {
+  background: var(--ink);
+  color: var(--on-ink);
+}
+
+.orbit-card.related .orb {
+  box-shadow: 0 0 0 1px var(--rule), var(--shadow-hover);
+}
+
+/* The orrery's take on the border beam: a halo that breathes on the agent's own rhythm. */
+.orbit-card.status-waiting .orb::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px var(--waiting), 0 0 16px color-mix(in srgb, var(--waiting) 55%, transparent);
+  pointer-events: none;
+}
+
+.orbit-card.status-waiting.fresh .orb::after {
+  animation: halo var(--beam-duration, 3.4s) ease-in-out var(--beam-delay, 0s) infinite;
+}
+
+@keyframes halo {
+  50% {
+    opacity: 0.35;
+    transform: scale(1.1);
+  }
+}
+
+/* Galaxy: a solar system per repository around you. Faint lanes, spokes from you to each system,
+   and a small sun with the repository's name under it. */
+
+.galaxy-lane {
+  fill: none;
+  stroke: var(--ghost);
+  stroke-width: 1;
+}
+
+.spoke {
+  stroke: var(--ghost);
+  stroke-width: 1.2;
+}
+
+.spoke-running {
+  stroke: var(--line);
+}
+
+.spoke-waiting {
+  stroke: color-mix(in srgb, var(--waiting) 55%, transparent);
+  stroke-width: 1.6;
+}
+
+.sun-light.calm {
+  stop-color: var(--ink);
+  stop-opacity: 0.14;
+}
+
+.sun-light.waiting {
+  stop-color: var(--waiting);
+  stop-opacity: 0.28;
+}
+
+.sun-disc {
+  fill: var(--ink);
+}
+
+.sun.waiting .sun-disc {
+  fill: var(--waiting);
+}
+
+.galaxy-lane,
+.spoke,
+.sun,
+.system-label {
+  animation: ring-in 700ms var(--ease) both;
+}
+
+/* A system's rings are lighter than the orrery's, so a galaxy of them stays calm. */
+.orrery-ring.in-system {
+  stroke-width: 1.2;
+}
+
+/* Zoomed out past a hold, names (and, from further out, suns) grow against the zoom, keeping the size
+   they have at that zoom, so a big galaxy stays readable. */
+.react-flow.galaxy {
+  --grow: max(1, calc(0.7 / var(--zoom, 1)));
+  --sun-grow: max(1, calc(0.35 / var(--zoom, 1)));
+}
+
+/* Hung from the bottom of a system's rings, so it grows downwards, away from them, on a plate that
+   spokes and lanes pass behind. */
+.system-label {
+  position: absolute;
+  margin-top: 10px;
+  display: grid;
+  justify-items: center;
+  padding: 1px 8px 3px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  transform: translateX(-50%) scale(var(--grow, 1));
+  transform-origin: top center;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.sun-body {
+  transform: scale(var(--sun-grow, 1));
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.system-name {
+  font-size: 19px;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.system-count {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.system-count.why {
+  color: var(--waiting);
+}
+
+.sector-label.area {
+  gap: 2px;
+}
+
+.area-name {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+/* Names hang off orbs on small rings, so they stay short. */
+.react-flow.galaxy .orbit-label {
+  max-width: 20ch;
+}
+
+/* Zoomed out, a galaxy shows its suns, names, counts and orbs, and the names of agents waiting on you;
+   the rest come back as you zoom in. */
+.react-flow.galaxy.far :is(.orbit-card:not(.focused, .status-waiting) .orbit-label, .area-name) {
+  display: none;
+}

@@ -1,0 +1,439 @@
+/* T.Y.C.H.O. ("Tracks Your Claude Helpers' Orbits"): a holographic HUD laid over the dark theme.
+   Amber ink and hot orange on black, cyan as a second voice, thin frames with corner brackets. */
+
+:root[data-hud] {
+  --scroll-thumb: rgba(255, 176, 46, 0.28);
+  --scroll-thumb-hover: rgba(255, 176, 46, 0.62);
+  --surface: #050403;
+  --surface-low: #0a0805;
+  --surface-container: #241a0e;
+  --surface-card: #0e0a06;
+  --ink: #ffdcab;
+  --muted: #d0a26a;
+  --green: #ff9a2e;
+  --green-deep: #ffbe6b;
+  --waiting: #ff5a64;
+  --amber: #ffb02e;
+  --quiet-ink: var(--amber);
+  --cyan: #5ee7ff;
+  --rule: rgba(255, 154, 46, 0.5);
+  --ghost: rgba(255, 176, 46, 0.16);
+  --frame: rgba(255, 154, 46, 0.22);
+  --bracket: rgba(255, 186, 92, 0.9);
+  --glow: rgba(255, 130, 20, 0.6);
+  --shadow: 0 0 0 1px var(--frame), 0 0 22px rgba(255, 120, 20, 0.07);
+  --shadow-hover: 0 0 0 1px rgba(255, 154, 46, 0.5), 0 0 26px rgba(255, 120, 20, 0.2);
+  --shadow-lifted: 0 0 0 1px rgba(255, 154, 46, 0.6), 0 0 36px rgba(255, 120, 20, 0.28);
+  --hover: rgba(255, 176, 46, 0.07);
+  --room: rgba(255, 176, 46, 0.03);
+  --room-name: rgba(255, 176, 46, 0.5);
+  --line: #7a5426;
+  --idle: #4f3d27;
+  --dot: rgba(255, 176, 46, 0.12);
+  --on-ink: #050403;
+  --focus-ring: rgba(255, 154, 46, 0.3);
+  --green-wash: rgba(255, 154, 46, 0.2);
+  --drawer-shadow: -1px 0 0 var(--frame), -16px 0 40px rgba(255, 110, 10, 0.06);
+  --minimap-mask: rgba(5, 4, 3, 0.72);
+  --backdrop: rgba(0, 0, 0, 0.65);
+  --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+  --brackets:
+    linear-gradient(var(--bracket) 0 0) top left / 10px 1.5px no-repeat,
+    linear-gradient(var(--bracket) 0 0) top left / 1.5px 10px no-repeat,
+    linear-gradient(var(--bracket) 0 0) top right / 10px 1.5px no-repeat,
+    linear-gradient(var(--bracket) 0 0) top right / 1.5px 10px no-repeat,
+    linear-gradient(var(--bracket) 0 0) bottom left / 10px 1.5px no-repeat,
+    linear-gradient(var(--bracket) 0 0) bottom left / 1.5px 10px no-repeat,
+    linear-gradient(var(--bracket) 0 0) bottom right / 10px 1.5px no-repeat,
+    linear-gradient(var(--bracket) 0 0) bottom right / 1.5px 10px no-repeat;
+}
+
+:root[data-hud] body {
+  /* Not background-attachment: fixed. The page never scrolls, and a fixed background makes the browser
+     repaint the whole screen whenever anything moves, which flickered during camera moves. */
+  background: radial-gradient(ellipse 80% 70% at 60% 45%, #140d05, var(--surface) 70%);
+}
+
+/* Scanlines, faint enough to read through. */
+:root[data-hud] body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: repeating-linear-gradient(to bottom, rgba(255, 176, 70, 0.035) 0 1px, transparent 1px 3px);
+  pointer-events: none;
+  /* Its own layer, composited over the page rather than repainted with it. */
+  will-change: transform;
+}
+
+/* Frames with corner brackets. */
+:root[data-hud] :where(.turn, .drawer, .tabs, .search-button, .icon-button, .card, .reader, .palette, .settings, .turn-overlay button) {
+  border-radius: 2px;
+  background: var(--brackets), var(--surface-card);
+}
+
+:root[data-hud] .card.fold {
+  background: var(--brackets), var(--surface-low);
+}
+
+:root[data-hud] .room {
+  border-radius: 4px;
+  background: var(--brackets), var(--room);
+  box-shadow: inset 0 0 0 1px rgba(255, 154, 46, 0.1);
+}
+
+:root[data-hud] .inbox {
+  background: linear-gradient(to right, transparent calc(100% - 1px), var(--frame)), var(--surface-low);
+}
+
+/* Headings and small labels speak HUD: monospace, upper case, tracked, glowing. */
+:root[data-hud] :where(.inbox h1, .inbox h2, .drawer h2, .drawer h3, .room-name, .sector-label .serif, .wordmark .serif, .note-header h2) {
+  font-family: var(--mono);
+  font-style: normal;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--amber);
+  text-shadow: 0 0 12px var(--glow);
+}
+
+:root[data-hud] .inbox h1 {
+  font-size: 22px;
+  letter-spacing: 0.22em;
+}
+
+:root[data-hud] :where(.inbox h2, .drawer h3) {
+  font-size: 13px;
+  letter-spacing: 0.2em;
+}
+
+:root[data-hud] .drawer h2 {
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+:root[data-hud] .wordmark .serif {
+  font-size: 12px;
+  letter-spacing: 0.1em;
+}
+
+:root[data-hud] .wordmark-by {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: none;
+}
+
+:root[data-hud] .room-name {
+  font-size: 40px;
+  color: var(--room-name);
+  text-shadow: none;
+}
+
+:root[data-hud] .sector-label {
+  --text: 18;
+}
+
+:root[data-hud] .sector-label .serif {
+  font-size: 18px;
+}
+
+/* The selected agent's name, lit like the HUD's pressed tabs. */
+:root[data-hud] .orbit-card.focused .orbit-label {
+  background: var(--amber);
+  color: var(--on-ink);
+  box-shadow: 0 0 12px var(--glow);
+}
+
+/* Focus is cyan on the HUD, so it never looks like a pressed (amber) control. */
+:root[data-hud] :focus-visible,
+:root[data-hud] .orbit-card.pile:focus-visible .pile-count {
+  outline-color: var(--cyan);
+}
+
+/* Titles stay in the text face; serif display type doesn't belong on a HUD. */
+:root[data-hud] :where(.card-title.serif, .turn strong.serif, .orbit-label.serif) {
+  font-family: var(--sans);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+:root[data-hud] .card.session .card-title,
+:root[data-hud] .turn strong {
+  font-size: 15px;
+}
+
+/* Labels, tabs and chips speak HUD too; status lines and sentences stay in the text face, where small
+   type reads best. */
+:root[data-hud] :where(.connection, .tabs button, kbd, .branch, .chip, .facts dt, .timeline time, .palette-group, .room-fold, .search-button span, .settings-text, .core-caption, .orrery-ring-label, .button, .card.fold) {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-style: normal;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+/* Mono capitals run wide; the toolbar tightens up so it stays on one line. */
+:root[data-hud] .toolbar :where(.tabs button, .search-button span) {
+  letter-spacing: 0.06em;
+}
+
+:root[data-hud] .toolbar .tabs button {
+  padding-inline: 10px;
+}
+
+:root[data-hud] .orrery-ring-label {
+  --text: 10;
+  fill: var(--amber);
+  font-size: calc(10px * var(--counter));
+  letter-spacing: 0.2em;
+}
+
+:root[data-hud] .core-orb:not(.waiting) {
+  --core: var(--amber);
+}
+
+:root[data-hud] .core-orb {
+  /* A shadow, not a filter: the canvas redraws 30 times a second and a filter would be redone each time. */
+  border-radius: 50%;
+  box-shadow: 0 0 42px -6px var(--glow);
+}
+
+:root[data-hud] .core-caption {
+  --text: 12;
+  font-size: 12px;
+  color: var(--amber);
+  text-shadow: 0 0 10px var(--glow);
+}
+
+/* The usage gauge rings the core about 30 px beyond the orb, so the caption rises above it and the
+   readouts start below it, clear of both arcs. The orb stays where the rings' centre is. */
+:root[data-hud] .orrery-core .core-caption {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  margin-bottom: 42px;
+  transform: translateX(-50%) scale(var(--counter));
+  transform-origin: bottom center;
+}
+
+:root[data-hud] .orrery-core .core-caption + .core-readout {
+  margin-top: 46px;
+}
+
+:root[data-hud] .core-caption.why {
+  color: var(--waiting);
+  text-shadow: 0 0 10px rgba(255, 70, 80, 0.6);
+}
+
+:root[data-hud] .tabs button.on {
+  background: var(--green-wash);
+  color: var(--amber);
+  box-shadow: inset 0 0 0 1px rgba(255, 154, 46, 0.55);
+  text-shadow: 0 0 8px var(--glow);
+}
+
+:root[data-hud] .icon-button.on {
+  color: var(--amber);
+  filter: drop-shadow(0 0 4px var(--glow));
+}
+
+:root[data-hud] .connection-live::before {
+  background: var(--cyan);
+  box-shadow: 0 0 8px var(--cyan);
+}
+
+:root[data-hud] .button.primary {
+  background: var(--green-wash);
+  color: var(--amber);
+  box-shadow: inset 0 0 0 1px var(--green), 0 0 14px rgba(255, 130, 20, 0.3);
+  text-shadow: 0 0 8px var(--glow);
+}
+
+:root[data-hud] .react-flow {
+  --xy-background-color: transparent;
+}
+
+:root[data-hud] .react-flow__minimap-node.mini-running {
+  fill: #3dffa2;
+}
+
+/* Orbs glow with a static shadow round the orb, not a filter on its ever-redrawn canvas. */
+:root[data-hud] .orb {
+  box-shadow: 0 0 10px -2px var(--state);
+}
+
+:root[data-hud] :is(.react-flow__edge.lit path, .message-path) {
+  /* Lines are redrawn as the orbit turns, so they glow by brightness, not a filter redone each frame. */
+  stroke-width: 2.25;
+  stroke-opacity: 1;
+}
+
+:root[data-hud] .pile-count {
+  border-color: var(--frame);
+  color: var(--amber);
+  font-family: var(--mono);
+}
+
+:root[data-hud] .orbit-label {
+  --text: 11.5;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  box-shadow: inset 0 0 0 1px var(--frame);
+  font-size: 11.5px;
+}
+
+/* The orrery's rings become solid, glowing tracks, and a dial turns around you. */
+:root[data-hud] .orrery-ring {
+  stroke: rgba(255, 154, 46, 0.5);
+  stroke-width: 1.4;
+  stroke-dasharray: none;
+}
+
+:root[data-hud] .orrery-ring.ring-waiting {
+  stroke: rgba(255, 100, 110, 0.85);
+  stroke-width: 1.8;
+}
+
+:root[data-hud] .orrery-ring.ring-finished {
+  stroke: rgba(255, 154, 46, 0.25);
+}
+
+:root[data-hud] .orrery-ring.in-system {
+  stroke-width: 0.8;
+  filter: none;
+}
+
+:root[data-hud] .galaxy-lane {
+  stroke: rgba(255, 154, 46, 0.22);
+  stroke-dasharray: 2 6;
+}
+
+/* Spokes glow amber like the rest of the HUD, red while a system waits on you. */
+:root[data-hud] .spoke {
+  stroke: rgba(255, 154, 46, 0.16);
+}
+
+:root[data-hud] .spoke-running {
+  stroke: rgba(255, 164, 66, 0.55);
+}
+
+:root[data-hud] .spoke-waiting {
+  stroke: rgba(255, 100, 110, 0.85);
+  stroke-width: 1.6;
+}
+
+:root[data-hud] .sun-light.calm {
+  stop-color: var(--amber);
+  stop-opacity: 0.35;
+}
+
+:root[data-hud] .sun-light.waiting {
+  stop-opacity: 0.4;
+}
+
+:root[data-hud] .sun-disc {
+  fill: var(--amber);
+}
+
+:root[data-hud] .sun.waiting .sun-disc {
+  fill: var(--waiting);
+}
+
+:root[data-hud] .system-name {
+  font-family: var(--mono);
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--amber);
+  text-shadow: 0 0 10px var(--glow);
+}
+
+:root[data-hud] :where(.system-count, .area-name) {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+:root[data-hud] .orrery-boundary {
+  stroke: rgba(94, 231, 255, 0.18);
+  stroke-dasharray: 2 4;
+}
+
+.hud-dial circle {
+  fill: none;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.hud-ticks {
+  stroke: var(--amber);
+  stroke-width: 7;
+  stroke-dasharray: 1 5.4;
+  opacity: 0.6;
+  animation: spin 80s linear infinite;
+}
+
+.hud-segments {
+  stroke: var(--green);
+  stroke-width: 3;
+  stroke-dasharray: 64 12 10 12 4 22;
+  animation: spin 26s linear infinite reverse;
+}
+
+/* The usage gauge: cyan while there's room, amber near the limit, red at it. It doesn't turn. */
+.usage-gauge .gauge {
+  color: var(--cyan);
+}
+
+.usage-gauge .gauge.usage-warn {
+  color: var(--amber);
+}
+
+.usage-gauge .gauge.usage-full {
+  color: var(--waiting);
+}
+
+.gauge-track,
+.gauge-fill {
+  fill: none;
+  stroke: currentColor;
+}
+
+.gauge-track {
+  opacity: 0.16;
+}
+
+.gauge-fill {
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Its dash pattern draws only the stretch still to come, so it can't take a dotted style of its own. */
+.gauge-ghost {
+  fill: none;
+  stroke: currentColor;
+  opacity: 0.38;
+}
+
+.gauge-ghost.usage-warn {
+  color: var(--amber);
+}
+
+.gauge-ghost.usage-full {
+  color: var(--waiting);
+}
+
+.gauge-time {
+  stroke: var(--ink);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+
+.hud-arc {
+  stroke: var(--cyan);
+  stroke-width: 1.2;
+  stroke-dasharray: 180 36 40 36 12 36;
+  opacity: 0.7;
+  animation: spin 44s linear infinite;
+}

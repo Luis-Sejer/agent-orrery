@@ -66,6 +66,24 @@ Transcripts hold people's code, prompts and secrets, and local dashboards are a 
 
 Match the code around you: small functions, constants for magic numbers, and comments only for why. The look: Instrument Serif for headings, Inter for text, green `#34955f` and ink `#162925`, tonal surfaces without borders, an 8 px radius (3 px for chips), and dashed orbit rings for sessions. The T.Y.C.H.O. theme sets `data-theme="dark"` plus `data-hud` on `<html>`, so it inherits every dark style; its overrides live under `:root[data-hud]`. Check UI changes in a real browser before calling them done; `pnpm demo` gives you data to look at.
 
-Motion and keyboard: anything that moves asks `prefersStill()` (`web/src/motion.ts`), which is true under reduced motion or Pause motion (`data-still` on `<html>`), and CSS animations go in the stylesheet, where both stop them. Waits and messages animate only while they are fresh (`FRESH_MS`, two minutes). Agents on the canvas are buttons (`opensDetails` in `layout.ts`) that open on Enter or Space; rooms, piles and the backdrop are not focus stops, only their own buttons are. When a control disappears, move focus to where the user expects it (the drawer heading, the next card, the pile's "Hide finished").
+Styles live in `web/src/styles/`, one file per part of the page, imported in `main.tsx` in a fixed order. Later files win over earlier ones, as if they were one stylesheet, so put a rule in the file for what it styles, and don't reorder the imports:
+
+| File | What it styles |
+|---|---|
+| `theme.css` | Colour tokens for light, dark and the scrollbars; base elements |
+| `shell.css` | The app grid, the toolbar, Settings (Advanced included), clean view, search |
+| `inbox.css` | The side panel: pinned top, folding sections, Your turn's cards |
+| `canvas.css` | Orbs, the Agents grid's rooms and cards, the waiting beam, and lines (Same files included) |
+| `orrery.css` | The orrery, its rings, core and labels, and the galaxy |
+| `drawer.css` | The drawer |
+| `usage.css` | Plan usage bars and forecast |
+| `artifacts.css` | The Artifacts view, the drawer's list and the mark on agents |
+| `day.css` | The Day view |
+| `library.css` | Plans and Memory |
+| `tycho.css` | Everything under `:root[data-hud]`, the gauge included |
+| `responsive.css` | Narrow screens, phones, reduced motion and Pause motion |
+| `extras.css` | The clean view's corner list, Quiet, cost, replay, Same files in the panel |
+
+Motion and keyboard: anything that moves asks `prefersStill()` (`web/src/motion.ts`), which is true under reduced motion or Pause motion (`data-still` on `<html>`), and CSS animations go in the styles, where both stop them. Waits and messages animate only while they are fresh (`FRESH_MS`, two minutes). Agents on the canvas are buttons (`opensDetails` in `layout.ts`) that open on Enter or Space; rooms, piles and the backdrop are not focus stops, only their own buttons are. When a control disappears, move focus to where the user expects it (the drawer heading, the next card, the pile's "Hide finished").
 
 Never commit real transcripts, session names or screenshots of real sessions. Use the demo data (`scripts/demo.mjs`) for examples, tests and screenshots.

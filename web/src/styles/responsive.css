@@ -1,0 +1,91 @@
+/* Narrow screens and zoomed-in pages stack everything and scroll the page: the toolbar on a row of
+   its own at the top, then Your turn, the stage and the drawer. */
+@media (max-width: 900px) {
+  .app,
+  .app.with-drawer,
+  .app.clean,
+  .app.clean.with-drawer {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    grid-template-areas: 'toolbar' 'inbox' 'stage' 'drawer';
+    height: auto;
+    overflow: visible;
+  }
+  .toolbar {
+    grid-area: toolbar;
+    margin: 0;
+    padding: 12px 16px;
+    pointer-events: auto;
+  }
+  .stage {
+    height: 70vh;
+  }
+  /* Stacked, the side panel is as long as it needs to be, and nothing in it is pinned. */
+  .inbox,
+  .inbox-scroll {
+    overflow: visible;
+  }
+  /* Plans and Memory are as long as they need to be, the list above the reader. */
+  .stage.reading {
+    height: auto;
+  }
+  .library {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 12px;
+    padding: 0 0 16px;
+  }
+  .library-list {
+    padding: 0 16px;
+  }
+  .library-list nav {
+    max-height: 60vh;
+  }
+  .reader {
+    margin: 0 16px;
+    padding: 20px;
+  }
+  .turn-overlay {
+    top: 16px;
+  }
+}
+
+/* On a phone the toolbar stays at the top as the page scrolls, so search and the views are always a
+   tap away. Short windows (a desktop zoomed in) can't spare the height. */
+@media (max-width: 600px) and (min-height: 500px) {
+  .toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    backdrop-filter: blur(6px);
+  }
+  .toolbar .tabs button {
+    padding-inline: 9px;
+  }
+}
+
+/* Reduced motion, or Pause motion (data-still), holds everything still. motion.ts asks the same
+   question for the canvas and the orbs. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  :root[data-hud] body::after {
+    display: none;
+  }
+}
+
+:root[data-still] *,
+:root[data-still] *::before,
+:root[data-still] *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
+:root[data-still][data-hud] body::after {
+  display: none;
+}

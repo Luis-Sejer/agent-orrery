@@ -1,0 +1,167 @@
+/* Day: today's sessions on one clock */
+
+.day {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 72px 28px 32px;
+}
+
+.day-header {
+  max-width: 720px;
+  margin-bottom: 20px;
+}
+
+.day-header h1 {
+  margin: 0 0 6px;
+  font-size: 34px;
+  font-weight: 400;
+}
+
+.day-header .lede {
+  margin: 0;
+  color: var(--muted);
+}
+
+.day-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.day-key li::before {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 2px;
+  background: var(--swatch);
+}
+
+.day-key .key-work {
+  --swatch: var(--green);
+}
+
+.day-key .key-agents {
+  --swatch: color-mix(in srgb, var(--green) 45%, transparent);
+}
+
+.day-key .key-you {
+  --swatch: var(--waiting);
+}
+
+.day-chart {
+  --names: 220px;
+}
+
+.day-hours {
+  position: relative;
+  height: 20px;
+  margin-left: var(--names);
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.day-hours span {
+  position: absolute;
+  top: 0;
+  padding-left: 3px;
+  border-left: 1px solid var(--ghost);
+}
+
+.day-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.day-row {
+  display: grid;
+  grid-template-columns: var(--names) minmax(0, 1fr);
+  align-items: center;
+  min-height: 46px;
+}
+
+.day-name {
+  display: grid;
+  min-width: 0;
+  padding: 4px 12px 4px 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.day-name strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.day-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.day-name:hover strong {
+  color: var(--green-deep);
+}
+
+.day-track {
+  position: relative;
+  height: 24px;
+  border-radius: 3px;
+  background: var(--surface-low);
+}
+
+.day-span {
+  position: absolute;
+  top: 4px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+.day-span.work {
+  background: var(--green);
+}
+
+/* Subagents run under their session's bar, thinner, so the two never hide each other. */
+.day-span.agents {
+  top: 17px;
+  height: 4px;
+  background: color-mix(in srgb, var(--green) 45%, transparent);
+}
+
+.day-span.you {
+  background: var(--waiting);
+}
+
+@media (max-width: 760px) {
+  .day {
+    padding: 16px;
+  }
+  .day-chart {
+    --names: 0px;
+  }
+  .day-row {
+    grid-template-columns: minmax(0, 1fr);
+    padding-bottom: 8px;
+  }
+  .day-hours {
+    margin-left: 0;
+  }
+}

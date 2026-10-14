@@ -1,0 +1,182 @@
+:root {
+  /* Scrollbars: a thumb in the theme's ink, on no track, brighter while you're in the panel. */
+  --scroll-thumb: rgba(22, 41, 37, 0.2);
+  --scroll-thumb-hover: rgba(22, 41, 37, 0.38);
+  --surface: #f8f9fa;
+  --surface-low: #f3f4f5;
+  --surface-container: #edeef0;
+  --surface-card: #ffffff;
+  --ink: #162925;
+  --muted: #5b6763;
+  --green: #34955f;
+  --green-deep: #236b45;
+  --waiting: #b5443e;
+  --amber: #b9822f;
+  /* The Quiet heading's amber, dark enough to read as text on the light inbox. */
+  --quiet-ink: #8a5f1c;
+  --rule: rgba(52, 149, 95, 0.35);
+  --ghost: rgba(196, 199, 200, 0.4);
+  --shadow: 0 12px 32px rgba(25, 28, 29, 0.06);
+  --shadow-hover: 0 16px 40px rgba(25, 28, 29, 0.1);
+  --shadow-lifted: 0 20px 48px rgba(25, 28, 29, 0.14);
+  --hover: rgba(22, 41, 37, 0.04);
+  --room: rgba(22, 41, 37, 0.035);
+  /* A room's name: a watermark, but one you can still read (3:1 or more on the room). */
+  --room-name: rgba(22, 41, 37, 0.55);
+  --line: #9fb3ad;
+  --idle: #c4cbc9;
+  --dot: rgba(22, 41, 37, 0.14);
+  --on-ink: #ffffff;
+  --focus-ring: rgba(52, 149, 95, 0.15);
+  --green-wash: rgba(52, 149, 95, 0.14);
+  --drawer-shadow: -12px 0 32px rgba(25, 28, 29, 0.05);
+  --minimap-mask: rgba(248, 249, 250, 0.7);
+  --backdrop: rgba(22, 41, 37, 0.25);
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --serif: 'Instrument Serif', 'Times New Roman', Times, serif;
+  --sans: Inter, system-ui, -apple-system, sans-serif;
+  color-scheme: light;
+}
+
+/* Every scrolling area gets the theme's thin scrollbar. scrollbar-color is inherited; the width isn't. */
+:root {
+  scrollbar-color: var(--scroll-thumb) transparent;
+}
+
+* {
+  scrollbar-width: thin;
+}
+
+:is(.inbox-scroll, .drawer, .day, .reader, .library-list nav, .settings, .palette-results):hover {
+  scrollbar-color: var(--scroll-thumb-hover) transparent;
+}
+
+/* Safari before scrollbar-color, and older Chrome, take the same look this way. */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background: var(--scroll-thumb);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover);
+}
+
+/* Dark: green-black grounds, the same greens lifted for contrast. Set on <html> by useTheme. */
+:root[data-theme='dark'] {
+  --scroll-thumb: rgba(214, 232, 226, 0.16);
+  --scroll-thumb-hover: rgba(214, 232, 226, 0.32);
+  --surface: #0f1715;
+  --surface-low: #131d1b;
+  --surface-container: #22302c;
+  --surface-card: #18221f;
+  --ink: #e4ebe8;
+  --muted: #9aaaa5;
+  --green: #4caf78;
+  --green-deep: #2f8a57;
+  --waiting: #e0766e;
+  --amber: #d6a04f;
+  --quiet-ink: var(--amber);
+  --rule: rgba(76, 175, 120, 0.4);
+  --ghost: rgba(255, 255, 255, 0.12);
+  --shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  --shadow-hover: 0 16px 40px rgba(0, 0, 0, 0.45);
+  --shadow-lifted: 0 20px 48px rgba(0, 0, 0, 0.55);
+  --hover: rgba(228, 235, 232, 0.05);
+  --room: rgba(228, 235, 232, 0.035);
+  --room-name: rgba(228, 235, 232, 0.4);
+  --line: #4b5f59;
+  --idle: #4d5c58;
+  --dot: rgba(228, 235, 232, 0.12);
+  --on-ink: #0f1715;
+  --focus-ring: rgba(76, 175, 120, 0.25);
+  --green-wash: rgba(76, 175, 120, 0.16);
+  --drawer-shadow: -12px 0 32px rgba(0, 0, 0, 0.3);
+  --minimap-mask: rgba(15, 23, 21, 0.7);
+  --backdrop: rgba(5, 10, 9, 0.55);
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--surface);
+  color: var(--ink);
+  font: 13px/1.5 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+
+.serif {
+  font-family: var(--serif);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.empty-note {
+  margin: 4px 0;
+  color: var(--muted);
+}
+
+.branch {
+  display: inline-block;
+  max-width: 100%;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 3px;
+  background: var(--surface-container);
+  color: var(--muted);
+  font-size: 11.5px;
+  vertical-align: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-line .branch:first-child {
+  margin-left: 0;
+}
+
+.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--green-deep);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}

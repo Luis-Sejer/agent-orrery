@@ -1,0 +1,159 @@
+/* The clean view's corner list of who is waiting on you. */
+.turn-overlay {
+  position: absolute;
+  z-index: 4;
+  top: 64px;
+  left: 20px;
+  width: min(280px, calc(100% - 40px));
+  max-height: calc(100% - 150px);
+  overflow-y: auto;
+}
+
+.turn-overlay ol {
+  list-style: none;
+  margin: 0;
+  padding: 2px;
+  display: grid;
+  gap: 6px;
+}
+
+.turn-overlay button {
+  position: relative;
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 9px;
+  align-items: center;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--surface-card);
+  box-shadow: var(--shadow);
+  text-align: left;
+  cursor: pointer;
+}
+
+.turn-overlay .orb {
+  grid-row: span 2;
+  align-self: center;
+}
+
+.turn-overlay strong {
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.turn-overlay .why {
+  font-size: 12px;
+}
+
+/* Quiet agents, cost, replay */
+
+.card.quiet {
+  box-shadow: var(--shadow), inset 3px 0 0 var(--amber);
+}
+
+.inbox .quiet-heading {
+  margin: 14px 0 6px;
+  color: var(--quiet-ink);
+  font: 600 11.5px/1 var(--sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.quiet-list b,
+.clash-list b {
+  font-weight: 600;
+}
+
+.inbox .clash-heading {
+  margin: 14px 0 6px;
+  color: var(--waiting);
+  font: 600 11.5px/1 var(--sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* The collision line, as drawn on the canvas, standing in for an orb. */
+.clash-mark {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  background: linear-gradient(var(--waiting), var(--waiting)) center / 100% 2px no-repeat;
+  -webkit-mask: repeating-linear-gradient(90deg, #000 0 6px, transparent 6px 9px);
+  mask: repeating-linear-gradient(90deg, #000 0 6px, transparent 6px 9px);
+}
+
+.spend-note {
+  margin: 18px 0 0;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.facts .clash {
+  display: block;
+}
+
+.facts .models {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.replay {
+  flex: none;
+  display: grid;
+  gap: 8px;
+  padding: 8px 20px 14px;
+  background: var(--surface);
+}
+
+.replay-banner {
+  margin: 0;
+  padding: 6px 12px;
+  border-left: 3px solid var(--amber);
+  border-radius: 0 6px 6px 0;
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.replay-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.replay-bar input[type='range'] {
+  flex: 1 1 120px;
+  min-width: 0;
+  accent-color: var(--green);
+}
+
+.replay-time {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.replay-bar .button {
+  flex: none;
+  padding: 7px 12px;
+}
+
+@media (max-width: 600px) {
+  .replay {
+    padding: 8px 16px 12px;
+  }
+  .replay-bar {
+    flex-wrap: wrap;
+  }
+  .replay-bar input[type='range'] {
+    order: 3;
+    flex-basis: 100%;
+  }
+}

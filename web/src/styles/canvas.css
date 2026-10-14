@@ -1,0 +1,378 @@
+/* Orbs */
+
+.orb {
+  position: relative;
+  flex: none;
+  align-self: start;
+  aspect-ratio: 1;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in oklab, var(--state) 14%, transparent) 0 62%, transparent 70%);
+}
+
+.orb canvas {
+  display: block;
+}
+
+.orb-ring {
+  padding: 12px;
+}
+
+.orbit {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  animation: spin 40s linear infinite;
+}
+
+.orbit circle {
+  fill: none;
+  stroke: var(--state);
+  stroke-dasharray: 3 4;
+  stroke-opacity: 0.55;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+/* Canvas */
+
+.react-flow {
+  --xy-background-color: var(--surface);
+  --xy-edge-stroke: var(--line);
+  --xy-minimap-background-color: var(--surface-card);
+  --xy-controls-button-background-color: var(--surface-card);
+  --xy-controls-button-border-color: var(--surface-low);
+  --xy-controls-button-color: var(--ink);
+  --xy-controls-button-background-color-hover: var(--surface-low);
+  --xy-background-pattern-color: var(--dot);
+  --xy-minimap-mask-background-color: var(--minimap-mask);
+  --xy-attribution-background-color: transparent;
+}
+
+.react-flow__attribution a {
+  color: var(--muted);
+}
+
+.react-flow__minimap-node {
+  fill: var(--idle);
+}
+
+.react-flow__minimap-node.mini-room {
+  fill: var(--room);
+}
+
+.react-flow__minimap-node.mini-waiting {
+  fill: var(--waiting);
+}
+
+.react-flow__minimap-node.mini-running {
+  fill: var(--green);
+}
+
+.react-flow__handle {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.react-flow__minimap,
+.react-flow__controls {
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.react-flow__node {
+  transition: opacity 300ms var(--ease);
+}
+
+.room {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 16px;
+  background: var(--room);
+  overflow: hidden;
+  transition: opacity 300ms var(--ease);
+}
+
+.room-summary {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.room-fold {
+  margin-left: 10px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 3px;
+  background: var(--surface-container);
+  color: var(--ink);
+  font-size: 12px;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.room-fold:hover {
+  background: var(--green-wash);
+}
+
+.room-name {
+  position: absolute;
+  left: 20px;
+  bottom: 8px;
+  font-size: 52px;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  right: 20px;
+  color: var(--room-name);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 10px 14px 10px 12px;
+  border-radius: 8px;
+  background: var(--surface-card);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: transform 200ms var(--ease), box-shadow 200ms var(--ease), opacity 300ms var(--ease);
+}
+
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-hover);
+}
+
+.card.session {
+  width: 300px;
+  height: 100px;
+  padding-left: 6px;
+  gap: 8px;
+}
+
+.card.agent {
+  width: 240px;
+  height: 80px;
+}
+
+.card-text {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.card-title,
+.card-line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-title {
+  font-weight: 600;
+  font-size: 13.5px;
+  line-height: 1.3;
+}
+
+.card.session .card-title {
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.card-line {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.also {
+  margin-left: 8px;
+  color: var(--green-deep);
+  font-size: 11.5px;
+}
+
+.card.status-finished .card-title {
+  color: var(--muted);
+}
+
+.card.focused {
+  box-shadow: 0 0 0 2px var(--green), var(--shadow-lifted);
+  transform: translateY(-3px);
+}
+
+.card.related {
+  box-shadow: 0 0 0 1px var(--rule), var(--shadow-hover);
+}
+
+/* Unrelated to the selection: faded, but names stay readable. */
+.dimmed {
+  opacity: 0.5;
+}
+
+.room.dimmed {
+  opacity: 0.55;
+}
+
+.card.fold {
+  width: 170px;
+  height: 44px;
+  display: flex;
+  gap: 8px;
+  padding: 0 14px;
+  border: 0;
+  background: var(--surface-low);
+  box-shadow: none;
+  color: var(--muted);
+}
+
+.card.fold.related {
+  box-shadow: 0 0 0 1px var(--rule), var(--shadow-hover);
+  color: var(--ink);
+}
+
+.subagents {
+  list-style: none;
+  margin: 0 0 24px;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.subagents button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.subagents button:hover {
+  background: var(--hover);
+}
+
+.subagents strong {
+  display: block;
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.subagents span span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.fold-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--idle);
+}
+
+/* Border beam: runs around anything waiting on you */
+
+@property --beam-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+/* A wait that has rested past its first two minutes keeps a still red edge; a new one runs a beam. */
+.beam::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1.5px;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--waiting) 70%, transparent);
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+
+.beam.fresh::before {
+  background: conic-gradient(from var(--beam-angle), transparent 0 72%, var(--waiting) 90%, transparent 100%);
+  animation: beam var(--beam-duration, 3.4s) linear var(--beam-delay, 0s) infinite;
+}
+
+@keyframes beam {
+  to {
+    --beam-angle: 1turn;
+  }
+}
+
+/* Edges */
+
+.react-flow__edge.spawn path {
+  stroke: var(--line);
+  stroke-width: 1.25;
+  stroke-dasharray: 4 5;
+}
+
+.message-path {
+  stroke: var(--amber) !important;
+  stroke-width: 1.75 !important;
+  stroke-dasharray: 2 6;
+  stroke-linecap: round;
+  stroke-opacity: 0.7;
+}
+
+/* Dashes flow along a message for its first two minutes, then rest. */
+.message-path.fresh {
+  animation: flow 1s linear infinite;
+}
+
+.message-pulse {
+  fill: var(--amber);
+}
+
+@keyframes flow {
+  to {
+    stroke-dashoffset: -16;
+  }
+}
+
+.react-flow__edge.lit.spawn path {
+  stroke: var(--green);
+  stroke-width: 2;
+}
+
+.react-flow__edge.lit .message-path {
+  stroke-width: 2.5 !important;
+  stroke-opacity: 1;
+}
+
+.react-flow__edge.dimmed {
+  opacity: 0.15;
+}
+
+/* Two agents editing the same files: a red line between them that stays readable when dimmed. */
+.react-flow__edge.collision path {
+  stroke: var(--waiting);
+  stroke-width: 2;
+  stroke-dasharray: 7 4;
+}
+
+.react-flow__edge.collision.dimmed {
+  opacity: 0.45;
+}

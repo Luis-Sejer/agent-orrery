@@ -1,0 +1,208 @@
+/* Drawer */
+
+.drawer {
+  position: relative;
+  padding: 24px 22px;
+  background: var(--surface-card);
+  box-shadow: var(--drawer-shadow);
+  overflow-y: auto;
+}
+
+.close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--surface-low);
+}
+
+.close svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.drawer header {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding-right: 32px;
+}
+
+.drawer h2 {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.1;
+  /* Clear of the sticky toolbar when it scrolls into view on a phone. */
+  scroll-margin-top: 72px;
+}
+
+.drawer h2:focus-visible {
+  outline-offset: 4px;
+}
+
+.drawer .meta {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px 16px;
+  margin: 22px 0 0;
+}
+
+.facts dt {
+  color: var(--muted);
+}
+
+.facts dd {
+  margin: 0;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  padding: 1px 8px;
+  border: 0;
+  border-radius: 3px;
+  background: var(--surface-container);
+  font-size: 12px;
+}
+
+.chip-link {
+  color: var(--green-deep);
+  cursor: pointer;
+}
+
+.chip-link:hover {
+  background: var(--green-wash);
+}
+
+.actions {
+  display: grid;
+  gap: 8px;
+  margin: 22px 0 26px;
+}
+
+.button {
+  justify-self: start;
+  padding: 9px 16px;
+  border: 0;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 150ms var(--ease), box-shadow 150ms var(--ease);
+}
+
+.action-row {
+  display: flex;
+  gap: 8px;
+}
+
+.button.quiet {
+  background: var(--surface-low);
+  color: var(--ink);
+}
+
+.button.quiet:hover {
+  background: var(--surface-container);
+}
+
+.button.primary {
+  background: linear-gradient(var(--green), var(--green-deep));
+  color: #fff;
+}
+
+.button.primary:hover {
+  transform: scale(1.02);
+  box-shadow: var(--shadow-hover);
+}
+
+/* A session id is one word: the command scrolls sideways rather than breaking inside it. */
+.command {
+  display: block;
+  padding-bottom: 4px;
+  overflow-x: auto;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.drawer h3 {
+  margin: 0 0 10px;
+  font-size: 19px;
+}
+
+.timeline {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 8px;
+  bottom: 8px;
+  border-left: 1px dashed var(--rule);
+}
+
+.timeline li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 6px 0;
+  align-items: start;
+}
+
+.timeline .dot {
+  width: 13px;
+  height: 13px;
+  margin-top: 3px;
+  border: 2px solid var(--state);
+  border-radius: 50%;
+  background: var(--surface-card);
+}
+
+.timeline li:first-child .dot {
+  background: var(--state);
+}
+
+.timeline .times {
+  margin-left: 6px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.timeline time {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
