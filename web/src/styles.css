@@ -1,4 +1,7 @@
 :root {
+  /* Scrollbars: a thumb in the theme's ink, on no track, brighter while you're in the panel. */
+  --scroll-thumb: rgba(22, 41, 37, 0.2);
+  --scroll-thumb-hover: rgba(22, 41, 37, 0.38);
   --surface: #f8f9fa;
   --surface-low: #f3f4f5;
   --surface-container: #edeef0;
@@ -35,8 +38,42 @@
   color-scheme: light;
 }
 
+/* Every scrolling area gets the theme's thin scrollbar. scrollbar-color is inherited; the width isn't. */
+:root {
+  scrollbar-color: var(--scroll-thumb) transparent;
+}
+
+* {
+  scrollbar-width: thin;
+}
+
+:is(.inbox-scroll, .drawer, .day, .reader, .library-list nav, .settings, .palette-results):hover {
+  scrollbar-color: var(--scroll-thumb-hover) transparent;
+}
+
+/* Safari before scrollbar-color, and older Chrome, take the same look this way. */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background: var(--scroll-thumb);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover);
+}
+
 /* Dark: green-black grounds, the same greens lifted for contrast. Set on <html> by useTheme. */
 :root[data-theme='dark'] {
+  --scroll-thumb: rgba(214, 232, 226, 0.16);
+  --scroll-thumb-hover: rgba(214, 232, 226, 0.32);
   --surface: #0f1715;
   --surface-low: #131d1b;
   --surface-container: #22302c;
@@ -2689,6 +2726,8 @@ mark {
    Amber ink and hot orange on black, cyan as a second voice, thin frames with corner brackets. */
 
 :root[data-hud] {
+  --scroll-thumb: rgba(255, 176, 46, 0.28);
+  --scroll-thumb-hover: rgba(255, 176, 46, 0.62);
   --surface: #050403;
   --surface-low: #0a0805;
   --surface-container: #241a0e;

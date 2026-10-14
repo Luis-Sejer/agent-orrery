@@ -46,6 +46,8 @@ All notable changes to Agent Orrery are documented here. The format is based on
 
 ### Changed
 
+- Scrollbars match the theme: thin, with no track, in a faint ink grey, a pale grey in dark, and dim amber in T.Y.C.H.O., brightening while you're in the panel.
+- The side panel keeps its top in place (the name, the connection and your plan usage) while the rest scrolls, and Your turn, Same files, Quiet and Running now each fold away under their heading, with their count still showing. Which ones are open is saved for every browser.
 - Going to an agent keeps your zoom and only pans, unless you're too far out to read it, and the pan starts once the selection has been drawn. Labels resize to the zoom once it settles instead of on every frame, and Your turn and the drawer draw on layers of their own. Zooming and jumping to an agent flickered.
 - Time waiting on you counts overlapping waits once. It added every session's waits together, so sessions left open side by side could reach more hours than the day had.
 - A workflow's agents show up: they are written to a folder per run under the session's subagents, which Orrery didn't look in. They hang off the session that ran the workflow, labelled with their phase ("Write (workflow)").
