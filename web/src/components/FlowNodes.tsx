@@ -166,6 +166,20 @@ export function RoomBox({ data }: NodeProps<RoomNode>) {
 export function MessageEdge(props: EdgeProps<Edge<MessageData, 'message'>>) {
   const [path] = getBezierPath(props)
   const still = useStill()
+  // Sessions talking to each other: a hollow cable, so it can't be mistaken for a helper's message.
+  if (props.data?.crosstalk) {
+    return (
+      <>
+        <BaseEdge id={props.id} path={path} className={props.data.fresh ? 'crosstalk-path fresh' : 'crosstalk-path'} />
+        <path d={path} className="crosstalk-core" fill="none" />
+        {props.data.recent && !still && (
+          <circle r={4.5} className="crosstalk-pulse">
+            <animateMotion dur="1.6s" repeatCount="indefinite" path={path} />
+          </circle>
+        )}
+      </>
+    )
+  }
   return (
     <>
       <BaseEdge id={props.id} path={path} className={props.data?.fresh ? 'message-path fresh' : 'message-path'} />

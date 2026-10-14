@@ -156,7 +156,9 @@ async function readLiveSessions() {
     // checked on the same system; inside Docker the file has to be believed.
     if (file.pidDomain === process.platform && Number.isInteger(file.pid) && !isAlive(file.pid)) continue
     const waitingFor = typeof file.waitingFor === 'string' ? file.waitingFor : null
-    sessions.push({ sessionId: file.sessionId, status: file.status, waitingFor, since: file.statusUpdatedAt })
+    // The names other sessions may use for this one when they message it.
+    const aliases = [file.name, ...(Array.isArray(file.formerNames) ? file.formerNames : []), file.messagingSocketPath && `uds:${file.messagingSocketPath}`, Number.isInteger(file.pid) && `pid:${file.pid}`]
+    sessions.push({ sessionId: file.sessionId, status: file.status, waitingFor, since: file.statusUpdatedAt, aliases: aliases.filter((alias) => typeof alias === 'string' && alias) })
   }
   return sessions
 }

@@ -51,8 +51,8 @@ export type CardData = { node: AgentNode; now: number; dimmed: boolean; focused:
 export type FoldData = { room: string; count: number; dimmed: boolean; related: boolean; onExpand: (room: string) => void }
 // foldable: the room is open and has enough finished agents to fold back into a pile.
 export type RoomData = { name: string; summary: string; dimmed: boolean; foldable: boolean; onCollapse: (room: string) => void }
-// recent: a pulse travels along it; fresh: its dashes still flow.
-export type MessageData = { recent: boolean; fresh: boolean; count: number }
+// recent: a pulse travels along it; fresh: its dashes still flow; crosstalk: between two sessions.
+export type MessageData = { recent: boolean; fresh: boolean; count: number; crosstalk: boolean }
 
 export type CardNode = Node<CardData, 'session' | 'agent'>
 export type FoldNode = Node<FoldData, 'fold'>
@@ -348,6 +348,7 @@ export function buildEdges(graph: GraphSnapshot, foldedInto: Map<string, string>
     if (edges.has(id) && !className.includes('lit')) continue
     edges.set(id, { id, source, target, className: `spawn ${className}`, zIndex, ...UNSPOKEN })
   }
+  const kindOf = new Map(graph.nodes.map((node) => [node.id, node.kind]))
   for (const message of graph.messages) {
     const source = endpoint(message.from)
     const target = endpoint(message.to)
@@ -362,7 +363,13 @@ export function buildEdges(graph: GraphSnapshot, foldedInto: Map<string, string>
       className,
       zIndex,
       ...UNSPOKEN,
-      data: { recent: now - message.lastAt < RECENT_MESSAGE_MS, fresh: now - message.lastAt < FRESH_MS, count: message.count },
+      data: {
+        recent: now - message.lastAt < RECENT_MESSAGE_MS,
+        fresh: now - message.lastAt < FRESH_MS,
+        count: message.count,
+        // Two main sessions talking to each other, rather than a session and its own helpers.
+        crosstalk: kindOf.get(message.from) === 'session' && kindOf.get(message.to) === 'session',
+      },
     })
   }
   // Two agents in the same files: a warning line between them, above everything but the selected card.

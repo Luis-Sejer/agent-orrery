@@ -20,6 +20,8 @@ interface DrawerProps {
   children: AgentNode[]
   // Collisions it is part of, with the other agent's node where it's in view.
   clashes: { collision: Collision; other: AgentNode | null }[]
+  // Other sessions this session has talked with, and how many messages went between them.
+  talkingWith: { node: AgentNode; count: number }[]
   now: number
   onClose: () => void
   onSelect: (id: string) => void
@@ -67,7 +69,7 @@ function clockTime(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
 }
 
-export function Drawer({ node, parent, children, clashes, now, onClose, onSelect, onOpenPlan, onDismiss }: DrawerProps) {
+export function Drawer({ node, parent, children, clashes, talkingWith, now, onClose, onSelect, onOpenPlan, onDismiss }: DrawerProps) {
   const events = useTimeline(node.id)
   const hud = useContext(HudContext)
   const [copied, setCopied] = useState(false)
@@ -131,6 +133,21 @@ export function Drawer({ node, parent, children, clashes, now, onClose, onSelect
               {ownSpend ? capitalise(ownSpend) : 'None of its own'}
               {models.length > 1 && <small className="models">{models.join(', ')}</small>}
               {totalSpend && totalSpend !== ownSpend && <small className="models">With its subagents: {totalSpend}</small>}
+            </dd>
+          </>
+        )}
+        {talkingWith.length > 0 && (
+          <>
+            <dt>Talking with</dt>
+            <dd>
+              {talkingWith.map(({ node: other, count }) => (
+                <span key={other.id} className="clash">
+                  <button type="button" className="link" onClick={() => onSelect(other.id)}>
+                    {other.label}
+                  </button>{' '}
+                  {count === 1 ? 'one message' : `${count} messages`}
+                </span>
+              ))}
             </dd>
           </>
         )}

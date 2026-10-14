@@ -131,7 +131,18 @@ function describeTool(name, input) {
 
 export function createGraph({ resolveRepo = () => null, plansDir = null } = {}) {
   // live: what Claude Code itself says each running session is doing (see setLive); null until known.
-  return { nodes: new Map(), messages: new Map(), toolUseOwner: new Map(), resolveRepo, plansDir, live: null, seenLive: new Set() }
+  // aliases: the names sessions use for each other (a session's name, its socket), to its session id.
+  return { nodes: new Map(), messages: new Map(), toolUseOwner: new Map(), resolveRepo, plansDir, live: null, seenLive: new Set(), aliases: new Map(), messageIds: new Set() }
+}
+
+const SOCKET_PID = /^uds:.*\/(\d{1,10})\.sock$/
+const MESSAGE_IDS_LIMIT = 5_000
+
+// A message's other end as a node id: a session's id, whatever name or socket the message used for it.
+export function resolveAgent(graph, id) {
+  if (graph.nodes.get(id)?.kind === 'session') return id
+  const pid = id.match(SOCKET_PID)?.[1]
+  return graph.aliases.get(id) ?? (pid && graph.aliases.get(`pid:${pid}`)) ?? id
 }
 
 export function ensureNode(graph, id, fields) {
@@ -224,18 +235,30 @@ function addUsage(node, message) {
   totals.cacheWrite5m += usage.cache_creation ? (usage.cache_creation.ephemeral_5m_input_tokens ?? 0) : cacheWrite
 }
 
-function addMessage(graph, from, to, at) {
+// A message carries an id only between sessions; one seen twice (queued, then delivered) counts once.
+function isRepeat(graph, messageId) {
+  if (typeof messageId !== 'string') return false
+  if (graph.messageIds.has(messageId)) return true
+  graph.messageIds.add(messageId)
+  if (graph.messageIds.size > MESSAGE_IDS_LIMIT) graph.messageIds.delete(graph.messageIds.values().next().value)
+  return false
+}
+
+// side: who wrote it down. A message between two agents with transcripts is written by both, the sender
+// (its SendMessage call) and the receiver, so each side is counted apart and the larger count wins.
+function addMessage(graph, from, to, at, side = 'sent') {
   // Peers have no transcript of their own, so a message is their only sign of life.
   for (const id of [from, to]) {
-    const node = ensureNode(graph, id, {})
+    const node = ensureNode(graph, id, SOCKET_PID.test(id) && !graph.nodes.has(id) ? { label: 'Another session' } : {})
     if (node.kind === 'peer') {
       node.lastAt = Math.max(node.lastAt, at)
       markFirstSeen(node, at)
     }
   }
   const key = `${from}>${to}`
-  const edge = graph.messages.get(key) ?? { from, to, count: 0, lastAt: 0, firstAt: at }
-  edge.count += 1
+  const edge = graph.messages.get(key) ?? { from, to, count: 0, sent: 0, received: 0, lastAt: 0, firstAt: at }
+  edge[side] += 1
+  edge.count = Math.max(edge.sent, edge.received)
   edge.lastAt = Math.max(edge.lastAt, at)
   edge.firstAt = Math.min(edge.firstAt, at)
   graph.messages.set(key, edge)
@@ -366,9 +389,24 @@ function isToolResultOnly(record) {
 const isCopiedSpawn = (node, record) =>
   node.kind === 'subagent' && record.type === 'assistant' && Array.isArray(record.message?.content) && record.message.content.some((block) => block?.type === 'tool_use' && block.id === node.spawnToolUseId)
 
+// A message from another agent: a line from it, and a step in the timeline. Only who sent it is read.
+function receiveMessage(graph, node, origin, at) {
+  if (isRepeat(graph, origin.msg_id)) return
+  const from = String(origin.from)
+  if (!graph.nodes.has(from)) ensureNode(graph, from, { label: String(origin.name ?? from) })
+  addMessage(graph, from, node.id, at, 'received')
+  addEvent(node, { at, activity: 'connecting', text: `Message from ${origin.name ? String(origin.name) : graph.nodes.get(from).label}`, repo: null })
+}
+
+// A message from another session that arrives while this one is busy is written only as a queued
+// command, absorbed into the turn under way.
+const queuedMessage = (record) => (record.type === 'attachment' && record.attachment?.type === 'queued_command' && record.attachment.origin?.kind === 'peer' ? record.attachment.origin : null)
+
 export function applyRecord(graph, nodeId, record) {
   const node = graph.nodes.get(nodeId)
   if (isCopiedSpawn(node, record)) return
+  const queued = queuedMessage(record)
+  if (queued?.from) receiveMessage(graph, node, queued, Date.parse(record.timestamp ?? '') || 0)
   const at = Date.parse(record.timestamp ?? '') || 0
   if (isActivity(record)) {
     // After a tool result or a prompt the model owes a reply. Claude Code holds back a message that asks
@@ -407,10 +445,7 @@ export function applyRecord(graph, nodeId, record) {
       if (node.kind === 'session') addEvent(node, { at, activity: 'listening', text: 'You stopped it', repo: null })
     } else if (origin?.kind === 'peer' && origin.from && !origin.handback) {
       // A hand-back answers a spawn the graph already shows, so only other messages add a line.
-      const from = String(origin.from)
-      if (!graph.nodes.has(from)) ensureNode(graph, from, { label: String(origin.name ?? from) })
-      addMessage(graph, from, nodeId, at)
-      addEvent(node, { at, activity: 'connecting', text: `Message from ${graph.nodes.get(from).label}`, repo: null })
+      receiveMessage(graph, node, origin, at)
     } else if (isHumanPrompt(record)) {
       if (node.kind === 'session') addEvent(node, { at, activity: 'listening', text: 'You replied', repo: null })
     }
@@ -449,6 +484,8 @@ const WAIT_REASONS = { 'input needed': 'question', 'permission prompt': 'permiss
 export function setLive(graph, sessions, now) {
   const previous = graph.live
   const known = (sessions ?? []).filter((entry) => typeof entry.sessionId === 'string' && LIVE_STATUSES.has(entry.status))
+  // Other sessions address one by its name or its socket; remember those, even once it has closed.
+  for (const entry of sessions ?? []) for (const alias of entry.aliases ?? []) if (typeof entry.sessionId === 'string') graph.aliases.set(alias, entry.sessionId)
   graph.live =
     sessions &&
     new Map(
@@ -607,12 +644,25 @@ function collisions(graph, nodes, now) {
 // doesn't silently drop off the list. Collisions are live only: pass now to get them.
 export function snapshot(graph, since, waitingSince = since, now = null) {
   const isVisible = (node) => node.lastAt >= since || (node.kind === 'session' && node.waiting && node.lastAt >= waitingSince)
-  const visible = [...graph.nodes.values()].filter(isVisible)
+  // A placeholder for a name or socket that turned out to be a session we know is that session.
+  const canonical = (id) => {
+    const resolved = resolveAgent(graph, id)
+    return graph.nodes.has(resolved) ? resolved : id
+  }
+  const visible = [...graph.nodes.values()].filter((node) => isVisible(node) && canonical(node.id) === node.id)
   const ids = new Set(visible.map((node) => node.id))
   const nodes = visible.map((node) => publicNode(graph, node, now))
   for (const node of nodes) if (!ids.has(node.parentId)) node.parentId = null
   collapseAreas(nodes)
-  const messages = [...graph.messages.values()].filter((edge) => ids.has(edge.from) && ids.has(edge.to))
+  const joined = new Map()
+  for (const edge of graph.messages.values()) {
+    const [from, to] = [canonical(edge.from), canonical(edge.to)]
+    if (from === to || !ids.has(from) || !ids.has(to)) continue
+    const key = `${from}>${to}`
+    const same = joined.get(key)
+    joined.set(key, same ? { ...same, sent: same.sent + edge.sent, received: same.received + edge.received, lastAt: Math.max(same.lastAt, edge.lastAt), firstAt: Math.min(same.firstAt, edge.firstAt) } : { ...edge, from, to })
+  }
+  const messages = [...joined.values()].map(({ sent, received, ...edge }) => ({ ...edge, count: Math.max(sent, received) }))
   return { nodes, messages, collisions: now === null ? [] : collisions(graph, visible, now) }
 }
 
@@ -686,6 +736,7 @@ export function forget(graph, cutoff) {
     graph.nodes.delete(id)
     graph.seenLive.delete(id)
   }
+  for (const [alias, id] of graph.aliases) if (forgotten.has(id)) graph.aliases.delete(alias)
   for (const [key, edge] of graph.messages) if (forgotten.has(edge.from) || forgotten.has(edge.to)) graph.messages.delete(key)
   return forgotten
 }

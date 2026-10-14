@@ -12,7 +12,7 @@ import { ReplayBar } from './components/ReplayBar'
 import { SearchPalette } from './components/SearchPalette'
 import { SettingsMenu } from './components/SettingsMenu'
 import { awaitAgents, statusOf, withoutFinished } from './status'
-import type { Filter, View } from './types'
+import type { AgentNode, Filter, GraphSnapshot, View } from './types'
 import { foldWorktrees } from './rooms'
 import { applyDismissals, useDismissed } from './useDismissed'
 import { useGraph, useNow } from './useGraph'
@@ -45,6 +45,18 @@ function focusSoon(selector: string, tries = FOCUS_TRIES) {
     if (element) element.focus({ preventScroll: true })
     else if (tries > 1) focusSoon(selector, tries - 1)
   }, FOCUS_RETRY_MS)
+}
+
+// The other sessions a session has exchanged messages with, both ways counted, most first.
+function talkingWith(graph: GraphSnapshot, selected: AgentNode): { node: AgentNode; count: number }[] {
+  if (selected.kind !== 'session') return []
+  const sessions = new Map(graph.nodes.filter((node) => node.kind === 'session').map((node) => [node.id, node]))
+  const counts = new Map<string, number>()
+  for (const { from, to, count } of graph.messages) {
+    const other = from === selected.id ? to : to === selected.id ? from : null
+    if (other && sessions.has(other)) counts.set(other, (counts.get(other) ?? 0) + count)
+  }
+  return [...counts].sort((a, b) => b[1] - a[1]).map(([id, count]) => ({ node: sessions.get(id)!, count }))
 }
 
 const byRoom = (selector: string, room: string) => `${selector}[data-room="${CSS.escape(room)}"]`
@@ -296,6 +308,7 @@ export function App() {
             node={selected}
             parent={selected.parentId ? (nodesById.get(selected.parentId) ?? null) : null}
             children={graph.nodes.filter((node) => node.parentId === selected.id)}
+            talkingWith={talkingWith(graph, selected)}
             clashes={(graph.collisions ?? [])
               .filter(({ a, b }) => a === selected.id || b === selected.id)
               .map((collision) => ({ collision, other: nodesById.get(collision.a === selected.id ? collision.b : collision.a) ?? null }))}

@@ -731,3 +731,35 @@ test('a published artifact keeps its title and claude.ai address, and nothing el
   applyLines(graph, 's1', publish('d1', 11, { action: 'delete', url: 'https://claude.ai/artifact/DeckDeckDeck' }))
   assert.deepEqual(snapshot(graph, 0).nodes[0].artifacts.map(({ title }) => title), ['Launch plan'])
 })
+
+test('sessions talking to each other by name or socket are joined, not shown as placeholders', () => {
+  const graph = createGraph({ resolveRepo })
+  ensureNode(graph, 's1', { kind: 'session', label: 'Alpha work', sessionId: 's1' })
+  ensureNode(graph, 's2', { kind: 'session', label: 'Beta work', sessionId: 's2' })
+  const send = (id, second, to) => line({ type: 'assistant', timestamp: at(second), message: { stop_reason: 'tool_use', content: [toolUse(id, 'SendMessage', { to, recipient_kind: 'name', message: 'SECRET' })] } })
+  const fromBeta = { kind: 'peer', from: 'uds:/tmp/cc-socks/202.sock', verifiedPeerPid: 202, name: 'beta', msg_id: 'm1', body: 'SECRET' }
+  // Beta addresses Alpha by name; Alpha answers Beta by socket.
+  applyLines(graph, 's2', send('b1', 1, 'alpha'))
+  applyLines(
+    graph,
+    's1',
+    // Absorbed while Alpha was busy: written only as a queued command, then delivered again as a record.
+    line({ type: 'attachment', timestamp: at(2), attachment: { type: 'queued_command', prompt: 'SECRET', origin: fromBeta } }) +
+      line({ type: 'user', isMeta: true, timestamp: at(3), origin: fromBeta, message: { content: 'SECRET' } }) +
+      send('a1', 4, 'uds:/tmp/cc-socks/202.sock'),
+  )
+  setLive(
+    graph,
+    [
+      { sessionId: 's1', status: 'busy', since: 0, aliases: ['alpha', 'uds:/tmp/cc-socks/101.sock', 'pid:101'] },
+      { sessionId: 's2', status: 'busy', since: 0, aliases: ['beta', 'uds:/tmp/cc-socks/202.sock', 'pid:202'] },
+    ],
+    Date.parse(at(5)),
+  )
+  const view = snapshot(graph, 0, 0, Date.parse(at(5)))
+  assert.deepEqual(view.nodes.map(({ id }) => id).sort(), ['s1', 's2'])
+  // Beta's one message is written by both sides, and counts once.
+  assert.deepEqual(view.messages.map(({ from, to, count }) => `${from}>${to}:${count}`).sort(), ['s1>s2:1', 's2>s1:1'])
+  assert.deepEqual(timeline(graph, 's1').filter(({ text }) => text.startsWith('Message')).map(({ text }) => text), ['Message from beta'])
+  assert.ok(!JSON.stringify(view).includes('SECRET'))
+})

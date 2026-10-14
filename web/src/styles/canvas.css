@@ -346,6 +346,37 @@
   fill: var(--amber);
 }
 
+/* Two sessions talking: a hollow cable, amber like messages, with a dashed core in the canvas's own
+   colour that flows while the conversation is fresh. */
+.crosstalk-path {
+  stroke: var(--amber) !important;
+  stroke-width: 5.5 !important;
+  stroke-linecap: round;
+  opacity: 0.7;
+}
+
+.crosstalk-path.fresh {
+  opacity: 1;
+}
+
+.react-flow__edge path.crosstalk-core {
+  stroke: var(--surface) !important;
+  stroke-width: 2 !important;
+  stroke-dasharray: 5 3;
+  stroke-linecap: butt;
+  opacity: 1;
+}
+
+.crosstalk-path.fresh + .crosstalk-core {
+  animation: flow 1s linear infinite;
+}
+
+.crosstalk-pulse {
+  fill: var(--amber);
+  stroke: var(--surface);
+  stroke-width: 1.5;
+}
+
 @keyframes flow {
   to {
     stroke-dashoffset: -16;
