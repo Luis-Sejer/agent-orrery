@@ -211,6 +211,18 @@ Restart Orrery (`docker compose up -d`) so Docker shares `~/.claude/orrery`. Aft
 
 The numbers are as fresh as the last status line Claude Code drew, every few seconds while you work. When everything has been idle for a while, the page says how old they are.
 
+## Tip: give your agents meaningful names
+
+Orrery labels every orb, card, line and list entry with the name each agent was given: a subagent's description, a workflow agent's label, a session's title. "Agent" or "Research" tells you nothing; "Audit the checkout copy" tells you everything without opening it. Claude picks better names when asked to, so add this to your `~/.claude/CLAUDE.md` (an agent following INSTALL.md offers to do it for you):
+
+```markdown
+## Name what you start
+
+Give everything you start a short, meaningful name that says what it's for (2–6 words, specific): subagents (the Agent tool's `description`), workflow agents (a `label` on every `agent()` call), background commands and monitors, and your own session where a name can be set. "Audit the checkout copy", not "Research"; `review:security`, not an index. Keep a name stable once set. These names show in the terminal and label every agent in Agent Orrery, so good names make both readable at a glance. Pass this rule on in briefs to agents that start agents of their own.
+```
+
+It makes your terminal easier to read too.
+
 ## Settings
 
 Set these in your shell, or in a `.env` file next to `compose.yaml`.

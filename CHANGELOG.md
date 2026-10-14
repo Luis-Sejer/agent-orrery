@@ -8,6 +8,7 @@ All notable changes to Agent Orrery are documented here. The format is based on
 
 ### Added
 
+- A tip in the README, and an optional step in INSTALL.md (asked first), for a short section in `~/.claude/CLAUDE.md` asking Claude to give its subagents, workflow agents and background tasks meaningful names, which is what Orrery labels them with.
 - The Orrery view: your agents in rings around you, closest when they're waiting on you, then running, then finished, with a sector for each repository. The rings turn slowly like an orrery's and steady themselves while you point at an agent; agents glide between rings as their status changes, and finished ones fold into a pile. It's the view the page opens on; Agents, the grid of rooms, is one tab over.
 - The page remembers which view you were on (Agents, Orrery, Plans or Memory) when you reload.
 - Arrange the orrery by repository: each repository gets a ring of its own, the ones that need you innermost, so many repositories add rings instead of thinning sectors.

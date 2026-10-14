@@ -6,7 +6,7 @@ Work through the steps in order. Each one says how to check it worked. Tell the 
 
 ## Rules
 
-- **Don't change their Claude setup.** Agent Orrery needs no hooks, plugins, MCP servers or settings. Never edit `~/.claude/settings.json` or anything else under `~/.claude`. The one exception is the optional plan usage step (6), and only once they've said yes to it.
+- **Don't change their Claude setup.** Agent Orrery needs no hooks, plugins, MCP servers or settings. Never edit `~/.claude/settings.json` or anything else under `~/.claude`. The two exceptions are the optional steps 6 (plan usage) and 7 (meaningful names), and only once they've said yes to each.
 - **Keep it on this machine.** Never change the port mapping away from `127.0.0.1`, never set `AGENT_ORRERY_BIND`, and never expose the port any other way. The dashboard shows what their agents are working on.
 - **Don't commit or push.** Settings go in `.env`, which git ignores.
 - **Ask before installing software.** If Docker Desktop is missing, tell them and stop. Don't install it yourself.
@@ -108,7 +108,21 @@ Orrery can show the same plan usage as Claude Code's `/usage` (the session's fiv
 4. **Restart Orrery** so Docker shares the new folder: `docker compose up -d`.
 5. **Check it:** once they've sent Claude Code a message, `cat ~/.claude/orrery/usage.json` shows `five_hour` and `seven_day` percentages, and `curl -s http://127.0.0.1:4777/api/usage` shows the same. The numbers are as fresh as the last time any status line was drawn; the page says when they're old.
 
-## 7. Hand over
+## 7. Optional: meaningful names for their agents (ask first)
+
+Orrery labels every agent with the name it was given: a subagent's description, a workflow agent's label, a session's title. Claude names things better when asked to, which makes both the dashboard and their terminal easier to read. **Ask them first**, in these words or close: "Want me to ask Claude, in your global CLAUDE.md, to give its agents short meaningful names? It makes Orrery and your terminal easier to read." Skip this step if they say no.
+
+If they say yes, add this section to the end of `~/.claude/CLAUDE.md`, creating the file if there is none. Keep everything already in it, and don't add the section twice if it's already there:
+
+```markdown
+## Name what you start
+
+Give everything you start a short, meaningful name that says what it's for (2–6 words, specific): subagents (the Agent tool's `description`), workflow agents (a `label` on every `agent()` call), background commands and monitors, and your own session where a name can be set. "Audit the checkout copy", not "Research"; `review:security`, not an index. Keep a name stable once set. These names show in the terminal and label every agent in Agent Orrery, so good names make both readable at a glance. Pass this rule on in briefs to agents that start agents of their own.
+```
+
+Show them what you added. It takes effect in new Claude Code sessions.
+
+## 8. Hand over
 
 Open the dashboard for them (`open http://127.0.0.1:4777` on macOS), then tell them:
 
