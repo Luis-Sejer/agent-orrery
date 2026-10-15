@@ -448,7 +448,9 @@ function finishSubagents(graph, sessionId, at) {
   }
 }
 
-const queuedNotice = (record) => record.type === 'attachment' && record.attachment?.type === 'queued_command' && record.attachment.origin?.kind === 'task-notification'
+// Some carry no origin, only the command's mode.
+const queuedNotice = (record) =>
+  record.type === 'attachment' && record.attachment?.type === 'queued_command' && (record.attachment.origin?.kind ?? record.attachment.commandMode) === 'task-notification'
 
 // The ids of the call a task notification is about, and nothing else from its text.
 function idsIn(text) {

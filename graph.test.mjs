@@ -823,6 +823,19 @@ test('a background command that ends while its session is busy is noticed, from 
   assert.deepEqual(snapshot(graph, 0, 0, Date.parse(at(4))).nodes[0].shells, [])
 })
 
+test('a queued notice with no origin, only its command mode, still ends the background command', () => {
+  const graph = createGraph({ resolveRepo })
+  ensureNode(graph, 's1', { kind: 'session', label: 'one', sessionId: 's1' })
+  applyLines(
+    graph,
+    's1',
+    line({ type: 'assistant', timestamp: at(1), message: { stop_reason: 'tool_use', content: [toolUse('gen', 'Bash', { command: 'node scripts/demo.mjs', description: 'Fake agents', run_in_background: true })] } }) +
+      line({ type: 'user', timestamp: at(1), toolUseResult: { backgroundTaskId: 'task-gen' }, message: { content: [{ type: 'tool_result', tool_use_id: 'gen', content: 'started' }] } }) +
+      line({ type: 'attachment', timestamp: at(3), attachment: { type: 'queued_command', commandMode: 'task-notification', prompt: '<task-notification><task-id>task-gen</task-id><tool-use-id>gen</tool-use-id><status>killed</status></task-notification>' } }),
+  )
+  assert.deepEqual(snapshot(graph, 0, 0, Date.parse(at(4))).nodes[0].shells, [])
+})
+
 test('records Claude Code writes beside the conversation: a move, a result, killed agents and a queued prompt', () => {
   const resolve = (path) => path.match(/^\/code\/([^/]+)/)?.[1] ?? null
   const graph = createGraph({ resolveRepo: resolve })
