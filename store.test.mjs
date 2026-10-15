@@ -116,3 +116,11 @@ test('the session forecast follows the pace of the last hour, and says when the 
   assert.equal(forecast(samples.slice(-2), { percent: 60, resetsAt }, now), null)
   assert.equal(forecast(samples, { percent: 60, resetsAt: resetsAt + 5 * 60 * MINUTE }, now), null)
 })
+
+test('dismissals can be removed one at a time', () => {
+  const store = createStore({})
+  const now = Date.now()
+  store.changeDismissals({ add: { s1: now, s2: now } }, now)
+  store.changeDismissals({ remove: ['s1'] }, now)
+  assert.deepEqual(Object.keys(store.get().dismissals), ['s2'])
+})

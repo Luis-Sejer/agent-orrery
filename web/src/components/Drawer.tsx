@@ -28,6 +28,7 @@ interface DrawerProps {
   onSelect: (id: string) => void
   onOpenPlan: (name: string) => void
   onDismiss?: (node: AgentNode) => void
+  onRestore?: (node: AgentNode) => void
 }
 
 function useTimeline(id: string): TimelineEvent[] {
@@ -70,7 +71,7 @@ function clockTime(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
 }
 
-export function Drawer({ node, parent, children, clashes, talkingWith, now, onClose, onSelect, onOpenPlan, onDismiss }: DrawerProps) {
+export function Drawer({ node, parent, children, clashes, talkingWith, now, onClose, onSelect, onOpenPlan, onDismiss, onRestore }: DrawerProps) {
   const events = useTimeline(node.id)
   const hud = useContext(HudContext)
   const [copied, setCopied] = useState(false)
@@ -244,7 +245,12 @@ export function Drawer({ node, parent, children, clashes, talkingWith, now, onCl
                 Dismiss
               </button>
             )}
-            {onDismiss && statusOf(node, now) === 'finished' && (
+            {onRestore && node.archived && (
+              <button type="button" className="button quiet" onClick={() => onRestore(node)}>
+                Unarchive
+              </button>
+            )}
+            {onDismiss && !node.archived && statusOf(node, now) === 'finished' && (
               <button type="button" className="button quiet" onClick={() => onDismiss(node)} title="Hide from the canvas until it does something new">
                 Archive
               </button>

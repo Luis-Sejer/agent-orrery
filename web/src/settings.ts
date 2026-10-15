@@ -83,9 +83,11 @@ export function addDismissal(id: string, lastAt: number) {
   void send('/api/dismissals', { add: { [id]: lastAt } })
 }
 
-export function clearDismissals() {
-  state = { ...serverState(), dismissals: {} }
-  void send('/api/dismissals', { clear: true })
+export function removeDismissals(ids: string[]) {
+  const dismissals = { ...serverState().dismissals }
+  for (const id of ids) delete dismissals[id]
+  state = { ...serverState(), dismissals }
+  void send('/api/dismissals', { remove: ids })
 }
 
 const OLD_PREFIX = 'agent-orrery:'

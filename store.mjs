@@ -27,6 +27,7 @@ export const SETTINGS = {
   'inbox-same': [null, OPEN_CLOSED],
   'inbox-quiet': [null, OPEN_CLOSED],
   'inbox-running': [null, OPEN_CLOSED],
+  'inbox-archived': [null, OPEN_CLOSED],
 }
 
 // The server's own settings, Settings → Advanced on the page: a whole number of hours in a range,
@@ -114,10 +115,11 @@ export function createStore({ dir, defaults = {} }) {
       state = { ...state, settings: { ...state.settings, ...cleanSettings(change) } }
       return persist()
     },
-    // { add: { id: lastAt } } dismisses sessions; { clear: true } brings them all back.
+    // { add: { id: lastAt } } dismisses sessions; { remove: [id] } brings some back, { clear: true } all.
     changeDismissals(change, now = Date.now()) {
       const added = isObject(change) ? cleanDismissals(change.add, now) : {}
-      const base = isObject(change) && change.clear === true ? {} : state.dismissals
+      const base = isObject(change) && change.clear === true ? {} : { ...state.dismissals }
+      if (isObject(change) && Array.isArray(change.remove)) for (const id of change.remove) delete base[id]
       state = { ...state, dismissals: cleanDismissals({ ...base, ...added }, now) }
       return persist()
     },

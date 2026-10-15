@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
-import { addDismissal, clearDismissals, onStateChange, serverState, type Dismissals } from './settings'
+import { addDismissal, removeDismissals, onStateChange, serverState, type Dismissals } from './settings'
 import type { AgentNode, GraphSnapshot } from './types'
 
 // Session id → its last activity when you dismissed it, kept on the server so every browser agrees.
@@ -13,12 +13,13 @@ export function useDismissed() {
     addDismissal(node.id, node.lastAt)
     setDismissals(serverState().dismissals)
   }, [])
-  const restoreAll = useCallback(() => {
-    clearDismissals()
-    setDismissals({})
+  // Brings back the given sessions, and only those.
+  const restore = useCallback((nodes: AgentNode[]) => {
+    removeDismissals(nodes.map((node) => node.id))
+    setDismissals(serverState().dismissals)
   }, [])
 
-  return { dismissals, dismiss, restoreAll }
+  return { dismissals, dismiss, restore }
 }
 
 // A dismissed session stops waiting on you until it does something new; a finished one dismissed

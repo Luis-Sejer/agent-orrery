@@ -26,6 +26,7 @@ interface InboxProps {
   // Absent while replaying: a replayed session is a copy from the past, with nothing to dismiss.
   onDismiss?: (node: AgentNode) => void
   onRestoreDismissed: () => void
+  onRestore?: (node: AgentNode) => void
 }
 
 const COUNT_WORDS = ['No agents are', 'One agent is', 'Two agents are', 'Three agents are', 'Four agents are', 'Five agents are']
@@ -105,7 +106,7 @@ function Section({ name, title, count, level = 2, headingClass, children }: Sect
   )
 }
 
-export function Inbox({ nodes, collisions, usage, now, connection, selectedId, dismissedCount, onSelect, onDismiss, onRestoreDismissed }: InboxProps) {
+export function Inbox({ nodes, collisions, usage, now, connection, selectedId, dismissedCount, onSelect, onDismiss, onRestoreDismissed, onRestore }: InboxProps) {
   const waiting = waitingOn(nodes, now)
   const runningNow = nodes
     .filter((node) => node.kind !== 'peer' && statusOf(node, now) === 'running')
@@ -115,6 +116,7 @@ export function Inbox({ nodes, collisions, usage, now, connection, selectedId, d
   const spend = describeSpend(mergeUsage(nodes.map((node) => node.usage)))
   const dismiss = useFocusAfterDismiss(waiting, onDismiss)
   const waited = waitedOnYou(nodes, now, startOfDay(now))
+  const archived = nodes.filter((node) => node.archived).sort((a, b) => b.lastAt - a.lastAt)
   const labelOf = new Map(nodes.map((node) => [node.id, node.label]))
 
   return (
@@ -169,7 +171,7 @@ export function Inbox({ nodes, collisions, usage, now, connection, selectedId, d
           </ol>
           {dismissedCount > 0 && (
             <button type="button" className="link restore" onClick={onRestoreDismissed}>
-              Show {dismissedCount} dismissed or archived
+              Show {dismissedCount} dismissed
             </button>
           )}
         </Section>
@@ -204,6 +206,30 @@ export function Inbox({ nodes, collisions, usage, now, connection, selectedId, d
                       <b>{node.label}</b> {quietLine(node, now)}
                     </span>
                   </button>
+                </li>
+              ))}
+            </ol>
+          </Section>
+        )}
+
+        {archived.length > 0 && (
+          <Section name="archived" title="Archived" count={archived.length} headingClass="serif">
+            <ol className="running">
+              {archived.map((node) => (
+                <li key={node.id} className="turn-item">
+                  <button type="button" className={node.id === selectedId ? 'selected' : undefined} onClick={() => onSelect(node.id)}>
+                    <Orb state={orbStateOf(node, now)} size={20} seed={node.id} />
+                    <span>
+                      <b>{node.label}</b> {node.room ? `in ${node.room}, ` : ''}finished {ago(node.lastAt, now)} ago
+                    </span>
+                  </button>
+                  {onRestore && (
+                    <button type="button" className="dismiss" aria-label={`Unarchive ${node.label}`} title="Unarchive" onClick={() => onRestore(node)}>
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 19V5M5 12l7-7 7 7" />
+                      </svg>
+                    </button>
+                  )}
                 </li>
               ))}
             </ol>

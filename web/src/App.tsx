@@ -68,7 +68,7 @@ export function App() {
   const replay = useReplay()
   // While replaying, time stands still at the replay moment, so every status and "ago" matches it.
   const now = replay.view ? replay.view.at : clock
-  const { dismissals, dismiss, restoreAll } = useDismissed()
+  const { dismissals, dismiss, restore } = useDismissed()
   const { preference, theme, hud, choose: chooseTheme } = useTheme()
   const [worktreeRooms, setWorktreeRooms] = useWorktreeRooms()
   const graph = useMemo(() => {
@@ -78,7 +78,7 @@ export function App() {
     const settled = awaitAgents(worktreeRooms === 'on' ? shown : foldWorktrees(shown), now)
     return replay.view ? settled : applyDismissals(settled, dismissals)
   }, [replay.view, liveGraph, dismissals, worktreeRooms, now])
-  const dismissedCount = graph.nodes.filter((node) => node.dismissed || node.archived).length
+  const dismissedCount = graph.nodes.filter((node) => node.dismissed).length
   const { view, setView, toCanvas } = useView()
   const [arrangement, arrange] = useArrangement()
   const [clean, setClean] = useCleanView()
@@ -229,7 +229,8 @@ export function App() {
           dismissedCount={dismissedCount}
           onSelect={selectAndFocus}
           onDismiss={replay.open ? undefined : dismiss}
-          onRestoreDismissed={restoreAll}
+          onRestoreDismissed={() => restore(graph.nodes.filter((node) => node.dismissed))}
+          onRestore={replay.open ? undefined : (node) => restore([node])}
         />
 
         <div className="toolbar">
@@ -319,6 +320,7 @@ export function App() {
             onClose={closeDrawer}
             onSelect={selectAndFocus}
             onOpenPlan={openPlan}
+            onRestore={replay.open ? undefined : (node) => restore([node])}
             onDismiss={
               replay.open
                 ? undefined
