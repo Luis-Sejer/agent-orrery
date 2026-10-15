@@ -582,6 +582,51 @@ test('two sessions editing one file collide; a parent and its subagent, or agent
   assert.deepEqual(snapshot(graph, 0).collisions, [])
 })
 
+test('a file that changes under one agent after another edited it is a collision, named by its editor', () => {
+  const graph = createGraph({ resolveRepo })
+  for (const id of ['s1', 's2', 's3']) ensureNode(graph, id, { kind: 'session', label: id, sessionId: id })
+  const changed = (second, filename) => line({ type: 'attachment', timestamp: at(second), attachment: { type: 'edited_text_file', filename, snippet: 'SECRET' } })
+  applyLines(graph, 's2', edit(10, '/code/shop/cart.ts'))
+  // s1 only read cart.ts; s2's edit lands under it. Your own edits in an editor (s3's notice) pair with no one.
+  applyLines(graph, 's1', changed(20, '/code/shop/cart.ts'))
+  applyLines(graph, 's3', changed(5, '/code/shop/cart.ts') + changed(21, '/code/shop/menu.ts'))
+  const { collisions, nodes } = snapshot(graph, 0, 0, Date.parse(at(30)))
+  assert.deepEqual(collisions, [{ a: 's1', b: 's2', files: ['cart.ts'], repo: 'shop', at: Date.parse(at(20)), by: 's2' }])
+  assert.ok(!JSON.stringify(nodes).includes('SECRET'))
+})
+
+test('pull requests, permission mode, effort and fast mode are read, and nothing else from those records', () => {
+  const graph = createGraph({ resolveRepo })
+  ensureNode(graph, 's1', { kind: 'session', label: 'one', sessionId: 's1' })
+  const pr = (second, prUrl, prRepository = 'acme/shop') => line({ type: 'pr-link', timestamp: at(second), prNumber: Number(prUrl.split('/').at(-1)), prUrl, prRepository })
+  applyLines(
+    graph,
+    's1',
+    line({ type: 'user', timestamp: at(0), message: { content: 'start' } }) +
+      line({ type: 'permission-mode', permissionMode: 'plan' }) +
+      pr(1, 'https://github.com/acme/shop/pull/12') +
+      pr(2, 'https://github.com/acme/shop/pull/12') +
+      pr(3, 'https://evil.example/acme/shop/pull/13') +
+      pr(4, 'https://github.com/acme/shop/pull/14', 'SECRET repo') +
+      line({ type: 'assistant', timestamp: at(5), effort: 'xhigh', message: { id: 'm', model: 'claude-opus-5-5', usage: { input_tokens: 1, output_tokens: 1, speed: 'fast' }, content: [] } }),
+  )
+  let node = snapshot(graph, 0).nodes[0]
+  assert.deepEqual(node.prs, [
+    { number: 14, repo: null, url: 'https://github.com/acme/shop/pull/14', at: Date.parse(at(4)) },
+    { number: 12, repo: 'acme/shop', url: 'https://github.com/acme/shop/pull/12', at: Date.parse(at(1)) },
+  ])
+  assert.deepEqual(node.modes, { permission: 'plan', effort: 'xhigh', fast: true })
+  // A prompt carries the mode too; unknown names are ignored.
+  applyLines(graph, 's1', line({ type: 'user', timestamp: at(6), permissionMode: 'acceptEdits', message: { content: 'go' } }) + line({ type: 'permission-mode', permissionMode: 'SECRET' }))
+  node = snapshot(graph, 0).nodes[0]
+  assert.equal(node.modes.permission, 'acceptEdits')
+  assert.ok(!JSON.stringify(node).includes('SECRET'))
+  // A replay shows the pull requests linked by then, and no modes.
+  const past = replay(graph, Date.parse(at(2)), 60 * MINUTE).nodes[0]
+  assert.deepEqual(past.prs.map(({ number }) => number), [12])
+  assert.deepEqual(past.modes, { permission: null, effort: null, fast: false })
+})
+
 test('agents of one session collide while their edits of a file overlap', () => {
   const graph = createGraph({ resolveRepo })
   ensureNode(graph, 's1', { kind: 'session', label: 'one', sessionId: 's1' })

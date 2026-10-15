@@ -38,7 +38,7 @@ Agent Orrery answers that at a glance. It reads the transcripts Claude Code alre
 
 - **The orrery.** The page opens on your agents in rings around you: whatever waits on you sits closest, running agents next, finished ones on the outside, with a sector for each repository. Working across many repositories? Arrange it by repository instead: each one gets a ring of its own, and the ones that need you move inwards. Or as a galaxy: each repository is a small solar system with its own rings, and the systems that need you sit closest. The rings turn slowly, inner ones faster, and steady themselves while you point at an agent. Agents, one tab over, lays the same agents out as a grid of rooms, or as a tree of who started whom.
 - **Your turn.** Every session that finished, asked you something or is waiting on a permission prompt, oldest first, with how long it has waited. It comes from Claude Code's own status for each running session, so a closed terminal drops off at once. The tab title shows the count. Dismiss one until it does something new.
-- **Same files.** Two agents editing the same file within minutes of each other get a red line between them, and a warning in Your turn, before they undo each other's work.
+- **Same files.** Two agents editing the same file within minutes of each other get a red line between them, and a warning in Your turn, before they undo each other's work. So does an agent whose open file another agent just changed under it.
 - **Day.** Today's sessions on one clock: when each worked, when it sat waiting on you, and how long something was waiting on you in total.
 - **Plan usage.** Your plan's session and weekly usage, the same numbers as `/usage`, live under Your turn, round T.Y.C.H.O.'s core and in the menu bar, amber near the limit and red at it, with a forecast: "At this pace, you'll reach the limit around 17:40" It takes [one line in your status line](#plan-usage).
 - **Artifacts.** Every page your agents published on claude.ai, from all their sessions, newest first, with a filter and ⌘K search. Agents that published something carry a small mark, and their drawer lists what they made. Each one opens on claude.ai.
@@ -54,6 +54,8 @@ Agent Orrery answers that at a glance. It reads the transcripts Claude Code alre
 <details>
 <summary><strong>And more:</strong> live state, search everything, notifications, menu bar, quiet agents, voice, plans and memory</summary>
 
+- **Comets.** News flies across the map: a streak from an agent into you when it starts waiting on you, outwards when it publishes an artifact or links a pull request, and a red flare when two agents meet in the same files. Only for things that happen while you watch.
+- **Pull requests and modes.** Agents that linked a pull request carry a mark, and their drawer links each one on GitHub. Cards show a session's permission mode (plan, auto, accept edits, and bypass in red) and fast mode; the drawer adds its effort.
 - **Electrons.** Dev servers and other commands an agent leaves running circle its orb as glowing electrons on crossed orbits; one that names its address, such as `app.localhost:3005`, opens it in a click.
 - **Live state.** Each agent's orb shows what it's doing now: reading, writing code, running a command, talking to other agents, or waiting on you. Messages between agents travel along the lines as they're sent, and every tool call a subagent makes sends a small packet to the session that started it.
 - **Search everything.** Press <kbd>⌘</kbd> <kbd>K</kbd> (<kbd>Ctrl</kbd> <kbd>K</kbd> elsewhere) to find agents by name, repo or branch, and plans and memory notes by what they say.
@@ -264,7 +266,8 @@ Claude Code saves every session to `~/.claude/projects/<project>/<session>.jsonl
 - **Rooms** come from the file paths each agent's tools touch. Agent Orrery walks up from each path to the nearest git repository, and counts a worktree as its main repository.
 - **Orb colours** come from the last tool each agent used. Shell commands count by what they do: `cat` and `grep` read, `sed -i` and redirects write. Only the colour is kept, never the command.
 - **Waiting on you** comes from Claude Code itself where it can: each running session keeps a small status file (`~/.claude/sessions/<pid>.json`) saying whether it is busy, idle or waiting, and for what, such as a permission prompt. A session without one has ended. Where there are no status files, it means the session's last reply ended its turn, or it asked a question you haven't answered.
-- **Same files** compares the paths agents edited in the last ten minutes. Only file names reach the page.
+- **Same files** compares the paths agents edited in the last ten minutes, and the files Claude Code told an agent had changed under it. Only file names reach the page; the snippet in that notice is never kept.
+- **Pull requests** come from Claude Code's own link records: a GitHub pull request's address, number and repository. **Modes** come from its permission-mode records and the effort and speed on each reply.
 - **Plan usage** comes from `~/.claude/orrery/usage.json`, which the status line bridge writes. Orrery never asks Anthropic for it and never reads your login.
 - **Artifacts** come from the agents' `Artifact` calls: the title they gave a page, and its claude.ai address from the reply. Nothing else in the reply is kept.
 - **Messages** come from agents' `SendMessage` calls and the replies they receive.

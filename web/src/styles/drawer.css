@@ -212,3 +212,9 @@
   color: var(--green-deep);
   font-weight: 500;
 }
+
+/* Bypass permissions is worth noticing. */
+.chip.chip-warn {
+  background: color-mix(in srgb, var(--waiting) 14%, transparent);
+  color: var(--waiting);
+}

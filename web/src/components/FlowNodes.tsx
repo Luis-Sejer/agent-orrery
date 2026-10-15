@@ -6,8 +6,9 @@ import type { OrbitNode, PileNode } from '../radial'
 import { useStill } from '../motion'
 import { beamStyle } from '../rhythm'
 import { ago, describeStatus, isFreshWait, isQuiet, orbStateOf, stateColour, statusOf, waitingLine } from '../status'
+import { describeModes, isPrUrl, modeChips, prLabel } from '../modes'
 import { openShell, shellLabel, shellUrl } from '../shells'
-import type { Shell } from '../types'
+import type { AgentNode, PullRequest, Shell } from '../types'
 import { PACKET_MS, type Packet } from '../usePackets'
 import { HudContext } from '../useTheme'
 import { Orb } from './Orb'
@@ -48,6 +49,24 @@ function ArtifactMark({ count }: { count: number }) {
     <span className="artifact-mark" title={`Published ${name}`} aria-label={`Published ${name}`}>
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M7 3h7l5 5v13H7z M14 3v5h5" />
+      </svg>
+      {count > 1 && count}
+    </span>
+  )
+}
+
+// A mark for the pull requests it linked, with how many; the drawer links them.
+function PrMark({ prs }: { prs?: PullRequest[] }) {
+  const count = (prs ?? []).filter(({ url }) => isPrUrl(url)).length
+  if (count === 0) return null
+  const name = count === 1 ? `pull request ${prLabel(prs![0])}` : `${count} pull requests`
+  return (
+    <span className="artifact-mark pr-mark" title={`Linked ${name}`} aria-label={`Linked ${name}`}>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="6" cy="6" r="2.5" />
+        <circle cx="6" cy="18" r="2.5" />
+        <circle cx="18" cy="18" r="2.5" />
+        <path d="M6 8.5v7 M18 15.5V9a3 3 0 0 0-3-3h-4 M13 3.5 10.5 6 13 8.5" />
       </svg>
       {count > 1 && count}
     </span>
@@ -164,14 +183,21 @@ function ElectronTip({ shell, now }: { shell: Shell; now: number }) {
 }
 
 // The addresses an agent's shells serve, beside its name: ":3005", "app.localhost:3005".
-function Ports({ shells, now }: { shells?: Shell[]; now: number }) {
-  const served = (shells ?? []).filter((shell) => shellUrl(shell))
-  if (served.length === 0) return null
+// One line of chips under its name: the addresses its shells serve, then its modes.
+function Ports({ node, now }: { node: AgentNode; now: number }) {
+  const served = (node.shells ?? []).filter((shell) => shellUrl(shell))
+  const modes = modeChips(node)
+  if (served.length === 0 && modes.length === 0) return null
   return (
     <span className="ports">
       {served.map((shell) => (
         <span key={`${shell.host}:${shell.port}`} className="port nodrag" title={describeShell(shell, now)} onClick={(event) => openFrom(event, shell)}>
           {shellLabel(shell)}
+        </span>
+      ))}
+      {modes.map(({ label, tone }) => (
+        <span key={label} className={`mode-chip ${tone}`} title={describeModes(node).join(', ')}>
+          {label}
         </span>
       ))}
     </span>
@@ -198,8 +224,9 @@ export function SessionCard({ data }: NodeProps<CardNode>) {
         <strong className="card-title serif" title={node.label}>
           {node.label}
           <ArtifactMark count={node.artifacts?.length ?? 0} />
+          <PrMark prs={node.prs} />
         </strong>
-        <Ports shells={node.shells} now={now} />
+        <Ports node={node} now={now} />
         <span className="card-line" title={[node.branch, alsoIn.length > 0 && `Also in ${alsoIn.join(', ')}`].filter(Boolean).join('. ')}>
           {node.branch && <span className="branch">{node.branch}</span>}
           {alsoIn.length > 0 && <span className="also">Also in {alsoIn.join(', ')}</span>}
@@ -220,8 +247,9 @@ export function AgentCard({ data }: NodeProps<CardNode>) {
         <strong className="card-title" title={node.label}>
           {node.label}
           <ArtifactMark count={node.artifacts?.length ?? 0} />
+          <PrMark prs={node.prs} />
         </strong>
-        <Ports shells={node.shells} now={now} />
+        <Ports node={node} now={now} />
         <CardLine>{node.kind === 'peer' ? 'Another session' : (node.agentType ?? '')}</CardLine>
         <CardLine>{describeStatus(node, now)}</CardLine>
       </div>
@@ -258,6 +286,7 @@ export function OrbitCard({ data }: NodeProps<OrbitNode>) {
       <span className={node.kind === 'session' ? 'orbit-label serif' : 'orbit-label'}>
         {node.label}
         <ArtifactMark count={node.artifacts?.length ?? 0} />
+        <PrMark prs={node.prs} />
       </span>
     </div>
   )

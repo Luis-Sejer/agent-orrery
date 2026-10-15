@@ -13,6 +13,7 @@
   --green: #ff9a2e;
   --green-deep: #ffbe6b;
   --waiting: #ff5a64;
+  --comet-pr: #5ee7ff;
   --amber: #ffb02e;
   --quiet-ink: var(--amber);
   --cyan: #5ee7ff;
@@ -458,4 +459,16 @@
   box-shadow: 0 0 0 1px var(--frame), 0 0 14px rgba(94, 231, 255, 0.18);
   font-family: var(--mono);
   letter-spacing: 0.04em;
+}
+
+:root[data-hud] .mode-chip {
+  background: rgba(255, 176, 46, 0.1);
+  color: var(--amber);
+  font-family: var(--mono);
+}
+
+:root[data-hud] .mode-chip.warn,
+:root[data-hud] .chip.chip-warn {
+  background: rgba(255, 82, 82, 0.14);
+  color: #ff6b5e;
 }

@@ -1,6 +1,7 @@
 import { useContext, useEffect, useState, type CSSProperties } from 'react'
 
 import { isArtifactUrl } from '../artifacts'
+import { describeModes, isPrUrl, prLabel } from '../modes'
 import { shellLabel, shellUrl } from '../shells'
 import { describeSpend, mergeUsage, modelOf } from '../pricing'
 import { ago, describeStatus, orbStateOf, stateColour, statusOf } from '../status'
@@ -89,6 +90,8 @@ export function Drawer({ node, parent, children, clashes, talkingWith, now, onCl
   const totalSpend = children.length > 0 ? describeSpend(mergeUsage([node.usage, ...children.map((child) => child.usage)])) : null
   const models = [...new Set(Object.keys(node.usage).map(modelOf))]
   const waited = node.kind === 'session' ? waitedFor(node, now, startOfDay(now)) : 0
+  const modes = describeModes(node)
+  const prs = (node.prs ?? []).filter(({ url }) => isPrUrl(url))
 
   return (
     <aside className="drawer" aria-label={`Details for ${node.label}`}>
@@ -125,6 +128,18 @@ export function Drawer({ node, parent, children, clashes, talkingWith, now, onCl
             <dd>
               {node.agentType}
               {node.model && `, ${node.model}`}
+            </dd>
+          </>
+        )}
+        {modes.length > 0 && (
+          <>
+            <dt>Mode</dt>
+            <dd className="chips">
+              {modes.map((mode) => (
+                <span key={mode} className={mode === 'Bypass permissions' ? 'chip chip-warn' : 'chip'}>
+                  {mode}
+                </span>
+              ))}
             </dd>
           </>
         )}
@@ -186,7 +201,12 @@ export function Drawer({ node, parent, children, clashes, talkingWith, now, onCl
                     <button type="button" className="link" onClick={() => onSelect(otherId)}>
                       {other?.label ?? otherId}
                     </button>{' '}
-                    also edited {fileList(collision.files)}, {ago(collision.at, now)} ago
+                    {collision.by === undefined
+                      ? `also edited ${fileList(collision.files)}`
+                      : collision.by === node.id
+                        ? `had ${fileList(collision.files)} open when this changed it`
+                        : `changed ${fileList(collision.files)} under this one`}
+                    , {ago(collision.at, now)} ago
                   </span>
                 )
               })}
@@ -273,6 +293,22 @@ export function Drawer({ node, parent, children, clashes, talkingWith, now, onCl
                   {artifact.title}
                 </a>
                 <time dateTime={new Date(artifact.at).toISOString()}>{ago(artifact.at, now)} ago</time>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {prs.length > 0 && (
+        <>
+          <h3 className="serif">Pull requests</h3>
+          <ul className="artifact-links">
+            {prs.map((pr) => (
+              <li key={pr.url}>
+                <a href={pr.url} target="_blank" rel="noopener noreferrer">
+                  {prLabel(pr)}
+                </a>
+                <time dateTime={new Date(pr.at).toISOString()}>{ago(pr.at, now)} ago</time>
               </li>
             ))}
           </ul>

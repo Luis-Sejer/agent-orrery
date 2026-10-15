@@ -11,6 +11,7 @@
   --green: #34955f;
   --green-deep: #236b45;
   --waiting: #b5443e;
+  --comet-pr: #7a5bd1;
   --amber: #b9822f;
   /* The Quiet heading's amber, dark enough to read as text on the light inbox. */
   --quiet-ink: #8a5f1c;
@@ -83,6 +84,7 @@
   --green: #4caf78;
   --green-deep: #2f8a57;
   --waiting: #e0766e;
+  --comet-pr: #a98bff;
   --amber: #d6a04f;
   --quiet-ink: var(--amber);
   --rule: rgba(76, 175, 120, 0.4);

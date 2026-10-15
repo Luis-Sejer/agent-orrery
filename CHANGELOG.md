@@ -8,6 +8,10 @@ All notable changes to Agent Orrery are documented here. The format is based on
 
 ### Added
 
+- Comets: a streak from an agent into you when it starts waiting on you, outwards when it publishes an artifact or links a pull request, and a red flare on both agents of a new Same-files collision. Only for news after the page has loaded, never in a replay or under Pause motion.
+- Pull requests: Claude Code's own links to the pull requests a session opened. Agents carry a mark with how many, and their drawer links each one on GitHub.
+- Modes: cards show a session's permission mode when it isn't the default (plan, auto, accept edits, bypass in red, don't ask) and fast mode; the drawer adds its effort. A replay shows none, as only the current modes are known.
+- Same files also counts a file that changed under an agent shortly after another agent edited it, from the notice Claude Code gives the agent, and says who changed it under whom.
 - Show more than one Claude Code folder at once with `AGENT_ORRERY_EXTRA_CLAUDE_DIRS`, such as a second profile. The demo can write made-up agents into a folder of your choosing (`--root`, `--no-server`, `--scenario`), to show them beside your real ones; they vanish when it stops, as Orrery now drops agents whose transcript was deleted.
 - Archive a finished agent from its details panel to take it off the canvas until it does something new; a session takes its finished subagents with it. The side panel lists archived agents under "Archived", last, where you can open each one or unarchive it on its own.
 - A tip in the README, and an optional step in INSTALL.md (asked first), for a short section in `~/.claude/CLAUDE.md` asking Claude to give its subagents, workflow agents and background tasks meaningful names, which is what Orrery labels them with.

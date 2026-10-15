@@ -81,6 +81,25 @@ export interface AgentNode {
   toolCount?: number
   // Background shells still running (servers, watchers), satellites of its orb.
   shells?: Shell[]
+  // Pull requests it linked on GitHub, newest first.
+  prs?: PullRequest[]
+  // The modes it runs in, as far as its transcript says; all empty in a replay.
+  modes?: Modes
+}
+
+export interface PullRequest {
+  number: number
+  // owner/name, when Claude Code gave it.
+  repo: string | null
+  url: string
+  at: number
+}
+
+export interface Modes {
+  // Claude Code's permission mode: default, acceptEdits, plan, auto, bypassPermissions or dontAsk.
+  permission: string | null
+  effort: string | null
+  fast: boolean
 }
 
 export interface Shell {
@@ -111,6 +130,8 @@ export interface Collision {
   files: string[]
   repo: string | null
   at: number
+  // Set when only one of them edited the files, which then changed under the other: the editor's id.
+  by?: string
 }
 
 // A session's day: when it worked, and when its subagents did.

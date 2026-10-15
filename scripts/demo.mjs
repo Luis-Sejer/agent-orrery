@@ -84,12 +84,34 @@ class Transcript {
     this.model = model
     this.alsoUses = alsoUses
     this.calls = 0
+    this.effort = 'high'
+    this.fast = false
     this.base = { cwd, gitBranch: branch, sessionId: session }
     writeFileSync(path, '')
   }
 
   add(record) {
-    appendFileSync(this.path, `${JSON.stringify({ ...this.base, ...record })}\n`)
+    // Every reply says its effort and speed, as Claude Code's do.
+    const reply = record.type === 'assistant' ? { effort: this.effort } : {}
+    if (record.message?.usage) record.message.usage.speed = this.fast ? 'fast' : 'standard'
+    appendFileSync(this.path, `${JSON.stringify({ ...this.base, ...reply, ...record })}\n`)
+  }
+
+  // Claude Code's permission mode (default, acceptEdits, plan, auto, bypassPermissions), effort and fast mode.
+  modes({ permission, effort, fast }) {
+    if (effort) this.effort = effort
+    if (fast !== undefined) this.fast = fast
+    if (permission) this.add({ type: 'permission-mode', permissionMode: permission })
+  }
+
+  // A pull request it opened, as Claude Code links it. Made-up owner and number.
+  pullRequest(minutesAgo, repo, number) {
+    this.add({ type: 'pr-link', timestamp: ago(minutesAgo), prNumber: number, prUrl: `https://github.com/acme/${repo}/pull/${number}`, prRepository: `acme/${repo}` })
+  }
+
+  // A file it had open changed under it: Claude Code tells it so, with a snippet that Orrery never keeps.
+  changedUnder(minutesAgo, repo, file) {
+    this.add({ type: 'attachment', timestamp: ago(minutesAgo), attachment: { type: 'edited_text_file', filename: repoPath(repo, file), snippet: '…' } })
   }
 
   title(text) {
@@ -158,6 +180,9 @@ class Transcript {
 }
 
 const running = []
+// Things that happen now and then, in turn, so the page has news to show.
+const news = []
+const NEWS_EVERY_TICKS = 2
 
 // Claude Code's own status file for a running session (~/.claude/sessions/<pid>.json). Its pid domain
 // isn't this machine's, so the server doesn't look for the made-up process.
@@ -286,6 +311,7 @@ function writeMonorepo() {
 function writeSessions() {
   // 1. A big session in the web app, mid-flight, with helpers in three repos.
   const checkout = createSession({ n: 1, title: 'Checkout redesign', repo: 'storefront-web', branch: 'feat/checkout-redesign', alsoUses: SONNET })
+  checkout.transcript.modes({ permission: 'auto', effort: 'xhigh' })
   checkout.transcript.prompt(95)
   checkout.transcript.tool(93, ['Write', { file_path: join(CLAUDE_DIR, 'plans', 'checkout-redesign.md'), content: '…' }])
   checkout.transcript.artifact(80, 'Checkout, before and after', 'checkout-before-after')
@@ -313,6 +339,7 @@ function writeSessions() {
   checkout.transcript.messageFrom(1, contract.id, 'general-purpose')
   const translate = checkout.subagent({ minutesAgo: 12, description: 'Translate the checkout copy', agentType: 'translator' })
   translate.tool(1, STEPS.read('storefront-web', 'src/locales/de.json'))
+  checkout.transcript.pullRequest(60, 'storefront-web', 482)
   checkout.transcript.tool(0.5, STEPS.edit('storefront-web', 'src/checkout/Summary.tsx'))
   running.push(
     { transcript: checkout.transcript, repo: 'storefront-web', files: ['src/checkout/Summary.tsx', 'src/checkout/Payment.tsx'] },
@@ -322,6 +349,7 @@ function writeSessions() {
 
   // 2. Waiting on you: it asked a question.
   const limiter = createSession({ n: 2, title: 'Rate limiter for the public API', repo: 'storefront-api', branch: 'feat/rate-limiter' })
+  limiter.transcript.modes({ permission: 'plan' })
   limiter.transcript.prompt(70)
   const benchmark = limiter.subagent({ minutesAgo: 66, description: 'Benchmark the token bucket', agentType: 'general-purpose' })
   benchmark.tool(64, STEPS.bash('storefront-api'))
@@ -341,11 +369,14 @@ function writeSessions() {
   const changelogs = deps.subagent({ minutesAgo: 44, description: 'Check changelogs for breaking changes', agentType: 'Explore', model: 'haiku' })
   changelogs.tool(43, STEPS.read('design-system', 'package.json'))
   changelogs.endTurn(30)
+  deps.transcript.modes({ permission: 'acceptEdits', effort: 'medium' })
   deps.transcript.tool(25, STEPS.bash('design-system'))
+  deps.transcript.pullRequest(20, 'design-system', 311)
   deps.transcript.endTurn(18)
 
   // 4. Busy on a flaky test.
   const flaky = createSession({ n: 4, title: 'Fix the flaky login test', repo: 'mobile-app', branch: 'fix/flaky-login' })
+  flaky.transcript.modes({ fast: true })
   flaky.transcript.prompt(15)
   const logs = flaky.subagent({ minutesAgo: 13, description: 'Read the failing CI runs', agentType: 'Explore', model: 'haiku' })
   logs.tool(1, STEPS.grep('mobile-app'))
@@ -366,6 +397,8 @@ function writeSessions() {
   migration.transcript.prompt(30)
   migration.transcript.tool(24, STEPS.read('storefront-api', 'src/orders/totals.ts'))
   migration.transcript.tool(16, STEPS.edit('storefront-api', 'src/orders/totals.ts'))
+  // It had the export open when the order history session changed it.
+  migration.transcript.changedUnder(5, 'storefront-api', 'src/orders/export.ts')
   migration.transcript.openTool(8, STEPS.bash('storefront-api'))
 
   // 7. Earlier today: asked a question, was answered, finished, then went on with a follow-up.
@@ -376,6 +409,7 @@ function writeSessions() {
   onboarding.transcript.prompt(165)
   onboarding.transcript.tool(160, STEPS.edit('mobile-app', 'src/emails/welcome.ts'))
   onboarding.transcript.artifact(152, 'Onboarding email drafts', 'onboarding-drafts')
+  onboarding.transcript.pullRequest(151, 'mobile-app', 97)
   onboarding.transcript.endTurn(150)
   onboarding.transcript.prompt(120)
   onboarding.transcript.tool(112, STEPS.write('mobile-app', 'src/emails/reminder.ts'))
@@ -384,10 +418,25 @@ function writeSessions() {
 
   // 8. Another session in the order routes, at the same time as the checkout's API contract: a collision.
   const history = createSession({ n: 8, title: 'Order history export', repo: 'storefront-api', branch: 'feat/order-export' })
+  history.transcript.modes({ permission: 'bypassPermissions' })
   history.transcript.prompt(14)
   history.transcript.tool(9, STEPS.read('storefront-api', 'src/orders/routes.ts'))
+  history.transcript.tool(6, STEPS.edit('storefront-api', 'src/orders/export.ts'))
   history.transcript.tool(3, STEPS.edit('storefront-api', 'src/orders/routes.ts'))
   running.push({ transcript: history.transcript, repo: 'storefront-api', files: ['src/orders/routes.ts', 'src/orders/export.ts'] })
+
+  // Now and then something new happens, for the comets: an artifact, a pull request, two agents in one file.
+  let published = 0
+  news.push(
+    () => checkout.transcript.artifact(0, `Checkout review, round ${++published}`, `checkout-review-${published}`),
+    () => checkout.transcript.pullRequest(0, 'storefront-web', 482 + ++published),
+    // A collision flares only when the pair is new, so a fresh helper meets the checkout each time.
+    () => {
+      const helper = history.subagent({ minutesAgo: 0, description: `Check the order summary, round ${++published}`, agentType: 'general-purpose' })
+      helper.tool(0, STEPS.edit('storefront-web', 'src/checkout/Summary.tsx'))
+      helper.endTurn(0)
+    },
+  )
 
   for (const session of [checkout, flaky, history]) setStatus(session, 'busy')
   setStatus(limiter, 'waiting', { waitingFor: 'input needed', minutesAgo: 6 })
@@ -483,7 +532,7 @@ function writeUsage() {
 }
 
 const TICK_STEPS = ['read', 'edit', 'grep', 'bash', 'write']
-const WAIT_EVERY_TICKS = 12
+const WAIT_EVERY_TICKS = 4
 let ticks = 0
 let flakyWaiting = false
 
@@ -506,6 +555,10 @@ function tick() {
     toggleFlakyWait()
     return
   }
+  if (news.length > 0 && ticks % NEWS_EVERY_TICKS === 0) {
+    news[(ticks / NEWS_EVERY_TICKS) % news.length]()
+    return
+  }
   const busy = running.filter((agent) => !(flakyWaiting && agent.waitsOnYou))
   const agent = busy[Math.floor(Math.random() * busy.length)]
   const file = agent.files[Math.floor(Math.random() * agent.files.length)]
@@ -519,7 +572,7 @@ function tick() {
 
 rmSync(ROOT, { recursive: true, force: true })
 if (SCENARIO) {
-  SCENARIO.default({ createSession, setStatus, running, STEPS, repoPath, ago, nextId, OPUS, SONNET, MINUTE })
+  SCENARIO.default({ createSession, setStatus, running, news, STEPS, repoPath, ago, nextId, OPUS, SONNET, MINUTE })
 } else {
   writeRepos()
   writeLibrary(MONOREPO ? writeMonorepo() : writeSessions())

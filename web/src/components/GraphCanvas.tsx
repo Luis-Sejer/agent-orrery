@@ -6,6 +6,8 @@ import { prefersStill } from '../motion'
 import { buildOrrery, galaxyView, type Arrangement, type BackdropNode, type Polar } from '../radial'
 import { useOrbit, type CanvasNode } from '../useOrbit'
 import { usePackets, type Packet } from '../usePackets'
+import { useComets } from '../useComets'
+import { Comets } from './Comets'
 import { statusOf } from '../status'
 import type { GraphSnapshot } from '../types'
 import { edgeTypes, nodeTypes } from './FlowNodes'
@@ -82,6 +84,7 @@ export function GraphCanvas({ layout, arrangement, graph, theme, live, focusRequ
   const [focused, setFocused] = useState(false)
   const nodes = useOrbit(laidOut, polar, pointing || focused || options.selectedId !== null)
   const packets = usePackets(graph, live)
+  const comets = useComets(graph, live)
   const shownEdges = useMemo(() => withPackets(edges, packets, layout === 'orrery'), [edges, packets, layout])
   // Fitted to what's there before the first data arrives, and once more when it does.
   const fitted = useRef<'nothing' | 'empty' | 'data'>('nothing')
@@ -226,6 +229,7 @@ export function GraphCanvas({ layout, arrangement, graph, theme, live, focusRequ
       minZoom={MIN_ZOOM}
       maxZoom={MAX_ZOOM}
     >
+      <Comets comets={comets} nodes={nodes} orrery={layout === 'orrery'} />
       <Background variant={BackgroundVariant.Dots} gap={24} size={1.2} />
       <MiniMap pannable zoomable nodeClassName={(node) => minimapClass(node as CanvasNode, options.now)} />
       <Controls showInteractive={false} />

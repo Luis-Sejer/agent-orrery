@@ -41,6 +41,15 @@ const ARTIFACT_TOOL = 'Artifact'
 // A published artifact's address on claude.ai, the one thing taken from the reply to a publish.
 const ARTIFACT_URL = /https:\/\/claude\.ai\/(?:code\/)?artifact\/[\w-]{6,80}/
 const ARTIFACTS_LIMIT = 50
+// A pull request a session opened or worked on, as Claude Code links it: only a GitHub pull request's
+// address, its number and its repository are kept.
+const PR_URL = /^https:\/\/github\.com\/[\w.-]{1,100}\/[\w.-]{1,100}\/pull\/\d{1,9}$/
+const PR_REPOSITORY = /^[\w.-]{1,100}\/[\w.-]{1,100}$/
+const PRS_LIMIT = 20
+// The modes an agent runs in, by Claude Code's own names; anything else is left out.
+const PERMISSION_MODES = new Set(['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions', 'dontAsk'])
+const EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max'])
+const FAST_SPEED = 'fast'
 const MAX_TITLE_LENGTH = 120
 // As long as an agent counts as running after its last record (STALE_MS in web/src/status.ts).
 const HISTORY_MERGE_MS = 15 * 60_000
@@ -191,6 +200,15 @@ export function ensureNode(graph, id, fields) {
       artifactCalls: new Map(),
       // Tool calls so far: the page sends a packet along its line for each new one.
       toolCount: 0,
+      // Pull requests it linked, by address: { number, repo, url, at }.
+      prs: new Map(),
+      // Files that changed under it, by path: { at, repo }. Claude Code tells an agent when a file it
+      // had open was changed by someone else; only the path of that notice is kept.
+      changed: new Map(),
+      // The modes it runs in: permission mode, effort, and fast mode.
+      permissionMode: null,
+      effort: null,
+      fast: false,
     }
     graph.nodes.set(id, node)
   }
@@ -335,6 +353,36 @@ function recordEdit(node, path, at, repo) {
   if (node.edits.size > EDITS_LIMIT) {
     for (const [key, { last }] of node.edits) if (at - last >= COLLISION_MS) node.edits.delete(key)
   }
+}
+
+// Claude Code writes the permission mode on its own (no timestamp) and on each prompt; effort and the
+// speed come with every reply. Only the names in the lists above are kept.
+function readModes(node, record) {
+  const mode = record.type === 'permission-mode' || record.type === 'user' ? record.permissionMode : undefined
+  if (PERMISSION_MODES.has(mode)) node.permissionMode = mode
+  if (record.type !== 'assistant') return
+  if (EFFORTS.has(record.effort)) node.effort = record.effort
+  const speed = record.message?.usage?.speed
+  if (typeof speed === 'string') node.fast = speed === FAST_SPEED
+}
+
+// The same pull request is linked again and again; it keeps the time it was first linked.
+function linkPr(node, record, at) {
+  const url = record.prUrl
+  if (typeof url !== 'string' || !PR_URL.test(url) || node.prs.has(url)) return
+  const repo = typeof record.prRepository === 'string' && PR_REPOSITORY.test(record.prRepository) ? record.prRepository : null
+  const number = Number.isInteger(record.prNumber) ? record.prNumber : Number(url.split('/').at(-1))
+  node.prs.set(url, { number, repo, url, at })
+  if (node.prs.size > PRS_LIMIT) node.prs.delete(node.prs.keys().next().value)
+}
+
+const changedUnder = (record) => record.type === 'attachment' && record.attachment?.type === 'edited_text_file' && typeof record.attachment.filename === 'string' && record.attachment.filename.startsWith('/')
+
+function recordChanged(graph, node, path, at) {
+  if (!(at > 0)) return
+  node.changed.delete(path)
+  node.changed.set(path, { at, repo: graph.resolveRepo(path) })
+  if (node.changed.size > EDITS_LIMIT) node.changed.delete(node.changed.keys().next().value)
 }
 
 function addYouWait(node, start, end) {
@@ -484,6 +532,9 @@ export function applyRecord(graph, nodeId, record) {
   if (record.type === 'result' && node.kind === 'subagent') node.waiting = { reason: 'reply', since: Date.parse(record.timestamp ?? '') || node.lastAt }
   // Stopping a session's agents (Esc twice, or killing them) ends the subagents that were still at work.
   if (record.type === 'system' && record.subtype === 'agents_killed') finishSubagents(graph, node.id, Date.parse(record.timestamp ?? '') || 0)
+  readModes(node, record)
+  if (record.type === 'pr-link') linkPr(node, record, at)
+  if (changedUnder(record)) recordChanged(graph, node, record.attachment.filename, at)
   // A prompt you type while the session is busy is written only as a queued command; it's your reply all the same.
   if (queuedPrompt(record)) {
     const at = Date.parse(record.timestamp ?? '') || 0
@@ -697,6 +748,8 @@ function publicNode(graph, node, now) {
     live: liveOf(graph, node, now),
     youWaits: node.youWaits,
     artifacts: [...node.artifacts.values()].reverse(),
+    prs: [...node.prs.values()].reverse(),
+    modes: { permission: node.permissionMode, effort: node.effort, fast: node.fast },
     toolCount: node.toolCount,
   }
 }
@@ -729,6 +782,23 @@ function collisions(graph, nodes, now) {
         const pair = pairs.get(key) ?? { a: a.id, b: b.id, files: [], repo: editA.repo ?? editB.repo ?? null, at: 0 }
         if (!pair.files.includes(basename(path))) pair.files.push(basename(path))
         pair.at = Math.max(pair.at, editA.last, editB.last)
+        pairs.set(key, pair)
+      }
+    }
+  }
+  // A file that changed under one agent shortly after another edited it: the other's edit landed in its
+  // work. `by` names the editor while that is all the pair has.
+  for (const node of nodes) {
+    for (const [path, change] of node.changed ?? []) {
+      if (now - change.at >= COLLISION_MS) continue
+      for (const [editor, edit] of editors.get(path) ?? []) {
+        const lead = edit.first <= change.at && change.at - edit.last < COLLISION_MS
+        if (editor === node || !lead || parentOf(graph, node) === editor.id || parentOf(graph, editor) === node.id) continue
+        const [a, b] = [node.id, editor.id].sort()
+        const key = `${a}>${b}`
+        const pair = pairs.get(key) ?? { a, b, files: [], repo: edit.repo ?? change.repo ?? null, at: 0, by: editor.id }
+        if (!pair.files.includes(basename(path))) pair.files.push(basename(path))
+        pair.at = Math.max(pair.at, change.at)
         pairs.set(key, pair)
       }
     }
@@ -768,7 +838,9 @@ function nodeAt(node, at) {
   // Before the oldest kept entry there's nothing to show but that the node existed.
   const youWaits = node.youWaits.filter(([, end]) => end <= at)
   const artifacts = new Map([...node.artifacts].filter(([, artifact]) => artifact.at <= at))
-  const past = { openTools: new Map(), backgroundTasks: new Map(), youWaits, artifacts }
+  const prs = new Map([...node.prs].filter(([, pr]) => pr.at <= at))
+  // Modes are only known as they are now, so a replay shows none.
+  const past = { openTools: new Map(), backgroundTasks: new Map(), youWaits, artifacts, prs, permissionMode: null, effort: null, fast: false }
   if (!entry) return { ...node, ...past, activity: null, lastTool: null, waiting: null, lastAt: Math.min(node.firstAt, at) }
   const [since, activity, reason, lastTool, lastAt] = entry
   return { ...node, ...past, activity, lastTool, lastAt: Math.min(lastAt, at), waiting: reason && { reason, since } }

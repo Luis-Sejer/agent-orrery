@@ -206,12 +206,20 @@ export function Inbox({ nodes, collisions, usage, now, connection, selectedId, d
         {collisions.length > 0 && (
           <Section name="same" title="Same files" count={collisions.length} headingClass="clash-heading">
             <ol className="running clash-list">
-              {collisions.map(({ a, b, files, at }) => (
+              {collisions.map(({ a, b, files, at, by }) => (
                 <li key={`${a}>${b}`}>
                   <button type="button" onClick={() => onSelect(a)}>
                     <span className="clash-mark" aria-hidden="true" />
                     <span>
-                      <b>{labelOf.get(a) ?? a}</b> and <b>{labelOf.get(b) ?? b}</b> both edited {fileList(files)}, {ago(at, now)} ago
+                      {by ? (
+                        <>
+                          <b>{labelOf.get(by) ?? by}</b> changed {fileList(files)} under <b>{labelOf.get(by === a ? b : a) ?? (by === a ? b : a)}</b>, {ago(at, now)} ago
+                        </>
+                      ) : (
+                        <>
+                          <b>{labelOf.get(a) ?? a}</b> and <b>{labelOf.get(b) ?? b}</b> both edited {fileList(files)}, {ago(at, now)} ago
+                        </>
+                      )}
                     </span>
                   </button>
                 </li>
