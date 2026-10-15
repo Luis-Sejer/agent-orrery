@@ -117,7 +117,7 @@ If they say yes, add this section to the end of `~/.claude/CLAUDE.md`, creating 
 ```markdown
 ## Name what you start
 
-Give everything you start a short, meaningful name that says what it's for (2–6 words, specific): subagents (the Agent tool's `description`), workflow agents (a `label` on every `agent()` call), background commands and monitors, and your own session where a name can be set. "Audit the checkout copy", not "Research"; `review:security`, not an index. Keep a name stable once set. These names show in the terminal and label every agent in Agent Orrery, so good names make both readable at a glance. Pass this rule on in briefs to agents that start agents of their own.
+Give everything you start a short, meaningful name that says what it's for (2–6 words, specific): subagents (the Agent tool's `description`), workflow agents (a `label` on every `agent()` call), background commands and monitors, and your own session where a name can be set. "Audit the checkout copy", not "Research"; `review:security`, not an index. Keep a name stable once set. These names show in the terminal and label every agent in Agent Orrery, so good names make both readable at a glance. Pass this rule on in briefs to agents that start agents of their own. Start servers as background commands, never with a trailing `&`, and put the address in the description, e.g. "Web app on app.localhost:3005": Orrery then shows the server as an electron round its agent that opens the address in a click.
 ```
 
 Show them what you added. It takes effect in new Claude Code sessions.

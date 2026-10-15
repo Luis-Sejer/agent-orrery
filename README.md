@@ -53,6 +53,7 @@ Agent Orrery answers that at a glance. It reads the transcripts Claude Code alre
 <details>
 <summary><strong>And more:</strong> live state, search everything, notifications, menu bar, quiet agents, voice, plans and memory</summary>
 
+- **Electrons.** Dev servers and other commands an agent leaves running circle its orb as glowing electrons on crossed orbits; one that names its address, such as `app.localhost:3005`, opens it in a click.
 - **Live state.** Each agent's orb shows what it's doing now: reading, writing code, running a command, talking to other agents, or waiting on you. Messages between agents travel along the lines as they're sent, and every tool call a subagent makes sends a small packet to the session that started it.
 - **Search everything.** Press <kbd>⌘</kbd> <kbd>K</kbd> (<kbd>Ctrl</kbd> <kbd>K</kbd> elsewhere) to find agents by name, repo or branch, and plans and memory notes by what they say.
 - **Notifications.** Turn them on in the settings and your browser tells you when a session starts waiting on you while you're in another tab.
@@ -218,7 +219,7 @@ Orrery labels every orb, card, line and list entry with the name each agent was 
 ```markdown
 ## Name what you start
 
-Give everything you start a short, meaningful name that says what it's for (2–6 words, specific): subagents (the Agent tool's `description`), workflow agents (a `label` on every `agent()` call), background commands and monitors, and your own session where a name can be set. "Audit the checkout copy", not "Research"; `review:security`, not an index. Keep a name stable once set. These names show in the terminal and label every agent in Agent Orrery, so good names make both readable at a glance. Pass this rule on in briefs to agents that start agents of their own.
+Give everything you start a short, meaningful name that says what it's for (2–6 words, specific): subagents (the Agent tool's `description`), workflow agents (a `label` on every `agent()` call), background commands and monitors, and your own session where a name can be set. "Audit the checkout copy", not "Research"; `review:security`, not an index. Keep a name stable once set. These names show in the terminal and label every agent in Agent Orrery, so good names make both readable at a glance. Pass this rule on in briefs to agents that start agents of their own. Start servers as background commands, never with a trailing `&`, and put the address in the description, e.g. "Web app on app.localhost:3005": Orrery then shows the server as an electron round its agent that opens the address in a click.
 ```
 
 It makes your terminal easier to read too.
