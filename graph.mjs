@@ -582,11 +582,14 @@ export function setLive(graph, sessions, now) {
   }
 }
 
+const openShells = (node, now) => [...node.shells.values()].filter((shell) => now - shell.since < SHELL_CAP_MS)
+
 // Shell means a background command runs, but nobody waits on a server: when every shell the session
-// still has open serves an address, it's ready for you.
-function serving(node, entry) {
-  const shells = [...node.shells.values()]
-  return entry.status === 'shell' && shells.length > 0 && shells.every((shell) => shell.port !== null) ? { ...entry, status: 'idle' } : entry
+// and its subagents still have open serves an address, it's ready for you.
+function serving(graph, node, entry, now) {
+  if (entry.status !== 'shell') return entry
+  const shells = [...graph.nodes.values()].filter((other) => other === node || other.sessionId === node.id).flatMap((other) => openShells(other, now))
+  return shells.length > 0 && shells.every((shell) => shell.port !== null) ? { ...entry, status: 'idle' } : entry
 }
 
 // A session's live state, or { status: 'closed' } once it has ended; a subagent only ever ends with
@@ -595,7 +598,7 @@ function liveOf(graph, node, now) {
   if (!graph.live || now === null || node.kind === 'peer') return null
   const id = node.kind === 'session' ? node.id : node.sessionId
   const entry = graph.live.get(id)
-  if (entry) return node.kind === 'session' ? serving(node, entry) : null
+  if (entry) return node.kind === 'session' ? serving(graph, node, entry, now) : null
   const session = graph.nodes.get(id)
   if (!session) return null
   const ended = graph.seenLive.has(id) || (session.openTools.size === 0 && now - session.lastAt > CLOSED_GRACE_MS)
@@ -663,7 +666,7 @@ function oldestOpenTool(node) {
 // older than the cap.
 function shellsOf(graph, node, now) {
   if (now === null || liveOf(graph, node, now)?.status === 'closed') return []
-  return [...node.shells.values()].filter((shell) => now - shell.since < SHELL_CAP_MS)
+  return openShells(node, now)
 }
 
 function publicNode(graph, node, now) {

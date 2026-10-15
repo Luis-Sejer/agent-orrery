@@ -663,6 +663,14 @@ test('a session whose only open shells are servers is ready for you, whatever Cl
   applyLines(graph, 's1', line({ type: 'attachment', timestamp: at(2), attachment: { type: 'queued_command', commandMode: 'task-notification', prompt: '<task-notification><tool-use-id>tests</tool-use-id></task-notification>' } }))
   assert.equal(snapshot(graph, 0, 0, now).nodes[0].live.status, 'idle')
   assert.deepEqual(waitingSessions(snapshot(graph, 0, 0, now), now).map(({ id }) => id), ['s1'])
+  // A subagent's test run keeps it busy, and a shell past the cap no longer counts.
+  ensureNode(graph, 'a1', { kind: 'subagent', label: 'helper', sessionId: 's1', spawnToolUseId: 'x' })
+  applyLines(graph, 'a1', bash('sub-tests', { command: 'pnpm test' }))
+  assert.equal(snapshot(graph, 0, 0, now).nodes[0].live.status, 'shell')
+  const later = now + 12 * 3_600_000
+  setLive(graph, [{ sessionId: 's1', status: 'shell', since: later }], later)
+  applyLines(graph, 's1', bash('srv2', { command: 'pnpm preview --port 4173' }).replace(at(1), new Date(later).toISOString()))
+  assert.equal(snapshot(graph, 0, 0, later).nodes.find((node) => node.id === 's1').live.status, 'idle')
 })
 
 test('a session never seen running counts as closed only once it has been silent a while with nothing open', () => {

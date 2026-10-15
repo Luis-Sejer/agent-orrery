@@ -50,6 +50,7 @@ All notable changes to Agent Orrery are documented here. The format is based on
 
 ### Changed
 
+- A session whose only background commands still running are servers (a command or description naming a loopback address or port) is ready for you, not running: Claude Code reports such a session as `shell` for as long as the server runs. A subagent's command or one past the 12-hour cap is weighed the same way.
 - Records Claude Code writes beside the conversation are read: a session that moves its working folder (into a worktree or another repository) moves to that room; a workflow agent is finished at its result, not 15 minutes later; stopping a session's agents finishes the ones still at work, so the session no longer waits on them; and a prompt you type while a session is busy counts as your reply, in the timeline and in the time waiting on you.
 - A background command that ends while its session is busy is noticed. Claude Code reports it then only as a queued notice, which Orrery didn't read, so the session could look as if it was still waiting on a shell that had finished. Some of those notices name only their `commandMode`, with no `origin`; those are read too, so a stopped command's electron no longer stays for hours.
 - A session you rename with `/rename` shows that name, everywhere Orrery names it. Orrery read only the title Claude Code writes on its own, and kept showing it.
