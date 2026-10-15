@@ -19,6 +19,8 @@ services:
       AGENT_ORRERY_WAITING_HOURS: ${AGENT_ORRERY_WAITING_HOURS:-24}
       # Its own state (settings, dismissed sessions): the one folder it writes to.
       AGENT_ORRERY_DATA_DIR: /data
+      # More Claude Code folders to show beside yours, comma-separated; each must be inside a mounted folder.
+      AGENT_ORRERY_EXTRA_CLAUDE_DIRS: ${AGENT_ORRERY_EXTRA_CLAUDE_DIRS:-}
       # Defaults for settings nobody has changed yet; Settings → "Copy these settings for .env" writes them.
       AGENT_ORRERY_NOTIFICATIONS: ${AGENT_ORRERY_NOTIFICATIONS:-}
       AGENT_ORRERY_VIEW: ${AGENT_ORRERY_VIEW:-}

@@ -19,6 +19,7 @@ pnpm build         # page into web/dist
 pnpm start         # server on http://127.0.0.1:4777
 pnpm dev           # Vite with hot reload, proxying to a running `pnpm start`
 pnpm demo          # build, then serve made-up sessions on http://127.0.0.1:4780
+node scripts/demo.mjs --no-server --root <dir> [--scenario <file.mjs>]   # made-up agents beside your real ones, via AGENT_ORRERY_EXTRA_CLAUDE_DIRS=<dir>/claude
 pnpm screenshots   # retake the README screenshots from the demo (needs Chrome)
 docker compose up -d --build   # the always-on install; rebuild after every change
 ```

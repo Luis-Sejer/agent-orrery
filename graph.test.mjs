@@ -526,6 +526,9 @@ test('forgets nodes older than the cutoff and their messages, and keeps the rest
   assert.deepEqual([...forget(graph, Date.parse(at(10)))], ['old'])
   assert.deepEqual([...graph.nodes.keys()], ['new'])
   assert.equal(graph.messages.size, 0)
+  // A deleted transcript goes however recent it is.
+  assert.deepEqual([...forget(graph, 0, ['new'])], ['new'])
+  assert.equal(graph.nodes.size, 0)
 })
 
 test('a task notification after the turn ended leaves the session waiting on its agents, not asking a question', () => {

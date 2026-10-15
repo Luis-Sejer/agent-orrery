@@ -28,7 +28,7 @@ async function transcripts(projectsDir) {
   return found
 }
 
-export function createArtifactIndex({ projectsDir, resolveRepo = () => null }) {
+export function createArtifactIndex({ projectsDirs, resolveRepo = () => null }) {
   // Per transcript: how far it has been read, its unfinished last line, publishes waiting for their
   // reply, and what it found.
   const files = new Map()
@@ -91,7 +91,7 @@ export function createArtifactIndex({ projectsDir, resolveRepo = () => null }) {
   }
 
   async function list() {
-    for (const found of await transcripts(projectsDir)) {
+    for (const found of (await Promise.all(projectsDirs.map(transcripts))).flat()) {
       if (!files.has(found.path)) files.set(found.path, { ...found, offset: 0, rest: Buffer.alloc(0), repo: null, calls: new Map(), published: new Map(), deleted: new Map() })
       // A fork's copy of the parent's message may hold a publish call, but its reply is only in the
       // parent's transcript, so it is never counted twice.

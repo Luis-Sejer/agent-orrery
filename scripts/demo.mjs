@@ -5,18 +5,32 @@
 //   pnpm demo              # http://127.0.0.1:4780
 //   pnpm demo --monorepo   # one made-up monorepo with eight packages instead
 //   AGENT_ORRERY_PORT=4790 pnpm demo
+//
+// To show made-up agents beside your real ones, write them into a folder of your own and point
+// your install at it with AGENT_ORRERY_EXTRA_CLAUDE_DIRS=<folder>/claude. They vanish when this stops.
+//
+//   node scripts/demo.mjs --no-server --root <folder> [--scenario <file.mjs>]
+//
+// A scenario is a module whose default export gets the helpers below (createSession, STEPS, setStatus,
+// running, …); `export const codeDir` puts its repositories somewhere else.
 
 import { spawn } from 'node:child_process'
 import { appendFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join, resolve } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
+const option = (name) => {
+  const index = process.argv.indexOf(name)
+  return index > 0 ? process.argv[index + 1] : undefined
+}
 const PORT = process.env.AGENT_ORRERY_PORT ?? '4780'
+const SERVE = !process.argv.includes('--no-server')
+const SCENARIO = option('--scenario') && (await import(pathToFileURL(resolve(option('--scenario'))).href))
 // One folder per port, so two demos (say, screenshots and a recording) can run at once.
-const ROOT = join(tmpdir(), `agent-orrery-demo-${PORT}`)
+const ROOT = resolve(option('--root') ?? join(tmpdir(), `agent-orrery-demo-${PORT}`))
 const CLAUDE_DIR = join(ROOT, 'claude')
-const CODE_DIR = join(ROOT, 'code')
+const CODE_DIR = SCENARIO?.codeDir ?? join(ROOT, 'code')
 const TICK_MS = 2_500
 const MINUTE = 60_000
 const SERVER = fileURLToPath(new URL('../server.mjs', import.meta.url))
@@ -132,6 +146,11 @@ class Transcript {
     this.add({ type: 'assistant', timestamp: ago(minutesAgo), message: { ...messageMeta(this.model), stop_reason: 'end_turn', content: [{ type: 'text', text: '…' }] } })
   }
 
+  // A message from another session that arrived mid-turn, which Claude Code queues as an attachment.
+  queuedFrom(minutesAgo, from, name) {
+    this.add({ type: 'attachment', timestamp: ago(minutesAgo), attachment: { type: 'queued_command', prompt: '…', origin: { kind: 'peer', from, name } } })
+  }
+
   messageFrom(minutesAgo, from, name) {
     // Claude Code writes messages from other agents as meta records.
     this.add({ type: 'user', isMeta: true, timestamp: ago(minutesAgo), origin: { kind: 'peer', from, name, body: '…' }, message: { content: '…' } })
@@ -143,17 +162,18 @@ const running = []
 // Claude Code's own status file for a running session (~/.claude/sessions/<pid>.json). Its pid domain
 // isn't this machine's, so the server doesn't look for the made-up process.
 let pidCounter = 40_000
-function setStatus(session, status, { waitingFor = null, minutesAgo = 0 } = {}) {
+// `name` is what other sessions address it by, as /rename sets it.
+function setStatus(session, status, { waitingFor = null, minutesAgo = 0, name = null } = {}) {
   session.pid ??= ++pidCounter
   const dir = join(CLAUDE_DIR, 'sessions')
   mkdirSync(dir, { recursive: true })
   const at = Date.now() - minutesAgo * MINUTE
-  const file = { pid: session.pid, sessionId: session.id, status, ...(waitingFor && { waitingFor }), statusUpdatedAt: at, updatedAt: at, kind: 'interactive', entrypoint: 'cli', pidDomain: 'demo' }
+  const file = { pid: session.pid, sessionId: session.id, status, ...(waitingFor && { waitingFor }), ...(name && { name }), statusUpdatedAt: at, updatedAt: at, kind: 'interactive', entrypoint: 'cli', pidDomain: 'demo' }
   writeFileSync(join(dir, `${session.pid}.json`), JSON.stringify(file))
 }
 
 function createSession({ n, title, repo, branch, alsoUses = null }) {
-  const id = sessionId(n)
+  const id = typeof n === 'string' ? n : sessionId(n)
   const projectDir = join(CLAUDE_DIR, 'projects', repoPath(repo).replaceAll('/', '-'))
   mkdirSync(join(projectDir, id, 'subagents'), { recursive: true })
   const transcript = new Transcript(join(projectDir, `${id}.jsonl`), { cwd: repoPath(repo), branch, session: id, model: OPUS, alsoUses })
@@ -169,7 +189,18 @@ function createSession({ n, title, repo, branch, alsoUses = null }) {
     return agent
   }
 
-  return { id, projectDir, transcript, subagent }
+  // An agent of a workflow run: it has no spawning call, and is named after its phase.
+  function workflowAgent({ run, phase, description, model = 'sonnet' }) {
+    const agentId = nextId('a')
+    const dir = join(projectDir, id, 'subagents', 'workflows', run)
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, `agent-${agentId}.meta.json`), JSON.stringify({ agentType: 'workflow-subagent', workflowPhase: phase, description, model }))
+    const agent = new Transcript(join(dir, `agent-${agentId}.jsonl`), { cwd: repoPath(repo), branch, session: id })
+    agent.id = agentId
+    return agent
+  }
+
+  return { id, projectDir, transcript, subagent, workflowAgent }
 }
 
 function writeRepos() {
@@ -460,6 +491,7 @@ let flakyWaiting = false
 // carries on, so the demo shows a session joining and leaving Your turn.
 function toggleFlakyWait() {
   const flaky = running.find((agent) => agent.waitsOnYou)
+  if (!flaky) return
   if (flakyWaiting) flaky.transcript.prompt(0)
   else flaky.transcript.endTurn(0)
   flakyWaiting = !flakyWaiting
@@ -486,25 +518,29 @@ function tick() {
 }
 
 rmSync(ROOT, { recursive: true, force: true })
-writeRepos()
-const sessions = MONOREPO ? writeMonorepo() : writeSessions()
-writeLibrary(sessions)
+if (SCENARIO) {
+  SCENARIO.default({ createSession, setStatus, running, STEPS, repoPath, ago, nextId, OPUS, SONNET, MINUTE })
+} else {
+  writeRepos()
+  writeLibrary(MONOREPO ? writeMonorepo() : writeSessions())
+}
 writeUsage()
 
-const server = spawn(process.execPath, [SERVER], {
-  stdio: 'inherit',
-  // Its settings stay with the demo, never in your own data folder.
-  env: { ...process.env, AGENT_ORRERY_PORT: PORT, AGENT_ORRERY_CLAUDE_DIR: CLAUDE_DIR, AGENT_ORRERY_DATA_DIR: join(ROOT, 'data') },
-})
+const server =
+  SERVE &&
+  spawn(process.execPath, [SERVER], {
+    stdio: 'inherit',
+    // Its settings stay with the demo, never in your own data folder.
+    env: { ...process.env, AGENT_ORRERY_PORT: PORT, AGENT_ORRERY_CLAUDE_DIR: CLAUDE_DIR, AGENT_ORRERY_DATA_DIR: join(ROOT, 'data') },
+  })
 const ticker = setInterval(tick, TICK_MS)
-const stop = () => {
+// Removing the folder takes the made-up agents off any dashboard reading it.
+const stop = (code = 0) => {
   clearInterval(ticker)
-  server.kill()
-  process.exit(0)
+  if (server) server.kill()
+  rmSync(ROOT, { recursive: true, force: true })
+  process.exit(code)
 }
-process.on('SIGINT', stop)
-process.on('SIGTERM', stop)
-server.on('exit', (code) => {
-  clearInterval(ticker)
-  process.exit(code ?? 0)
-})
+process.on('SIGINT', () => stop())
+process.on('SIGTERM', () => stop())
+if (server) server.on('exit', (code) => stop(code ?? 0))

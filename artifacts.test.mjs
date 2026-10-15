@@ -18,7 +18,7 @@ test('finds artifacts in every transcript, with their session, and reads only wh
   const session = join(project, 's1.jsonl')
   writeFileSync(session, line({ type: 'ai-title', aiTitle: 'Launch week' }) + publish('a', 1, { title: 'Launch plan' }) + reply('a', 2, 'Published https://claude.ai/artifact/LaunchPlan1'))
   writeFileSync(join(project, 's1', 'subagents', 'agent-x1.jsonl'), publish('b', 3, { file_path: '/code/shop/deck.html' }) + reply('b', 4, 'At https://claude.ai/code/artifact/deck-0001 ok'))
-  const index = createArtifactIndex({ projectsDir: projects, resolveRepo: (path) => (path.startsWith('/code/shop') ? 'shop' : null) })
+  const index = createArtifactIndex({ projectsDirs: [projects], resolveRepo: (path) => (path.startsWith('/code/shop') ? 'shop' : null) })
 
   const first = await index.list()
   assert.deepEqual(

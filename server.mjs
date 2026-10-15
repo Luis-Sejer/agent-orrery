@@ -4,7 +4,7 @@
 // code; the only thing it writes is its own state (settings, dismissals) in its data folder.
 
 import { createServer } from 'node:http'
-import { watch } from 'node:fs'
+import { existsSync, watch } from 'node:fs'
 import { open, readdir, readFile, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { extname, join, relative } from 'node:path'
@@ -30,10 +30,16 @@ const windowMs = () => hoursSetting('window-hours')
 const waitingWindowMs = () => hoursSetting('waiting-hours')
 const CLAUDE_DIR = process.env.AGENT_ORRERY_CLAUDE_DIR ?? join(homedir(), '.claude')
 const PROJECTS_DIR = join(CLAUDE_DIR, 'projects')
+// More Claude Code folders to show beside your own, comma-separated: another profile
+// (CLAUDE_CONFIG_DIR), or the demo's folder for a showcase. Their transcripts, status files and
+// artifacts are read; plans, memory notes and plan usage still come from your own folder only.
+const EXTRA_CLAUDE_DIRS = (process.env.AGENT_ORRERY_EXTRA_CLAUDE_DIRS ?? '').split(',').map((dir) => dir.trim()).filter(Boolean)
+const PROJECTS_DIRS = [PROJECTS_DIR, ...EXTRA_CLAUDE_DIRS.map((dir) => join(dir, 'projects'))]
 // Where Agent Orrery keeps its own state. compose.yaml mounts a folder here; it's the only one it writes.
 const DATA_DIR = process.env.AGENT_ORRERY_DATA_DIR ?? join(homedir(), '.config', 'agent-orrery')
 // Claude Code keeps a small status file per running session here, named by its process id.
 const SESSIONS_DIR = join(CLAUDE_DIR, 'sessions')
+const EXTRA_SESSIONS_DIRS = EXTRA_CLAUDE_DIRS.map((dir) => join(dir, 'sessions'))
 // Only these names are opened; the folder also holds each session's secret key file.
 const STATUS_FILE = /^\d{1,10}\.json$/
 // Your plan's usage, written by the status line bridge (statusline/orrery-usage.sh), if you set it up.
@@ -54,7 +60,7 @@ const MIN_PUSH_MS = 1_000
 const library = createLibrary({ claudeDir: CLAUDE_DIR })
 const resolveRepo = createRepoResolver()
 const graph = createGraph({ resolveRepo, plansDir: library.plansDir })
-const artifacts = createArtifactIndex({ projectsDir: PROJECTS_DIR, resolveRepo })
+const artifacts = createArtifactIndex({ projectsDirs: PROJECTS_DIRS, resolveRepo })
 const tracked = new Map()
 const sessionDirs = new Map()
 
@@ -64,8 +70,12 @@ function track(path, nodeId) {
 
 async function discoverSessions() {
   const cutoff = Date.now() - Math.max(windowMs(), waitingWindowMs())
-  for (const project of await listDir(PROJECTS_DIR)) {
-    const projectDir = join(PROJECTS_DIR, project)
+  for (const projectsDir of PROJECTS_DIRS) await discoverIn(projectsDir, cutoff)
+}
+
+async function discoverIn(projectsDir, cutoff) {
+  for (const project of await listDir(projectsDir)) {
+    const projectDir = join(projectsDir, project)
     for (const name of await listDir(projectDir)) {
       const path = join(projectDir, name)
       if (!name.endsWith('.jsonl') || tracked.has(path)) continue
@@ -141,14 +151,22 @@ function isAlive(pid) {
 // for a wait what it waits for. Null when the folder can't be read (an older Claude Code, or not
 // shared with Docker), which means unknown, not that every session has ended.
 async function readLiveSessions() {
-  const names = await readdir(SESSIONS_DIR).catch(() => null)
+  const own = await readStatusDir(SESSIONS_DIR)
+  // Unknown stays unknown: an extra folder never decides that your own sessions have closed.
+  if (!own) return null
+  for (const dir of EXTRA_SESSIONS_DIRS) own.push(...((await readStatusDir(dir)) ?? []))
+  return own
+}
+
+async function readStatusDir(dir) {
+  const names = await readdir(dir).catch(() => null)
   if (!names) return null
   const sessions = []
   for (const name of names) {
     if (!STATUS_FILE.test(name)) continue
     let file
     try {
-      file = JSON.parse(readText(join(SESSIONS_DIR, name)))
+      file = JSON.parse(readText(join(dir, name)))
     } catch {
       continue
     }
@@ -253,9 +271,11 @@ function send() {
 }
 
 // Transcripts and nodes older than discovery would pick up are dropped; a new line brings them back.
+// So are those whose transcript was deleted, like a stopped demo's.
 function forgetOld() {
   const cutoff = Date.now() - Math.max(windowMs(), waitingWindowMs())
-  const forgotten = forget(graph, cutoff)
+  const gone = [...tracked].filter(([path]) => !existsSync(path)).map(([, entry]) => entry.nodeId)
+  const forgotten = forget(graph, cutoff, gone)
   for (const [path, entry] of tracked) if (forgotten.has(entry.nodeId)) tracked.delete(path)
   for (const id of forgotten) sessionDirs.delete(id)
 }
@@ -330,6 +350,14 @@ function startWatching(scheduler) {
       const path = join(PROJECTS_DIR, name)
       scheduler.soon({ discover: !tracked.has(path), path })
     })
+    // Extra folders are followed the same way, when they can be; the fallback check reads them anyway.
+    for (const dir of PROJECTS_DIRS.slice(1)) {
+      try {
+        watch(dir, { recursive: true }, (_event, name) => name?.endsWith('.jsonl') && scheduler.soon({ discover: !tracked.has(join(dir, name)), path: join(dir, name) })).on('error', () => {})
+      } catch {
+        // Not there yet: discovery finds it once it is.
+      }
+    }
     // A permission prompt changes a session's status file, not its transcript.
     let statusWatcher = null
     try {

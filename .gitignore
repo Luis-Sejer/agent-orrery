@@ -8,3 +8,4 @@ menubar/build/
 .build/
 docs/src/build/
 data/
+.showcase/

@@ -813,10 +813,11 @@ export function waitingSessions({ nodes }, now = Date.now()) {
     .sort((a, b) => a.since - b.since)
 }
 
-// Drops nodes whose last activity is older than the cutoff, and the messages that touch them.
+// Drops nodes whose last activity is older than the cutoff, plus any named in `gone` (their
+// transcript was deleted), and the messages that touch them.
 // Returns their ids, so their transcripts can stop being read.
-export function forget(graph, cutoff) {
-  const forgotten = new Set()
+export function forget(graph, cutoff, gone = []) {
+  const forgotten = new Set(gone)
   for (const [id, node] of graph.nodes) if (node.lastAt > 0 && node.lastAt < cutoff) forgotten.add(id)
   for (const id of forgotten) {
     graph.nodes.delete(id)

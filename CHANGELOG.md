@@ -8,6 +8,7 @@ All notable changes to Agent Orrery are documented here. The format is based on
 
 ### Added
 
+- Show more than one Claude Code folder at once with `AGENT_ORRERY_EXTRA_CLAUDE_DIRS`, such as a second profile. The demo can write made-up agents into a folder of your choosing (`--root`, `--no-server`, `--scenario`), to show them beside your real ones; they vanish when it stops, as Orrery now drops agents whose transcript was deleted.
 - Archive a finished agent from its details panel to take it off the canvas until it does something new; a session takes its finished subagents with it. The side panel lists archived agents under "Archived", last, where you can open each one or unarchive it on its own.
 - A tip in the README, and an optional step in INSTALL.md (asked first), for a short section in `~/.claude/CLAUDE.md` asking Claude to give its subagents, workflow agents and background tasks meaningful names, which is what Orrery labels them with.
 - The Orrery view: your agents in rings around you, closest when they're waiting on you, then running, then finished, with a sector for each repository. The rings turn slowly like an orrery's and steady themselves while you point at an agent; agents glide between rings as their status changes, and finished ones fold into a pile. It's the view the page opens on; Agents, the grid of rooms, is one tab over.

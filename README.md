@@ -240,6 +240,7 @@ Set these in your shell, or in a `.env` file next to `compose.yaml`.
 | `AGENT_ORRERY_WINDOW_HOURS` | `6` | How far back to show sessions and agents; also in Settings → Advanced |
 | `AGENT_ORRERY_WAITING_HOURS` | `24` | How long a session waiting on you stays listed; also in Settings → Advanced |
 | `AGENT_ORRERY_CLAUDE_DIR` | `~/.claude` | Where Claude Code keeps its files (from source only) |
+| `AGENT_ORRERY_EXTRA_CLAUDE_DIRS` | none | More Claude Code folders to show beside yours, comma-separated, such as another profile or a demo's (`node scripts/demo.mjs --no-server --root <folder>`); in Docker each must be inside a mounted folder |
 | `AGENT_ORRERY_DATA` | `./data` | Folder for its own settings and dismissed sessions, the only one it writes to (Docker only) |
 | `AGENT_ORRERY_DATA_DIR` | `~/.config/agent-orrery` | The same, running from source |
 
