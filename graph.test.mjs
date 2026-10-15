@@ -772,3 +772,80 @@ test('a name you give a session wins over the title Claude Code keeps writing, u
   applyLines(graph, 's1', line({ type: 'custom-title', customTitle: '' }) + line({ type: 'ai-title', aiTitle: 'Research on plugins' }))
   assert.equal(snapshot(graph, 0).nodes[0].label, 'Research on plugins')
 })
+
+test('a background shell circles its agent until it ends, with only the address it serves', async () => {
+  const { addressOf } = await import('./graph.mjs')
+  assert.deepEqual(addressOf('pnpm dev --port 3005 SECRET'), { host: 'localhost', port: 3005 })
+  assert.deepEqual(addressOf('PORT=4777 node server.mjs'), { host: 'localhost', port: 4777 })
+  assert.deepEqual(addressOf('pnpm dev', 'Web app on http://app.localhost:3005'), { host: 'app.localhost', port: 3005 })
+  assert.deepEqual(addressOf('vite --host 0.0.0.0:5173'), { host: 'localhost', port: 5173 })
+  assert.equal(addressOf('mkdir -p build && pnpm test'), null)
+  assert.equal(addressOf('curl https://example.com:8443/'), null)
+  assert.equal(addressOf('serve --port 99999'), null)
+
+  const graph = createGraph({ resolveRepo })
+  ensureNode(graph, 's1', { kind: 'session', label: 'one', sessionId: 's1' })
+  const start = (id, second, input) => line({ type: 'assistant', timestamp: at(second), message: { stop_reason: 'tool_use', content: [toolUse(id, 'Bash', { run_in_background: true, ...input })] } })
+  const started = (id, second, taskId) => line({ type: 'user', timestamp: at(second), toolUseResult: { backgroundTaskId: taskId }, message: { content: [{ type: 'tool_result', tool_use_id: id, content: 'started' }] } })
+  applyLines(
+    graph,
+    's1',
+    start('web', 1, { command: 'pnpm dev SECRET', description: 'Web app on app.localhost:3005' }) +
+      started('web', 1, 'task-web') +
+      start('api', 2, { command: 'PORT=3333 node ace serve' }) +
+      started('api', 2, 'task-api') +
+      start('tests', 3, { command: 'pnpm test' }) +
+      started('tests', 3, 'task-tests') +
+      // Your next prompt doesn't stop a server.
+      line({ type: 'user', timestamp: at(4), message: { content: 'next thing' } }) +
+      // The tests finish, and the API server is stopped.
+      line({ type: 'user', timestamp: at(5), origin: { kind: 'task-notification' }, message: { content: '<task-notification><task-id>task-tests</task-id></task-notification>' } }) +
+      line({ type: 'assistant', timestamp: at(6), message: { stop_reason: 'tool_use', content: [toolUse('stop', 'TaskStop', { task_id: 'task-api' })] } }),
+  )
+  const shells = snapshot(graph, 0, 0, Date.parse(at(7))).nodes[0].shells
+  assert.deepEqual(shells, [{ since: Date.parse(at(1)), host: 'app.localhost', port: 3005 }])
+  assert.ok(!JSON.stringify(snapshot(graph, 0, 0, Date.parse(at(7)))).includes('SECRET'))
+  // Twelve hours on, a shell that never said it ended is dropped.
+  assert.deepEqual(snapshot(graph, 0, 0, Date.parse(at(7)) + 12 * 3_600_000).nodes[0].shells, [])
+})
+
+test('a background command that ends while its session is busy is noticed, from the queued notice', () => {
+  const graph = createGraph({ resolveRepo })
+  ensureNode(graph, 's1', { kind: 'session', label: 'one', sessionId: 's1' })
+  applyLines(
+    graph,
+    's1',
+    line({ type: 'assistant', timestamp: at(1), message: { stop_reason: 'tool_use', content: [toolUse('srv', 'Bash', { command: 'pnpm demo', description: 'Demo on localhost:4778', run_in_background: true })] } }) +
+      line({ type: 'user', timestamp: at(1), toolUseResult: { backgroundTaskId: 'task-srv' }, message: { content: [{ type: 'tool_result', tool_use_id: 'srv', content: 'started' }] } }),
+  )
+  assert.equal(snapshot(graph, 0, 0, Date.parse(at(2))).nodes[0].shells.length, 1)
+  applyLines(graph, 's1', line({ type: 'attachment', timestamp: at(3), attachment: { type: 'queued_command', commandMode: 'task-notification', prompt: '<task-notification><task-id>task-srv</task-id><tool-use-id>srv</tool-use-id>SECRET</task-notification>', origin: { kind: 'task-notification' } } }))
+  assert.deepEqual(snapshot(graph, 0, 0, Date.parse(at(4))).nodes[0].shells, [])
+})
+
+test('records Claude Code writes beside the conversation: a move, a result, killed agents and a queued prompt', () => {
+  const resolve = (path) => path.match(/^\/code\/([^/]+)/)?.[1] ?? null
+  const graph = createGraph({ resolveRepo: resolve })
+  ensureNode(graph, 's1', { kind: 'session', label: 'one', sessionId: 's1' })
+  ensureNode(graph, 'a1', { kind: 'subagent', label: 'helper', sessionId: 's1', spawnToolUseId: 'x' })
+  ensureNode(graph, 'w1', { kind: 'subagent', label: 'write:guide', sessionId: 's1', spawnToolUseId: 'y' })
+  applyLines(graph, 'a1', line({ type: 'assistant', timestamp: at(2), message: { stop_reason: 'tool_use', content: [toolUse('r', 'Read', { file_path: '/code/shop/a.ts' })] } }))
+  applyLines(graph, 'w1', line({ type: 'started', agentId: 'w1', key: 'k', label: 'write:guide', phase: 'Write' }) + line({ type: 'assistant', timestamp: at(3), message: { stop_reason: 'tool_use', content: [toolUse('e', 'Edit', { file_path: '/code/docs/g.md' })] } }) + line({ type: 'result', timestamp: at(4), agentId: 'w1', key: 'k', result: 'SECRET' }))
+  applyLines(
+    graph,
+    's1',
+    line({ type: 'user', timestamp: at(1), cwd: '/code/api', message: { content: 'go' } }) +
+      line({ type: 'relocated', relocatedCwd: '/code/shop' }) +
+      line({ type: 'assistant', timestamp: at(5), message: { stop_reason: 'end_turn', content: [] } }) +
+      line({ type: 'attachment', timestamp: at(6), attachment: { type: 'queued_command', prompt: 'SECRET', origin: { kind: 'human' } } }) +
+      line({ type: 'system', subtype: 'agents_killed', timestamp: at(7), isMeta: true }),
+  )
+  const now = Date.parse(at(8))
+  const nodes = Object.fromEntries(snapshot(graph, 0, 0, now).nodes.map((node) => [node.id, node]))
+  assert.equal(nodes.s1.home, 'shop')
+  assert.ok(nodes.w1.waiting, 'a workflow agent with a result has finished')
+  assert.ok(nodes.a1.waiting, 'a killed subagent has finished')
+  assert.deepEqual(nodes.s1.youWaits, [[Date.parse(at(5)), Date.parse(at(6))]])
+  assert.ok(timeline(graph, 's1').some(({ text }) => text === 'You replied'))
+  assert.ok(!JSON.stringify(snapshot(graph, 0, 0, now)).includes('SECRET'))
+})

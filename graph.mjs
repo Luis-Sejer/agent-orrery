@@ -440,6 +440,22 @@ function receiveMessage(graph, node, origin, at) {
 
 // A message from another session that arrives while this one is busy is written only as a queued
 // command, absorbed into the turn under way.
+const queuedPrompt = (record) => record.type === 'attachment' && record.attachment?.type === 'queued_command' && record.attachment.origin?.kind === 'human'
+
+function finishSubagents(graph, sessionId, at) {
+  for (const node of graph.nodes.values()) {
+    if (node.kind === 'subagent' && node.sessionId === sessionId && !node.waiting && node.lastAt <= at) node.waiting = { reason: 'reply', since: at }
+  }
+}
+
+const queuedNotice = (record) => record.type === 'attachment' && record.attachment?.type === 'queued_command' && record.attachment.origin?.kind === 'task-notification'
+
+// The ids of the call a task notification is about, and nothing else from its text.
+function idsIn(text) {
+  const content = typeof text === 'string' ? text : ''
+  return { toolUseId: content.match(TASK_TOOL_USE_ID)?.[1], taskId: content.match(TASK_ID)?.[1] }
+}
+
 const queuedMessage = (record) => (record.type === 'attachment' && record.attachment?.type === 'queued_command' && record.attachment.origin?.kind === 'peer' ? record.attachment.origin : null)
 
 export function applyRecord(graph, nodeId, record) {
@@ -447,6 +463,8 @@ export function applyRecord(graph, nodeId, record) {
   if (isCopiedSpawn(node, record)) return
   const queued = queuedMessage(record)
   if (queued?.from) receiveMessage(graph, node, queued, Date.parse(record.timestamp ?? '') || 0)
+  // A background command that ends while the session is busy is reported the same way: only its ids are read.
+  if (queuedNotice(record)) closeBackgroundTask(node, idsIn(record.attachment.prompt))
   const at = Date.parse(record.timestamp ?? '') || 0
   if (isActivity(record)) {
     // After a tool result or a prompt the model owes a reply. Claude Code holds back a message that asks
@@ -458,6 +476,18 @@ export function applyRecord(graph, nodeId, record) {
   }
   if (record.gitBranch) node.branch = record.gitBranch
   if (record.cwd && !node.home) node.home = graph.resolveRepo(record.cwd) ?? basename(record.cwd)
+  // A session that moves its working folder (into a worktree, or another repository) belongs there now.
+  if (record.type === 'relocated' && typeof record.relocatedCwd === 'string' && record.relocatedCwd) node.home = graph.resolveRepo(record.relocatedCwd) ?? basename(record.relocatedCwd)
+  // A workflow agent's transcript ends with its result: it has finished, as a subagent does at its hand-back.
+  if (record.type === 'result' && node.kind === 'subagent') node.waiting = { reason: 'reply', since: Date.parse(record.timestamp ?? '') || node.lastAt }
+  // Stopping a session's agents (Esc twice, or killing them) ends the subagents that were still at work.
+  if (record.type === 'system' && record.subtype === 'agents_killed') finishSubagents(graph, node.id, Date.parse(record.timestamp ?? '') || 0)
+  // A prompt you type while the session is busy is written only as a queued command; it's your reply all the same.
+  if (queuedPrompt(record)) {
+    const at = Date.parse(record.timestamp ?? '') || 0
+    if (node.waiting && node.kind === 'session') addYouWait(node, node.waiting.since, at)
+    if (node.kind === 'session') addEvent(node, { at, activity: 'listening', text: 'You replied', repo: null })
+  }
 
   // A name you give a session (/rename) wins over the title Claude Code keeps writing for it; an empty
   // one hands the title back.
@@ -485,8 +515,7 @@ export function applyRecord(graph, nodeId, record) {
     if (origin?.kind === 'task-notification') {
       // Only the id of the finished call is read from the notification, to stop waiting on it.
       const content = record.message?.content
-      const text = typeof content === 'string' ? content : ''
-      closeBackgroundTask(node, { toolUseId: text.match(TASK_TOOL_USE_ID)?.[1], taskId: text.match(TASK_ID)?.[1] })
+      closeBackgroundTask(node, idsIn(typeof content === 'string' ? content : ''))
     } else if (isInterruption(record)) {
       node.waiting = { reason: 'reply', since: at }
       if (node.kind === 'session') addEvent(node, { at, activity: 'listening', text: 'You stopped it', repo: null })
@@ -592,7 +621,7 @@ function mainRepo(repos) {
 
 const repoOfRoom = (room) => room.split(AREA_SEPARATOR)[0]
 
-// A session's room is where it started. Started at a monorepo's root, that's the area it worked in most there.
+// A session's room is its working folder (where it started, or last moved to). At a monorepo's root, that's the area it worked in most there.
 function sessionRoom(node) {
   if (!node.home || node.home.includes(AREA_SEPARATOR)) return node.home ?? mainRepo(node.repos)
   const inHome = Object.entries(node.repos).filter(([key]) => key.startsWith(node.home + AREA_SEPARATOR))
