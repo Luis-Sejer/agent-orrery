@@ -114,6 +114,13 @@ class Transcript {
     this.add({ type: 'assistant', timestamp: ago(minutesAgo), message: { ...messageMeta(this.model), stop_reason: null, content: [{ type: 'thinking', thinking: '…' }] } })
   }
 
+  // A command left running in the background, such as a dev server; Claude Code answers with its task id.
+  server(minutesAgo, command, description) {
+    const id = nextId('toolu_')
+    this.openTool(minutesAgo, ['Bash', { command, description, run_in_background: true }], id)
+    this.add({ type: 'user', timestamp: ago(minutesAgo), toolUseResult: { backgroundTaskId: nextId('b') }, message: { content: [{ type: 'tool_result', tool_use_id: id, content: 'Running in the background.' }] } })
+  }
+
   // A page published on claude.ai, as the Artifact tool records it. The address is made up.
   artifact(minutesAgo, title, slug) {
     const id = nextId('toolu_')
@@ -251,6 +258,9 @@ function writeSessions() {
   checkout.transcript.prompt(95)
   checkout.transcript.tool(93, ['Write', { file_path: join(CLAUDE_DIR, 'plans', 'checkout-redesign.md'), content: '…' }])
   checkout.transcript.artifact(80, 'Checkout, before and after', 'checkout-before-after')
+  checkout.transcript.server(78, 'pnpm dev', 'Web app dev server on shop.localhost:3005')
+  checkout.transcript.server(77, 'PORT=3333 pnpm start', 'API for the web app')
+  checkout.transcript.server(30, 'pnpm test --watch', 'Checkout tests in watch mode')
   const exploreNames = ['Map the cart state', 'Find price formatting', 'List the checkout routes', 'Audit form validation']
   exploreNames.forEach((description, index) => {
     const agent = checkout.subagent({ minutesAgo: 90 - index, description, agentType: 'Explore', model: 'haiku' })

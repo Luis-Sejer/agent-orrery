@@ -407,3 +407,27 @@
 .react-flow__edge.collision.dimmed {
   opacity: 0.45;
 }
+
+/* The addresses an agent's background shells serve, beside its name. */
+.ports {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: 6px;
+  vertical-align: 1px;
+}
+
+.port {
+  padding: 0 5px;
+  border-radius: 3px;
+  background: var(--green-wash);
+  color: var(--green-deep);
+  font: 500 10.5px/1.6 var(--mono, ui-monospace, monospace);
+  letter-spacing: 0;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.port:hover {
+  text-decoration: underline;
+}

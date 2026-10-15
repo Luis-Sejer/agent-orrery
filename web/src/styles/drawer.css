@@ -206,3 +206,9 @@
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
+
+/* Links in the drawer's facts (a background shell's address) in the theme's link colour. */
+.facts a {
+  color: var(--green-deep);
+  font-weight: 500;
+}

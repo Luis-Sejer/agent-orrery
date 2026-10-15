@@ -175,6 +175,77 @@
   transition: opacity 300ms var(--ease);
 }
 
+/* Background shells: electrons on crossed orbits round the orb, glowing, never flat. */
+.satellites {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  overflow: visible;
+  pointer-events: none;
+}
+
+.electron {
+  color: var(--muted);
+}
+
+.electron.served {
+  color: var(--green);
+}
+
+.electron-orbit {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 0.8;
+  opacity: 0.3;
+}
+
+.electron.served .electron-orbit {
+  opacity: 0.5;
+}
+
+/* The invisible circle that moves with each electron: what you point at and click. */
+.electron-grab {
+  fill: transparent;
+  pointer-events: all;
+}
+
+.electron.served .electron-grab {
+  cursor: pointer;
+}
+
+/* Above the orb, clear of the orbits: what the electron you're pointing at is. */
+.electron-tip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(50% + 34px);
+  z-index: 5;
+  display: grid;
+  gap: 1px;
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--on-ink);
+  font: 500 11.5px/1.35 var(--sans);
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.electron-tip-action {
+  opacity: 0.7;
+  font-size: 10.5px;
+}
+
+.electron-halo {
+  fill: currentColor;
+  opacity: 0.28;
+}
+
+.electron-core {
+  fill: currentColor;
+}
+
 .orbit-card .orb {
   align-self: center;
   transition: transform 200ms var(--ease), box-shadow 200ms var(--ease);

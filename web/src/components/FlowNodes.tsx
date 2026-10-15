@@ -1,11 +1,13 @@
-import { memo, useContext, useEffect, useRef } from 'react'
+import { memo, useContext, useEffect, useRef, useState, type MouseEvent } from 'react'
 import { BaseEdge, getBezierPath, getStraightPath, Handle, Position, type Edge, type EdgeProps, type NodeProps } from '@xyflow/react'
 
 import type { CardNode, FoldNode, MessageData, RoomNode } from '../layout'
 import type { OrbitNode, PileNode } from '../radial'
 import { useStill } from '../motion'
 import { beamStyle } from '../rhythm'
-import { describeStatus, isFreshWait, isQuiet, orbStateOf, stateColour, statusOf, waitingLine } from '../status'
+import { ago, describeStatus, isFreshWait, isQuiet, orbStateOf, stateColour, statusOf, waitingLine } from '../status'
+import { openShell, shellLabel, shellUrl } from '../shells'
+import type { Shell } from '../types'
 import { PACKET_MS, type Packet } from '../usePackets'
 import { HudContext } from '../useTheme'
 import { Orb } from './Orb'
@@ -52,6 +54,130 @@ function ArtifactMark({ count }: { count: number }) {
   )
 }
 
+const SATELLITES_SHOWN = 6
+
+const describeShell = (shell: Shell, now: number) => `Background shell${shellLabel(shell) ? ` on ${shellLabel(shell)}` : ''}, running ${ago(shell.since, now)}`
+
+// A served shell opens its address; the click stays off the agent behind it.
+function openFrom(event: MouseEvent, shell: Shell) {
+  if (!shellUrl(shell)) return
+  event.stopPropagation()
+  openShell(shell)
+}
+
+// Background shells circle the orb like electrons: each on its own tilted orbit, so two or three cross
+// like an atom's, with a glowing core and a short trail. A shell serving an address glows in the
+// accent colour, and clicking its orbit opens it (a pointer shortcut; the drawer lists the same as
+// links for the keyboard). Held still, the electrons rest on their orbits.
+const ORBIT_RX = 31
+const ORBIT_RY = 11
+const FIRST_LAP_S = 2.6
+const LAP_STEP_S = 0.9
+const TRAIL = [
+  { r: 1.8, opacity: 0.45, lag: 0.1 },
+  { r: 1.3, opacity: 0.2, lag: 0.2 },
+]
+const GRAB_R = 8
+const ORBIT_PATH = `M ${ORBIT_RX} 0 A ${ORBIT_RX} ${ORBIT_RY} 0 1 1 ${-ORBIT_RX} 0 A ${ORBIT_RX} ${ORBIT_RY} 0 1 1 ${ORBIT_RX} 0`
+
+function Electron({ lap, rest, still }: { lap: number; rest: number; still: boolean }) {
+  if (still) {
+    const angle = 2 * Math.PI * rest
+    const at = { cx: ORBIT_RX * Math.cos(angle), cy: ORBIT_RY * Math.sin(angle) }
+    return (
+      <>
+        <circle className="electron-halo" r={5} {...at} />
+        <circle className="electron-core" r={2.4} {...at} />
+        <circle className="electron-grab" r={GRAB_R} {...at} />
+      </>
+    )
+  }
+  // Each orbit starts somewhere else along its path, and its trail follows a fraction of a lap behind.
+  const begin = (lag: number) => `${-(rest + lag / lap) * lap}s`
+  const move = (lag = 0) => <animateMotion dur={`${lap}s`} begin={begin(lag)} repeatCount="indefinite" path={ORBIT_PATH} />
+  return (
+    <>
+      {TRAIL.map((dot) => (
+        <circle key={dot.lag} className="electron-core" r={dot.r} opacity={dot.opacity}>
+          {move(dot.lag)}
+        </circle>
+      ))}
+      <circle className="electron-halo" r={5}>
+        {move()}
+      </circle>
+      <circle className="electron-core" r={2.4}>
+        {move()}
+      </circle>
+      {/* Bigger than the electron and moving with it, so a paused one is easy to point at. */}
+      <circle className="electron-grab" r={GRAB_R}>
+        {move()}
+      </circle>
+    </>
+  )
+}
+
+interface SatellitesProps {
+  shells?: Shell[]
+  // Pointing at the agent: its electrons stop where they are, so one can be picked.
+  paused: boolean
+  onHover: (shell: Shell | null) => void
+}
+
+function Satellites({ shells, paused, onHover }: SatellitesProps) {
+  const still = useStill()
+  const svg = useRef<SVGSVGElement>(null)
+  // SMIL keeps its own clock per <svg>; pausing it freezes every electron and trail in place.
+  useEffect(() => {
+    if (paused) svg.current?.pauseAnimations()
+    else svg.current?.unpauseAnimations()
+  }, [paused, shells?.length])
+  if (!shells?.length) return null
+  const shown = shells.slice(0, SATELLITES_SHOWN)
+  const box = ORBIT_RX + 8
+  return (
+    <svg ref={svg} className="satellites" viewBox={`${-box} ${-box} ${box * 2} ${box * 2}`} width={box * 2} height={box * 2} aria-hidden="true">
+      {shown.map((shell, index) => (
+        <g
+          key={`${shell.since}-${index}`}
+          className={shellUrl(shell) ? 'electron served nodrag' : 'electron nodrag'}
+          transform={`rotate(${(180 / shown.length) * index - 25})`}
+          onMouseEnter={() => onHover(shell)}
+          onMouseLeave={() => onHover(null)}
+          onClick={(event) => openFrom(event, shell)}
+        >
+          <path className="electron-orbit" d={ORBIT_PATH} />
+          <Electron lap={FIRST_LAP_S + index * LAP_STEP_S} rest={index / shown.length} still={still} />
+        </g>
+      ))}
+    </svg>
+  )
+}
+
+// What the electron you're pointing at is, above the orb, straight away rather than after the browser's delay.
+function ElectronTip({ shell, now }: { shell: Shell; now: number }) {
+  return (
+    <span className="electron-tip">
+      {describeShell(shell, now)}
+      {shellUrl(shell) && <span className="electron-tip-action">Click to open</span>}
+    </span>
+  )
+}
+
+// The addresses an agent's shells serve, beside its name: ":3005", "app.localhost:3005".
+function Ports({ shells, now }: { shells?: Shell[]; now: number }) {
+  const served = (shells ?? []).filter((shell) => shellUrl(shell))
+  if (served.length === 0) return null
+  return (
+    <span className="ports">
+      {served.map((shell) => (
+        <span key={`${shell.host}:${shell.port}`} className="port nodrag" title={describeShell(shell, now)} onClick={(event) => openFrom(event, shell)}>
+          {shellLabel(shell)}
+        </span>
+      ))}
+    </span>
+  )
+}
+
 // Status lines are cut short on a card; the whole line is a hover away.
 function CardLine({ className = 'card-line', children }: { className?: string; children: string }) {
   return (
@@ -73,6 +199,7 @@ export function SessionCard({ data }: NodeProps<CardNode>) {
           {node.label}
           <ArtifactMark count={node.artifacts?.length ?? 0} />
         </strong>
+        <Ports shells={node.shells} now={now} />
         <span className="card-line" title={[node.branch, alsoIn.length > 0 && `Also in ${alsoIn.join(', ')}`].filter(Boolean).join('. ')}>
           {node.branch && <span className="branch">{node.branch}</span>}
           {alsoIn.length > 0 && <span className="also">Also in {alsoIn.join(', ')}</span>}
@@ -94,6 +221,7 @@ export function AgentCard({ data }: NodeProps<CardNode>) {
           {node.label}
           <ArtifactMark count={node.artifacts?.length ?? 0} />
         </strong>
+        <Ports shells={node.shells} now={now} />
         <CardLine>{node.kind === 'peer' ? 'Another session' : (node.agentType ?? '')}</CardLine>
         <CardLine>{describeStatus(node, now)}</CardLine>
       </div>
@@ -108,11 +236,25 @@ export function OrbitCard({ data }: NodeProps<OrbitNode>) {
   const className = ['orbit-card', `status-${status}`, isFreshWait(node, now) && 'fresh', data.dimmed && 'dimmed', data.focused && 'focused', data.related && !data.focused && 'related']
     .filter(Boolean)
     .join(' ')
+  const [pointing, setPointing] = useState(false)
+  const [tip, setTip] = useState<Shell | null>(null)
   return (
-    <div className={className} style={beamStyle(node.id)} title={`${node.label}. ${describeStatus(node, now)}`}>
+    <div
+      className={className}
+      style={beamStyle(node.id)}
+      // On an electron, its own tip says what it is; the agent's would cover it.
+      title={tip ? undefined : `${node.label}. ${describeStatus(node, now)}`}
+      onMouseEnter={() => setPointing(true)}
+      onMouseLeave={() => {
+        setPointing(false)
+        setTip(null)
+      }}
+    >
       <Handle type="target" position={Position.Top} isConnectable={false} />
       <Handle type="source" position={Position.Top} isConnectable={false} />
       <Orb state={orbStateOf(node, now)} size={32} ring={node.kind === 'session'} seed={node.id} />
+      <Satellites shells={node.shells} paused={pointing} onHover={setTip} />
+      {tip && <ElectronTip shell={tip} now={now} />}
       <span className={node.kind === 'session' ? 'orbit-label serif' : 'orbit-label'}>
         {node.label}
         <ArtifactMark count={node.artifacts?.length ?? 0} />

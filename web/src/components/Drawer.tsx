@@ -1,6 +1,7 @@
 import { useContext, useEffect, useState, type CSSProperties } from 'react'
 
 import { isArtifactUrl } from '../artifacts'
+import { shellLabel, shellUrl } from '../shells'
 import { describeSpend, mergeUsage, modelOf } from '../pricing'
 import { ago, describeStatus, orbStateOf, stateColour, statusOf } from '../status'
 import { getJson } from '../useGraph'
@@ -133,6 +134,28 @@ export function Drawer({ node, parent, children, clashes, talkingWith, now, onCl
               {ownSpend ? capitalise(ownSpend) : 'None of its own'}
               {models.length > 1 && <small className="models">{models.join(', ')}</small>}
               {totalSpend && totalSpend !== ownSpend && <small className="models">With its subagents: {totalSpend}</small>}
+            </dd>
+          </>
+        )}
+        {(node.shells?.length ?? 0) > 0 && (
+          <>
+            <dt>In the background</dt>
+            <dd>
+              {node.shells!.map((shell, index) => {
+                const url = shellUrl(shell)
+                return (
+                  <span key={`${shell.since}-${index}`} className="clash">
+                    {url ? (
+                      <a href={url} target="_blank" rel="noopener noreferrer">
+                        {shellLabel(shell)}
+                      </a>
+                    ) : (
+                      'A command'
+                    )}
+                    , running {ago(shell.since, now)}
+                  </span>
+                )
+              })}
             </dd>
           </>
         )}

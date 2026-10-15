@@ -78,6 +78,15 @@ export interface AgentNode {
   artifacts?: Artifact[]
   // Tool calls so far; each new one sends a packet along its line.
   toolCount?: number
+  // Background shells still running (servers, watchers), satellites of its orb.
+  shells?: Shell[]
+}
+
+export interface Shell {
+  since: number
+  // Where it listens, when its command or description said: a loopback host and a port.
+  host: string | null
+  port: number | null
 }
 
 export interface Artifact {

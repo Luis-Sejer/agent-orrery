@@ -318,3 +318,15 @@ describe('artifact links', () => {
     expect(isArtifactUrl('https://claude.ai/artifact/abcdef/../../settings')).toBe(false)
   })
 })
+
+describe('background shell links', () => {
+  it('links only to this machine, keeping a .localhost name', async () => {
+    const { shellUrl, shellLabel } = await import('./shells')
+    expect(shellUrl({ since: 0, host: 'app.localhost', port: 3005 })).toBe('http://app.localhost:3005')
+    expect(shellUrl({ since: 0, host: 'localhost', port: 4777 })).toBe('http://localhost:4777')
+    expect(shellUrl({ since: 0, host: 'evil.example', port: 80 })).toBe('http://localhost:80')
+    expect(shellUrl({ since: 0, host: null, port: null })).toBeNull()
+    expect(shellLabel({ since: 0, host: 'localhost', port: 3333 })).toBe(':3333')
+    expect(shellLabel({ since: 0, host: 'app.localhost', port: 3005 })).toBe('app.localhost:3005')
+  })
+})

@@ -26,6 +26,17 @@ const SYNTHETIC_MODEL = '<synthetic>'
 const TASK_TOOL_USE_ID = /<tool-use-id>([\w-]{1,100})<\/tool-use-id>/
 const TASK_ID = /<task-id>([\w-]{1,100})<\/task-id>/
 const TASK_STOP_TOOL = 'TaskStop'
+// Claude Code's older name for stopping a background shell.
+const KILL_SHELL_TOOL = 'KillShell'
+// A background shell is a satellite of its agent until it ends; one that never reports ending is
+// dropped after this long.
+const SHELL_CAP_MS = 12 * 60 * 60_000
+const SHELLS_LIMIT = 20
+// Where a background command listens: a loopback address with its port, or just a port. Only these
+// are taken from a command or its description; the rest of it is never kept.
+const LOOPBACK_ADDRESS = /\b((?:[a-z0-9-]{1,63}\.)*localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]):(\d{2,5})\b/i
+const PORT_SETTING = /(?:--port[= ]|(?:^|\s)-p ?|\bPORT=)(\d{2,5})(?=\s|$|;|&)/
+const MAX_PORT = 65_535
 const ARTIFACT_TOOL = 'Artifact'
 // A published artifact's address on claude.ai, the one thing taken from the reply to a publish.
 const ARTIFACT_URL = /https:\/\/claude\.ai\/(?:code\/)?artifact\/[\w-]{6,80}/
@@ -166,6 +177,10 @@ export function ensureNode(graph, id, fields) {
       backgroundTasks: new Map(),
       // A background call's task id (from its result) → its tool use id, for notifications and TaskStop.
       backgroundTaskIds: new Map(),
+      // Background shells still running, servers included, by tool use id: { since, host, port }.
+      // Unlike backgroundTasks they outlast the turn: they end when the shell does.
+      shells: new Map(),
+      shellTaskIds: new Map(),
       history: [],
       // Files it edited lately, by path: { first, last, repo }, for spotting two agents in one file.
       edits: new Map(),
@@ -266,9 +281,10 @@ function addMessage(graph, from, to, at, side = 'sent') {
 
 function recordToolUse(graph, node, block, record, at) {
   if (block.input?.run_in_background === true && !SPAWN_TOOLS.has(String(block.name))) node.backgroundTasks.set(block.id, { name: String(block.name), since: at })
+  if (block.input?.run_in_background === true && String(block.name) === 'Bash') startShell(node, block, at)
   const name = String(block.name)
   node.toolCount += 1
-  if (name === TASK_STOP_TOOL) closeBackgroundTask(node, { taskId: block.input?.task_id })
+  if (name === TASK_STOP_TOOL || name === KILL_SHELL_TOOL) closeBackgroundTask(node, { taskId: block.input?.task_id ?? block.input?.shell_id })
   node.lastTool = name
   node.activity = name === 'Bash' ? shellActivity(block.input?.command) : (ACTIVITY_BY_TOOL[name] ?? 'working')
   // Only spawns are looked up (to find a subagent's parent), so only they are kept.
@@ -363,6 +379,7 @@ function closeTools(node, record) {
     // A background call answers at once with its task id; notifications and TaskStop use that id.
     const taskId = record.toolUseResult?.backgroundTaskId
     if (typeof taskId === 'string' && node.backgroundTasks.has(block.tool_use_id)) node.backgroundTaskIds.set(taskId, block.tool_use_id)
+    if (typeof taskId === 'string' && node.shells.has(block.tool_use_id)) node.shellTaskIds.set(taskId, block.tool_use_id)
   }
   if (isHumanPrompt(record)) {
     node.openTools.clear()
@@ -374,9 +391,32 @@ function closeTools(node, record) {
   }
 }
 
+// Where a background command will listen, from the command or its description: a loopback host and
+// port, or a port alone (then it's localhost). Null when neither says.
+export function addressOf(...texts) {
+  for (const text of texts) {
+    if (typeof text !== 'string') continue
+    const found = text.match(LOOPBACK_ADDRESS)
+    if (found && Number(found[2]) <= MAX_PORT) return { host: found[1].toLowerCase() === '0.0.0.0' ? 'localhost' : found[1].toLowerCase(), port: Number(found[2]) }
+  }
+  for (const text of texts) {
+    const port = typeof text === 'string' ? Number(text.match(PORT_SETTING)?.[1]) : NaN
+    if (port > 0 && port <= MAX_PORT) return { host: 'localhost', port }
+  }
+  return null
+}
+
+function startShell(node, block, at) {
+  const address = addressOf(block.input?.command, block.input?.description)
+  node.shells.set(block.id, { since: at, host: address?.host ?? null, port: address?.port ?? null })
+  if (node.shells.size > SHELLS_LIMIT) node.shells.delete(node.shells.keys().next().value)
+}
+
 function closeBackgroundTask(node, { toolUseId, taskId }) {
   if (toolUseId) node.backgroundTasks.delete(toolUseId)
   if (taskId && node.backgroundTaskIds.has(taskId)) node.backgroundTasks.delete(node.backgroundTaskIds.get(taskId))
+  if (toolUseId) node.shells.delete(toolUseId)
+  if (taskId && node.shellTaskIds.has(taskId)) node.shells.delete(node.shellTaskIds.get(taskId))
 }
 
 function isToolResultOnly(record) {
@@ -581,6 +621,13 @@ function oldestOpenTool(node) {
   return oldest && { name: oldest.name, since: oldest.since }
 }
 
+// Its background shells still running: none in a replay, none once its session has ended, and none
+// older than the cap.
+function shellsOf(graph, node, now) {
+  if (now === null || liveOf(graph, node, now)?.status === 'closed') return []
+  return [...node.shells.values()].filter((shell) => now - shell.since < SHELL_CAP_MS)
+}
+
 function publicNode(graph, node, now) {
   const parentId = parentOf(graph, node)
   const room = node.kind === 'session' ? sessionRoom(node) : (mainRepo(node.repos) ?? graph.nodes.get(parentId)?.home ?? null)
@@ -598,6 +645,7 @@ function publicNode(graph, node, now) {
     waiting: node.waiting ?? null,
     pendingTool: oldestOpenTool(node),
     background: [...node.backgroundTasks.values()],
+    shells: shellsOf(graph, node, now),
     owesReply: node.kind === 'session' && node.owesReply === true,
     usage: node.usage,
     agentType: node.agentType ?? null,
