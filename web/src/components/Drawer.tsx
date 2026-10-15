@@ -244,6 +244,11 @@ export function Drawer({ node, parent, children, clashes, talkingWith, now, onCl
                 Dismiss
               </button>
             )}
+            {onDismiss && statusOf(node, now) === 'finished' && (
+              <button type="button" className="button quiet" onClick={() => onDismiss(node)} title="Hide from the canvas until it does something new">
+                Archive
+              </button>
+            )}
           </div>
           <code className="command">{resumeCommand}</code>
           <span className="visually-hidden" role="status">

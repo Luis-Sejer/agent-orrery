@@ -64,6 +64,7 @@ export interface AgentNode {
   plans: string[]
   // Set in the browser when you dismiss a waiting session.
   dismissed?: boolean
+  archived?: boolean
   // Calls running in the background (run_in_background) that haven't reported back yet.
   background?: BackgroundTask[]
   // A tool result or a prompt came in last, so the model owes a reply.

@@ -169,7 +169,7 @@ export function Inbox({ nodes, collisions, usage, now, connection, selectedId, d
           </ol>
           {dismissedCount > 0 && (
             <button type="button" className="link restore" onClick={onRestoreDismissed}>
-              Show {dismissedCount} dismissed
+              Show {dismissedCount} dismissed or archived
             </button>
           )}
         </Section>

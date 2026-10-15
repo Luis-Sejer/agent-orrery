@@ -233,4 +233,11 @@ describe('hiding finished agents', () => {
     expect(shown.messages).toEqual([])
     expect(shown.collisions).toHaveLength(1)
   })
+
+  it('can drop only the archived ones', () => {
+    const archived = node({ id: 'archived', lastAt: NOW - 30 * MINUTE, archived: true })
+    const done = node({ id: 'done', lastAt: NOW - 30 * MINUTE })
+    const shown = withoutFinished({ nodes: [archived, done], messages: [] }, NOW, null, (n) => !!n.archived)
+    expect(shown.nodes.map(({ id }) => id)).toEqual(['done'])
+  })
 })

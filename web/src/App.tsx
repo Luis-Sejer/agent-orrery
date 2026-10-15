@@ -78,7 +78,7 @@ export function App() {
     const settled = awaitAgents(worktreeRooms === 'on' ? shown : foldWorktrees(shown), now)
     return replay.view ? settled : applyDismissals(settled, dismissals)
   }, [replay.view, liveGraph, dismissals, worktreeRooms, now])
-  const dismissedCount = graph.nodes.filter((node) => node.dismissed).length
+  const dismissedCount = graph.nodes.filter((node) => node.dismissed || node.archived).length
   const { view, setView, toCanvas } = useView()
   const [arrangement, arrange] = useArrangement()
   const [clean, setClean] = useCleanView()
@@ -99,7 +99,10 @@ export function App() {
   selectedRef.current = selected
   const waitingCount = graph.nodes.filter((node) => statusOf(node, now) === 'waiting').length
   // Only the canvases leave finished agents out; the inbox, the day and search still know them.
-  const canvasGraph = useMemo(() => (hideFinished === 'on' ? withoutFinished(graph, now, selectedId) : graph), [graph, now, selectedId, hideFinished])
+  const canvasGraph = useMemo(
+    () => withoutFinished(graph, now, selectedId, hideFinished === 'on' ? () => true : (node) => !!node.archived),
+    [graph, now, selectedId, hideFinished],
+  )
 
   useEffect(() => {
     document.title = waitingCount > 0 ? `(${waitingCount}) Agent Orrery` : 'Agent Orrery'

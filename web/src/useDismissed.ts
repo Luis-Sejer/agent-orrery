@@ -21,13 +21,14 @@ export function useDismissed() {
   return { dismissals, dismiss, restoreAll }
 }
 
-// A dismissed session stops waiting on you until it does something new.
+// A dismissed session stops waiting on you until it does something new; a finished one dismissed
+// (archived) leaves the canvas until then.
 export function applyDismissals(graph: GraphSnapshot, dismissals: Dismissals): GraphSnapshot {
   if (Object.keys(dismissals).length === 0) return graph
   const nodes = graph.nodes.map((node) => {
     const dismissedAt = dismissals[node.id]
-    if (!node.waiting || dismissedAt === undefined || node.lastAt > dismissedAt) return node
-    return { ...node, waiting: null, dismissed: true }
+    if (dismissedAt === undefined || node.lastAt > dismissedAt) return node
+    return node.waiting ? { ...node, waiting: null, dismissed: true } : { ...node, archived: true }
   })
   return { ...graph, nodes }
 }

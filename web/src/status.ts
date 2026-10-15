@@ -201,9 +201,9 @@ export function awaitAgents(graph: GraphSnapshot, now: number): GraphSnapshot {
 }
 
 // The canvas without finished agents, so rooms and systems with nothing going on disappear with them.
-// The selected agent stays, so its details stay open.
-export function withoutFinished(graph: GraphSnapshot, now: number, keep: string | null): GraphSnapshot {
-  const nodes = graph.nodes.filter((node) => node.id === keep || statusOf(node, now) !== 'finished')
+// The selected agent stays, so its details stay open. `which` narrows it, e.g. to archived ones.
+export function withoutFinished(graph: GraphSnapshot, now: number, keep: string | null, which: (node: AgentNode) => boolean = () => true): GraphSnapshot {
+  const nodes = graph.nodes.filter((node) => node.id === keep || statusOf(node, now) !== 'finished' || !which(node))
   if (nodes.length === graph.nodes.length) return graph
   const shown = new Set(nodes.map((node) => node.id))
   return {
