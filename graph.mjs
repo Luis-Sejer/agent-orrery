@@ -448,7 +448,9 @@ function finishSubagents(graph, sessionId, at) {
   }
 }
 
-const queuedNotice = (record) => record.type === 'attachment' && record.attachment?.type === 'queued_command' && record.attachment.origin?.kind === 'task-notification'
+// Claude Code marks these with commandMode, and no origin.
+const queuedNotice = (record) =>
+  record.type === 'attachment' && record.attachment?.type === 'queued_command' && (record.attachment.commandMode === 'task-notification' || record.attachment.origin?.kind === 'task-notification')
 
 // The ids of the call a task notification is about, and nothing else from its text.
 function idsIn(text) {
@@ -580,13 +582,20 @@ export function setLive(graph, sessions, now) {
   }
 }
 
+// Shell means a background command runs, but nobody waits on a server: when every shell the session
+// still has open serves an address, it's ready for you.
+function serving(node, entry) {
+  const shells = [...node.shells.values()]
+  return entry.status === 'shell' && shells.length > 0 && shells.every((shell) => shell.port !== null) ? { ...entry, status: 'idle' } : entry
+}
+
 // A session's live state, or { status: 'closed' } once it has ended; a subagent only ever ends with
 // its session. Null means unknown, and the transcript has to tell.
 function liveOf(graph, node, now) {
   if (!graph.live || now === null || node.kind === 'peer') return null
   const id = node.kind === 'session' ? node.id : node.sessionId
   const entry = graph.live.get(id)
-  if (entry) return node.kind === 'session' ? entry : null
+  if (entry) return node.kind === 'session' ? serving(node, entry) : null
   const session = graph.nodes.get(id)
   if (!session) return null
   const ended = graph.seenLive.has(id) || (session.openTools.size === 0 && now - session.lastAt > CLOSED_GRACE_MS)
