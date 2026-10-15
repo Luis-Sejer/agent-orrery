@@ -54,6 +54,27 @@ export function waitingOn(nodes: AgentNode[], now: number): AgentNode[] {
 
 const beamClass = (node: AgentNode, now: number) => (isFreshWait(node, now) ? 'beam fresh' : 'beam')
 
+// Unarchiving takes a row away; focus moves to the next archived agent, or to the section's heading.
+function useFocusAfterUnarchive(archived: AgentNode[], onRestore?: (node: AgentNode) => void) {
+  const next = useRef<string | null>(null)
+  useEffect(() => {
+    if (!next.current) return
+    const target = next.current
+    next.current = null
+    const row = document.querySelector<HTMLElement>(`.inbox [data-archived="${CSS.escape(target)}"]`)
+    if (row) return row.focus()
+    // The last one gone takes the section with it; the heading above it is the nearest place left.
+    const toggles = [...document.querySelectorAll<HTMLElement>('.inbox .section-toggle')]
+    ;(toggles.find((toggle) => toggle.textContent?.startsWith('Archived')) ?? toggles.at(-1))?.focus()
+  })
+  if (!onRestore) return undefined
+  return (node: AgentNode) => {
+    const at = archived.indexOf(node)
+    next.current = (archived[at + 1] ?? archived[at - 1])?.id ?? 'heading'
+    onRestore(node)
+  }
+}
+
 // Dismissing a card takes its buttons away; focus moves to the next card, or to "Show dismissed".
 function useFocusAfterDismiss(waiting: AgentNode[], onDismiss?: (node: AgentNode) => void) {
   const next = useRef<string | null>(null)
@@ -116,7 +137,12 @@ export function Inbox({ nodes, collisions, usage, now, connection, selectedId, d
   const spend = describeSpend(mergeUsage(nodes.map((node) => node.usage)))
   const dismiss = useFocusAfterDismiss(waiting, onDismiss)
   const waited = waitedOnYou(nodes, now, startOfDay(now))
-  const archived = nodes.filter((node) => node.archived).sort((a, b) => b.lastAt - a.lastAt)
+  // Finished and archived. A subagent archived with its session goes in the session's row.
+  const isArchived = (node: AgentNode) => !!node.archived && statusOf(node, now) === 'finished'
+  const archivedIds = new Set(nodes.filter(isArchived).map((node) => node.id))
+  const archived = nodes.filter((node) => isArchived(node) && !(node.kind === 'subagent' && node.sessionId && archivedIds.has(node.sessionId))).sort((a, b) => b.lastAt - a.lastAt)
+  const helpersOf = (session: AgentNode) => nodes.filter((node) => node.kind === 'subagent' && node.sessionId === session.id && archivedIds.has(node.id)).length
+  const unarchive = useFocusAfterUnarchive(archived, onRestore)
   const labelOf = new Map(nodes.map((node) => [node.id, node.label]))
 
   return (
@@ -212,30 +238,6 @@ export function Inbox({ nodes, collisions, usage, now, connection, selectedId, d
           </Section>
         )}
 
-        {archived.length > 0 && (
-          <Section name="archived" title="Archived" count={archived.length} headingClass="serif">
-            <ol className="running">
-              {archived.map((node) => (
-                <li key={node.id} className="turn-item">
-                  <button type="button" className={node.id === selectedId ? 'selected' : undefined} onClick={() => onSelect(node.id)}>
-                    <Orb state={orbStateOf(node, now)} size={20} seed={node.id} />
-                    <span>
-                      <b>{node.label}</b> {node.room ? `in ${node.room}, ` : ''}finished {ago(node.lastAt, now)} ago
-                    </span>
-                  </button>
-                  {onRestore && (
-                    <button type="button" className="dismiss" aria-label={`Unarchive ${node.label}`} title="Unarchive" onClick={() => onRestore(node)}>
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M12 19V5M5 12l7-7 7 7" />
-                      </svg>
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ol>
-          </Section>
-        )}
-
         <Section name="running" title="Running now" count={running.length} headingClass="serif">
           <ol className="running">
             {running.slice(0, RUNNING_SHOWN).map((node) => (
@@ -252,6 +254,32 @@ export function Inbox({ nodes, collisions, usage, now, connection, selectedId, d
           {running.length > RUNNING_SHOWN && <p className="empty-note">And {running.length - RUNNING_SHOWN} more.</p>}
           {running.length === 0 && <p className="empty-note">No agents are running.</p>}
         </Section>
+
+        {/* Archived last: the least urgent thing in the panel. */}
+        {archived.length > 0 && (
+          <Section name="archived" title="Archived" count={archived.length} headingClass="serif">
+            <ol className="running">
+              {archived.map((node) => (
+                <li key={node.id} className="turn-item">
+                  <button type="button" data-archived={node.id} className={node.id === selectedId ? 'selected' : undefined} onClick={() => onSelect(node.id)}>
+                    <Orb state={orbStateOf(node, now)} size={20} seed={node.id} />
+                    <span>
+                      <b>{node.label}</b> {node.room ? `in ${node.room}, ` : ''}finished {ago(node.lastAt, now)} ago
+                      {helpersOf(node) > 0 && `, with ${helpersOf(node) === 1 ? 'a subagent' : `${helpersOf(node)} subagents`}`}
+                    </span>
+                  </button>
+                  {unarchive && (
+                    <button type="button" className="dismiss" aria-label={`Unarchive ${node.label}`} title="Unarchive" onClick={() => unarchive(node)}>
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 19V5M5 12l7-7 7 7" />
+                      </svg>
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ol>
+          </Section>
+        )}
 
         {spend && <p className="spend-note">Everything in view: {spend}</p>}
         {waited > 0 && <p className="spend-note">Something waited on you for {duration(waited)} today</p>}

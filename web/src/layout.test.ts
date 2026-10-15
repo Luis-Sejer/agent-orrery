@@ -330,3 +330,17 @@ describe('background shell links', () => {
     expect(shellLabel({ since: 0, host: 'app.localhost', port: 3005 })).toBe('app.localhost:3005')
   })
 })
+
+describe('archiving', () => {
+  it('archives a finished agent, dismisses a waiting one, and both come back when they do something new', () => {
+    const done = agent('done', { lastAt: NOW - 30 * MINUTE })
+    const waits = agent('waits', { kind: 'session', parentId: null, sessionId: 'waits', waiting: { reason: 'reply', since: NOW - MINUTE }, lastAt: NOW - MINUTE })
+    const marked = applyDismissals(graphOf([done, waits]), { done: done.lastAt, waits: waits.lastAt }).nodes
+    expect(marked.map(({ id, archived, dismissed }) => [id, !!archived, !!dismissed])).toEqual([
+      ['done', true, false],
+      ['waits', false, true],
+    ])
+    const later = applyDismissals(graphOf([{ ...done, lastAt: NOW }]), { done: done.lastAt }).nodes[0]
+    expect(later.archived).toBeFalsy()
+  })
+})

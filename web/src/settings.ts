@@ -77,10 +77,11 @@ export function writeSetting(name: string, value: string) {
   void send('/api/settings', { [name]: value })
 }
 
-export function addDismissal(id: string, lastAt: number) {
+// Agent id → its last activity, saved in one go: a session and its finished subagents archive together.
+export function addDismissals(added: Dismissals) {
   const current = serverState()
-  state = { ...current, dismissals: { ...current.dismissals, [id]: lastAt } }
-  void send('/api/dismissals', { add: { [id]: lastAt } })
+  state = { ...current, dismissals: { ...current.dismissals, ...added } }
+  void send('/api/dismissals', { add: added })
 }
 
 export function removeDismissals(ids: string[]) {

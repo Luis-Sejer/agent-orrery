@@ -47,6 +47,17 @@ function focusSoon(selector: string, tries = FOCUS_TRIES) {
   }, FOCUS_RETRY_MS)
 }
 
+// A session's subagents that have finished, or that were archived with it.
+function finishedHelpers(graph: GraphSnapshot, session: AgentNode, now: number): AgentNode[] {
+  if (session.kind !== 'session') return []
+  return graph.nodes.filter((node) => node.kind === 'subagent' && node.sessionId === session.id && statusOf(node, now) === 'finished')
+}
+
+function archivedHelpers(graph: GraphSnapshot, session: AgentNode): AgentNode[] {
+  if (session.kind !== 'session') return []
+  return graph.nodes.filter((node) => node.kind === 'subagent' && node.sessionId === session.id && node.archived)
+}
+
 // The other sessions a session has exchanged messages with, both ways counted, most first.
 function talkingWith(graph: GraphSnapshot, selected: AgentNode): { node: AgentNode; count: number }[] {
   if (selected.kind !== 'session') return []
@@ -228,9 +239,9 @@ export function App() {
           selectedId={selectedId}
           dismissedCount={dismissedCount}
           onSelect={selectAndFocus}
-          onDismiss={replay.open ? undefined : dismiss}
+          onDismiss={replay.open ? undefined : (node) => dismiss([node])}
           onRestoreDismissed={() => restore(graph.nodes.filter((node) => node.dismissed))}
-          onRestore={replay.open ? undefined : (node) => restore([node])}
+          onRestore={replay.open ? undefined : (node) => restore([node, ...archivedHelpers(graph, node)])}
         />
 
         <div className="toolbar">
@@ -320,12 +331,14 @@ export function App() {
             onClose={closeDrawer}
             onSelect={selectAndFocus}
             onOpenPlan={openPlan}
-            onRestore={replay.open ? undefined : (node) => restore([node])}
+            onRestore={replay.open ? undefined : (node) => restore([node, ...archivedHelpers(graph, node)])}
             onDismiss={
               replay.open
                 ? undefined
                 : (node) => {
-                    dismiss(node)
+                    // Archiving a finished session takes its finished subagents with it, so none are left
+                    // circling without it; dismissing a waiting one is only "not now".
+                    dismiss(statusOf(node, now) === 'finished' ? [node, ...finishedHelpers(graph, node, now)] : [node])
                     closeDrawer()
                   }
             }
