@@ -652,6 +652,19 @@ test('Claude Code\'s own status decides: a prompt waits on you, busy does not, a
   assert.deepEqual(waitingSessions(snapshot(graph, 0, 0, now + 6000), now + 6000).map(({ id }) => id), [])
 })
 
+test('a session whose only open shells are servers is ready for you, whatever Claude Code says', () => {
+  const graph = createGraph({ resolveRepo })
+  ensureNode(graph, 's1', { kind: 'session', label: 'one', sessionId: 's1' })
+  const bash = (id, input) => line({ type: 'assistant', timestamp: at(1), message: { stop_reason: 'tool_use', content: [toolUse(id, 'Bash', { run_in_background: true, ...input })] } })
+  applyLines(graph, 's1', bash('srv', { command: 'pnpm dev --port 3006' }) + bash('tests', { command: 'pnpm test' }))
+  const now = Date.parse(at(2))
+  setLive(graph, [{ sessionId: 's1', status: 'shell', since: now }], now)
+  assert.equal(snapshot(graph, 0, 0, now).nodes[0].live.status, 'shell')
+  applyLines(graph, 's1', line({ type: 'attachment', timestamp: at(2), attachment: { type: 'queued_command', commandMode: 'task-notification', prompt: '<task-notification><tool-use-id>tests</tool-use-id></task-notification>' } }))
+  assert.equal(snapshot(graph, 0, 0, now).nodes[0].live.status, 'idle')
+  assert.deepEqual(waitingSessions(snapshot(graph, 0, 0, now), now).map(({ id }) => id), ['s1'])
+})
+
 test('a session never seen running counts as closed only once it has been silent a while with nothing open', () => {
   const graph = createGraph({ resolveRepo })
   ensureNode(graph, 's1', { kind: 'session', label: 'one', sessionId: 's1' })
