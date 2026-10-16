@@ -183,6 +183,25 @@
   white-space: nowrap;
 }
 
+/* A long name is cut short, never the marks after it. */
+.card-title,
+.orbit-label {
+  display: flex;
+  align-items: center;
+}
+
+.label-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-title > .artifact-mark,
+.orbit-label > .artifact-mark {
+  flex: none;
+}
+
 .card-title {
   font-weight: 600;
   font-size: 13.5px;

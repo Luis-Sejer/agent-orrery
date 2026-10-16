@@ -222,7 +222,7 @@ export function SessionCard({ data }: NodeProps<CardNode>) {
       <Orb state={orbStateOf(node, now)} size={32} ring seed={node.id} />
       <div className="card-text">
         <strong className="card-title serif" title={node.label}>
-          {node.label}
+          <span className="label-text">{node.label}</span>
           <ArtifactMark count={node.artifacts?.length ?? 0} />
           <PrMark prs={node.prs} />
         </strong>
@@ -245,7 +245,7 @@ export function AgentCard({ data }: NodeProps<CardNode>) {
       <Orb state={orbStateOf(node, now)} size={32} seed={node.id} />
       <div className="card-text">
         <strong className="card-title" title={node.label}>
-          {node.label}
+          <span className="label-text">{node.label}</span>
           <ArtifactMark count={node.artifacts?.length ?? 0} />
           <PrMark prs={node.prs} />
         </strong>
@@ -284,7 +284,7 @@ export function OrbitCard({ data }: NodeProps<OrbitNode>) {
       <Satellites shells={node.shells} paused={pointing} onHover={setTip} />
       {tip && <ElectronTip shell={tip} now={now} />}
       <span className={node.kind === 'session' ? 'orbit-label serif' : 'orbit-label'}>
-        {node.label}
+        <span className="label-text">{node.label}</span>
         <ArtifactMark count={node.artifacts?.length ?? 0} />
         <PrMark prs={node.prs} />
       </span>

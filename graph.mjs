@@ -45,7 +45,7 @@ const ARTIFACTS_LIMIT = 50
 // address, its number and its repository are kept.
 const PR_URL = /^https:\/\/github\.com\/[\w.-]{1,100}\/[\w.-]{1,100}\/pull\/\d{1,9}$/
 const PR_REPOSITORY = /^[\w.-]{1,100}\/[\w.-]{1,100}$/
-const PRS_LIMIT = 20
+const PRS_LIMIT = 50
 // The modes an agent runs in, by Claude Code's own names; anything else is left out.
 const PERMISSION_MODES = new Set(['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions', 'dontAsk'])
 const EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max'])
