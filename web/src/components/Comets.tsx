@@ -1,9 +1,9 @@
 import { useStoreApi, ViewportPortal } from '@xyflow/react'
-import type { CSSProperties } from 'react'
+import { useEffect, useId, useRef } from 'react'
 
 import { ORB_CENTRE_Y } from '../radial'
 import type { CanvasNode } from '../useOrbit'
-import type { Comet } from '../useComets'
+import { COMET_MS, type Comet } from '../useComets'
 
 // Where a card's orb sits: its left padding plus half the orb.
 const CARD_ORB_X = 28
@@ -58,7 +58,7 @@ export function Comets({ comets, nodes, orrery }: CometsProps) {
   return (
     <ViewportPortal>
       <svg className="comets" aria-hidden="true">
-        {comets.map((comet, index) => {
+        {comets.map((comet) => {
           const node = byId.get(comet.agentId)
           if (!node || (node.type !== 'orbit' && node.type !== 'session' && node.type !== 'agent')) return null
           const start = orbOf(node)
@@ -70,28 +70,99 @@ export function Comets({ comets, nodes, orrery }: CometsProps) {
                 ? { x: 0, y: 0 }
                 : flyOut(start, { x: -1, y: 0 })
               : flyOut(start, orrery ? unit({ x: 0, y: 0 }, start) : GRID_OUTWARD)
-          return <Streak key={comet.id} gradient={`comet-tail-${index}`} kind={comet.kind} from={start} to={end} />
+          return <Streak key={comet.id} kind={comet.kind} from={start} to={end} />
         })}
       </svg>
     </ViewportPortal>
   )
 }
 
-// A head with a fading tail, flying in a straight line: the group moves, the tail trails behind it.
-function Streak({ gradient, kind, from, to }: { gradient: string; kind: Comet['kind']; from: Point; to: Point }) {
-  const back = unit(to, from)
-  const style = { '--x0': `${from.x}px`, '--y0': `${from.y}px`, '--x1': `${to.x}px`, '--y1': `${to.y}px` } as CSSProperties
+const FLIGHT_EASE = (t: number) => t * t
+// How far behind the head its tail's end runs, as a share of the flight: the tail grows from nothing as
+// the comet speeds up, then drains into the head once it has arrived.
+const TAIL_LAG = 0.25
+// How far the path bows to one side, as a share of its length, so comets swing in rather than slide.
+const BEND = 0.18
+const HEAD_R = 5
+const TAIL_SAMPLES = 14
+// The core's constellation, which a comet falling in to you rings as it lands.
+const CORE_R = 131
+
+// A point on the bowed path at progress t.
+function along(from: Point, bend: Point, to: Point, t: number): Point {
+  const u = 1 - t
+  return { x: u * u * from.x + 2 * u * t * bend.x + t * t * to.x, y: u * u * from.y + 2 * u * t * bend.y + t * t * to.y }
+}
+
+// The tail as a shape that tapers from the head's width to a point, following the curve.
+function tailShape(from: Point, bend: Point, to: Point, tail: number, head: number): string {
+  const points = Array.from({ length: TAIL_SAMPLES + 1 }, (_, i) => along(from, bend, to, tail + ((head - tail) * i) / TAIL_SAMPLES))
+  const left: string[] = []
+  const right: string[] = []
+  points.forEach((point, i) => {
+    const next = points[Math.min(i + 1, TAIL_SAMPLES)]
+    const previous = points[Math.max(i - 1, 0)]
+    const way = unit(previous, next)
+    const half = (HEAD_R * 0.8 * i) / TAIL_SAMPLES
+    left.push(`${point.x - way.y * half},${point.y + way.x * half}`)
+    right.unshift(`${point.x + way.y * half},${point.y - way.x * half}`)
+  })
+  return `M${left.join('L')}L${right.join('L')}Z`
+}
+
+// A head with a tapering tail on a bowed path, drawn frame by frame: the tail's length follows the
+// comet's speed, so it starts as a spark and stretches as it goes.
+function Streak({ kind, from, to }: { kind: Comet['kind']; from: Point; to: Point }) {
+  const gradient = useId()
+  const tail = useRef<SVGPathElement>(null)
+  const head = useRef<SVGGElement>(null)
+  const fade = useRef<SVGLinearGradientElement>(null)
+  const ripple = useRef<SVGCircleElement>(null)
+  const landsOnYou = kind === 'wait' && to.x === 0 && to.y === 0
+  // The orbs keep orbiting while a comet flies, so each frame reads where its ends are now.
+  const ends = useRef({ from, to })
+  ends.current = { from, to }
+
+  useEffect(() => {
+    const begin = performance.now()
+    let frame = 0
+    const draw = (now: number) => {
+      const { from, to } = ends.current
+      const length = Math.hypot(to.x - from.x, to.y - from.y)
+      const across = unit(from, to)
+      const bend = { x: (from.x + to.x) / 2 - across.y * length * BEND, y: (from.y + to.y) / 2 + across.x * length * BEND }
+      const t = ((now - begin) / COMET_MS) * (1 + TAIL_LAG)
+      const at = FLIGHT_EASE(Math.min(t, 1))
+      // Never longer than TAIL_PX, however far it flies.
+      const behind = Math.max(FLIGHT_EASE(Math.min(Math.max(t - TAIL_LAG, 0), 1)), at - TAIL_PX / (length || 1))
+      const tip = along(from, bend, to, at)
+      const end = along(from, bend, to, behind)
+      head.current?.setAttribute('transform', `translate(${tip.x} ${tip.y}) scale(${Math.min(1, t * 6)})`)
+      head.current?.setAttribute('opacity', t < 1 ? '1' : '0')
+      tail.current?.setAttribute('d', tailShape(from, bend, to, behind, at))
+      for (const [name, value] of [['x1', end.x], ['y1', end.y], ['x2', tip.x], ['y2', tip.y]] as const) fade.current?.setAttribute(name, String(value))
+      if (t >= 1) ripple.current?.classList.add('landed')
+      if (t < 1 + TAIL_LAG) frame = requestAnimationFrame(draw)
+    }
+    frame = requestAnimationFrame(draw)
+    return () => cancelAnimationFrame(frame)
+  }, [])
+
   return (
-    <g className={`comet comet-${kind}`} style={style}>
+    <g className={`comet comet-${kind}`}>
       <defs>
-        <linearGradient id={gradient} gradientUnits="userSpaceOnUse" x1={back.x * TAIL_PX} y1={back.y * TAIL_PX} x2={0} y2={0}>
+        <linearGradient ref={fade} id={gradient} gradientUnits="userSpaceOnUse">
           <stop offset="0" stopColor="currentColor" stopOpacity="0" />
-          <stop offset="1" stopColor="currentColor" stopOpacity="1" />
+          <stop offset="1" stopColor="currentColor" stopOpacity="0.9" />
         </linearGradient>
       </defs>
-      <line x1={back.x * TAIL_PX} y1={back.y * TAIL_PX} x2={0} y2={0} stroke={`url(#${gradient})`} strokeWidth={7} strokeLinecap="round" />
-      <circle r={13} fill="currentColor" className="comet-glow" />
-      <circle r={6} fill="currentColor" className="comet-head" />
+      <path ref={tail} fill={`url(#${gradient})`} />
+      <g ref={head} opacity="0">
+        <circle r={HEAD_R * 2.6} fill="currentColor" className="comet-glow" />
+        <circle r={HEAD_R} fill="currentColor" className="comet-head" />
+        <circle r={HEAD_R * 0.45} className="comet-core" />
+      </g>
+      {landsOnYou && <circle ref={ripple} r={CORE_R} className="comet-ripple" />}
     </g>
   )
 }

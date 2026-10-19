@@ -478,16 +478,9 @@
   z-index: 1000;
 }
 
-.comet {
-  opacity: 0;
-  transform: translate(var(--x0), var(--y0));
-  animation: comet-fly 1.8s var(--ease) forwards;
-}
-
-/* Falling in to you speeds up; flying out slows down. */
+/* Drawn frame by frame in Comets.tsx; the styles only colour them. */
 .comet-wait {
   color: var(--waiting);
-  animation-timing-function: cubic-bezier(0.55, 0, 0.9, 0.45);
 }
 
 .comet-artifact {
@@ -499,25 +492,40 @@
 }
 
 .comet-head {
-  filter: drop-shadow(0 0 4px currentColor);
+  filter: drop-shadow(0 0 6px currentColor);
 }
 
 .comet-glow {
-  opacity: 0.25;
+  opacity: 0.22;
 }
 
-@keyframes comet-fly {
+.comet-core {
+  fill: #fff;
+  opacity: 0.85;
+}
+
+/* A comet falling in to you rings the core as it lands. */
+.comet-ripple {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.comet-ripple.landed {
+  animation: comet-ripple 0.9s var(--ease) forwards;
+}
+
+@keyframes comet-ripple {
   0% {
-    opacity: 0;
-    transform: translate(var(--x0), var(--y0));
-  }
-  12%,
-  80% {
-    opacity: 1;
+    opacity: 0.9;
+    transform: scale(1);
   }
   100% {
     opacity: 0;
-    transform: translate(var(--x1), var(--y1));
+    transform: scale(1.45);
   }
 }
 
