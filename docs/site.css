@@ -240,8 +240,7 @@ kbd {
 }
 
 .wordmark__by,
-.hero__by,
-.footer__brand i {
+.hero__by {
   color: var(--muted);
   font-family: var(--sans);
   font-style: italic;
@@ -960,14 +959,19 @@ kbd {
   letter-spacing: -0.02em;
 }
 
-.footer__brand i {
-  margin-left: 4px;
-  font-size: 13px;
-}
-
 .footer__links {
   display: flex;
   gap: 18px;
+}
+
+.footer__sejer {
+  grid-column: 1 / -1;
+  font-size: 13px;
+}
+
+.footer__sejer a {
+  color: inherit;
+  text-decoration: none;
 }
 
 /* Responsive */
