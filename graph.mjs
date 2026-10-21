@@ -36,6 +36,9 @@ const SHELLS_LIMIT = 20
 // are taken from a command or its description; the rest of it is never kept.
 const LOOPBACK_ADDRESS = /\b((?:[a-z0-9-]{1,63}\.)*localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]):(\d{2,5})\b/i
 const PORT_SETTING = /(?:--port[= ]|(?:^|\s)-p ?|\bPORT=)(\d{2,5})(?=\s|$|;|&)/
+// A loopback address inside a URL whose scheme a browser doesn't open (redis://, postgres://) is a
+// service the command connects to, not one it serves.
+const NON_WEB_URL_BEFORE = /\b(?!(?:https?|wss?):)[a-z][a-z0-9+.-]*:\/\/[^\s'"]*$/i
 const MAX_PORT = 65_535
 const ARTIFACT_TOOL = 'Artifact'
 // A published artifact's address on claude.ai, the one thing taken from the reply to a publish.
@@ -445,13 +448,20 @@ function closeTools(node, record) {
 export function addressOf(command, description) {
   const texts = [description, command]
   for (const text of texts) {
-    if (typeof text !== 'string') continue
-    const found = text.match(LOOPBACK_ADDRESS)
-    if (found && Number(found[2]) <= MAX_PORT) return { host: found[1].toLowerCase() === '0.0.0.0' ? 'localhost' : found[1].toLowerCase(), port: Number(found[2]) }
+    const found = typeof text === 'string' ? servedAddress(text) : null
+    if (found) return { host: found[1].toLowerCase() === '0.0.0.0' ? 'localhost' : found[1].toLowerCase(), port: Number(found[2]) }
   }
   for (const text of texts) {
     const port = typeof text === 'string' ? Number(text.match(PORT_SETTING)?.[1]) : NaN
     if (port > 0 && port <= MAX_PORT) return { host: 'localhost', port }
+  }
+  return null
+}
+
+// The first loopback address in a text that a browser could open, skipping redis:// and the like.
+function servedAddress(text) {
+  for (const found of text.matchAll(new RegExp(LOOPBACK_ADDRESS, 'gi'))) {
+    if (Number(found[2]) <= MAX_PORT && !NON_WEB_URL_BEFORE.test(text.slice(0, found.index))) return found
   }
   return null
 }

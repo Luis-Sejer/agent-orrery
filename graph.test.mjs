@@ -854,6 +854,17 @@ test('a background shell takes the address its description names over any in its
   assert.deepEqual(addressOf('PORT=41001 node server', 'Web app, PORT=3005'), { host: 'localhost', port: 3005 })
 })
 
+test('a database or cache URL in a command is not an address the shell serves', async () => {
+  const { addressOf } = await import('./graph.mjs')
+  assert.deepEqual(addressOf('REDIS_URL=redis://127.0.0.1:41004 PORT=41000 node ace serve'), { host: 'localhost', port: 41000 })
+  assert.equal(addressOf('DATABASE_URL=postgres://world:secret@localhost:5432/world node worker.mjs'), null)
+  assert.deepEqual(
+    addressOf('REDIS_URL=redis://127.0.0.1:41004 FRONTEND_URL=http://bug-fix.example.localhost:3005 node ace serve'),
+    { host: 'bug-fix.example.localhost', port: 3005 }
+  )
+  assert.deepEqual(addressOf('pnpm dev', 'Web app on https://app.localhost:3005'), { host: 'app.localhost', port: 3005 })
+})
+
 test('a background shell circles its agent until it ends, with only the address it serves', async () => {
   const { addressOf } = await import('./graph.mjs')
   assert.deepEqual(addressOf('pnpm dev --port 3005 SECRET'), { host: 'localhost', port: 3005 })
