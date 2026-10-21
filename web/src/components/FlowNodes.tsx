@@ -7,7 +7,7 @@ import { useStill } from '../motion'
 import { beamStyle } from '../rhythm'
 import { ago, describeStatus, isFreshWait, isQuiet, orbStateOf, stateColour, statusOf, waitingLine } from '../status'
 import { describeModes, isPrUrl, modeChips, prLabel } from '../modes'
-import { openShell, shellLabel, shellUrl } from '../shells'
+import { openShell, shellAddress, shellLabel, shellUrl } from '../shells'
 import type { AgentNode, PullRequest, Shell } from '../types'
 import { PACKET_MS, type Packet } from '../usePackets'
 import { HudContext } from '../useTheme'
@@ -75,7 +75,7 @@ function PrMark({ prs }: { prs?: PullRequest[] }) {
 
 const SATELLITES_SHOWN = 6
 
-const describeShell = (shell: Shell, now: number) => `Background shell${shellLabel(shell) ? ` on ${shellLabel(shell)}` : ''}, running ${ago(shell.since, now)}`
+const describeShell = (shell: Shell, now: number) => `Background shell${shellAddress(shell) ? ` on ${shellAddress(shell)}` : ''}, running ${ago(shell.since, now)}`
 
 // A served shell opens its address; the click stays off the agent behind it.
 function openFrom(event: MouseEvent, shell: Shell) {
@@ -182,16 +182,16 @@ function ElectronTip({ shell, now }: { shell: Shell; now: number }) {
   )
 }
 
-// The addresses an agent's shells serve, beside its name: ":3005", "app.localhost:3005".
-// One line of chips under its name: the addresses its shells serve, then its modes.
+// One line of chips under its name: the addresses its shells serve (":3005", "bug-fix:3005", the full
+// address on hover), then its modes.
 function Ports({ node, now }: { node: AgentNode; now: number }) {
   const served = (node.shells ?? []).filter((shell) => shellUrl(shell))
   const modes = modeChips(node)
   if (served.length === 0 && modes.length === 0) return null
   return (
     <span className="ports">
-      {served.map((shell) => (
-        <span key={`${shell.host}:${shell.port}`} className="port nodrag" title={describeShell(shell, now)} onClick={(event) => openFrom(event, shell)}>
+      {served.map((shell, index) => (
+        <span key={`${shell.since}-${index}`} className="port nodrag" title={describeShell(shell, now)} onClick={(event) => openFrom(event, shell)}>
           {shellLabel(shell)}
         </span>
       ))}

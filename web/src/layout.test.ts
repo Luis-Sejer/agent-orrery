@@ -327,7 +327,20 @@ describe('background shell links', () => {
     expect(shellUrl({ since: 0, host: 'evil.example', port: 80 })).toBe('http://localhost:80')
     expect(shellUrl({ since: 0, host: null, port: null })).toBeNull()
     expect(shellLabel({ since: 0, host: 'localhost', port: 3333 })).toBe(':3333')
-    expect(shellLabel({ since: 0, host: 'app.localhost', port: 3005 })).toBe('app.localhost:3005')
+    expect(shellLabel({ since: 0, host: 'app.localhost', port: 3005 })).toBe('app:3005')
+    expect(shellLabel({ since: 0, host: '127.0.0.1', port: 8080 })).toBe('127.0.0.1:8080')
+  })
+
+  it('keeps servers that share a port behind a router apart by their name', async () => {
+    const { shellUrl, shellLabel, shellAddress } = await import('./shells')
+    const shells = [
+      { since: 0, host: 'bug-fix.juristic.localhost', port: 3005 },
+      { since: 1, host: 'search.juristic.localhost', port: 3005 },
+      { since: 2, host: 'app.localhost', port: 3005 },
+    ]
+    expect(shells.map(shellLabel)).toEqual(['bug-fix:3005', 'search:3005', 'app:3005'])
+    expect(shells.map(shellUrl)).toEqual(['http://bug-fix.juristic.localhost:3005', 'http://search.juristic.localhost:3005', 'http://app.localhost:3005'])
+    expect(shellAddress(shells[0])).toBe('bug-fix.juristic.localhost:3005')
   })
 })
 

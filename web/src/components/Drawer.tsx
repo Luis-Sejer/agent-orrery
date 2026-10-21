@@ -2,7 +2,7 @@ import { useContext, useEffect, useState, type CSSProperties } from 'react'
 
 import { isArtifactUrl } from '../artifacts'
 import { describeModes, isPrUrl, prLabel } from '../modes'
-import { shellLabel, shellUrl } from '../shells'
+import { shellAddress, shellUrl } from '../shells'
 import { describeSpend, mergeUsage, modelOf } from '../pricing'
 import { ago, describeStatus, orbStateOf, stateColour, statusOf } from '../status'
 import { getJson } from '../useGraph'
@@ -163,7 +163,7 @@ export function Drawer({ node, parent, children, clashes, talkingWith, now, onCl
                   <span key={`${shell.since}-${index}`} className="clash">
                     {url ? (
                       <a href={url} target="_blank" rel="noopener noreferrer">
-                        {shellLabel(shell)}
+                        {shellAddress(shell)}
                       </a>
                     ) : (
                       'A command'

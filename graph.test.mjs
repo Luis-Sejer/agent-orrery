@@ -842,6 +842,18 @@ test('a name you give a session wins over the title Claude Code keeps writing, u
   assert.equal(snapshot(graph, 0).nodes[0].label, 'Research on plugins')
 })
 
+test('a background shell takes the address its description names over any in its command', async () => {
+  const { addressOf } = await import('./graph.mjs')
+  const gateway =
+    'cd /work/gw && PORT=41000 BULL_PORT=41002 REDIS_PORT=41004 REDIS_URL=redis://127.0.0.1:41004 FRONTEND_URL=http://bug-fix.example.localhost:3005 node ace serve --watch'
+  assert.deepEqual(addressOf(gateway, 'Gateway bug-fix on bug-fix.example.localhost:3333'), { host: 'bug-fix.example.localhost', port: 3333 })
+  const webApp = 'cd /work/web && PORT=41001 NODE_ENV=development node server'
+  assert.deepEqual(addressOf(webApp, 'Web app bug-fix on bug-fix.example.localhost:3005'), { host: 'bug-fix.example.localhost', port: 3005 })
+  assert.deepEqual(addressOf('vite --host app.localhost:5173', 'Web app on app.localhost:3005'), { host: 'app.localhost', port: 3005 })
+  assert.deepEqual(addressOf('PORT=41001 node server', 'Web app'), { host: 'localhost', port: 41001 })
+  assert.deepEqual(addressOf('PORT=41001 node server', 'Web app, PORT=3005'), { host: 'localhost', port: 3005 })
+})
+
 test('a background shell circles its agent until it ends, with only the address it serves', async () => {
   const { addressOf } = await import('./graph.mjs')
   assert.deepEqual(addressOf('pnpm dev --port 3005 SECRET'), { host: 'localhost', port: 3005 })

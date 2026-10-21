@@ -439,9 +439,11 @@ function closeTools(node, record) {
   }
 }
 
-// Where a background command will listen, from the command or its description: a loopback host and
-// port, or a port alone (then it's localhost). Null when neither says.
-export function addressOf(...texts) {
+// Where a background command will listen: a loopback host and port, or a port alone (then it's
+// localhost). Null when neither says. The description comes first, as that's where the address is
+// written on purpose; a command can also name others (FRONTEND_URL=…, an internal PORT= behind a router).
+export function addressOf(command, description) {
+  const texts = [description, command]
   for (const text of texts) {
     if (typeof text !== 'string') continue
     const found = text.match(LOOPBACK_ADDRESS)
