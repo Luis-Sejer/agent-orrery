@@ -1,0 +1,15 @@
+{
+  "manifestVersion": 2,
+  "execution": "trusted-worker",
+  "id": "agent-orrery",
+  "name": "Agent Orrery",
+  "version": "0.1.0",
+  "description": "Opens Agent Orrery (http://127.0.0.1:4777) in a browser split on the right of each workspace you visit.",
+  "license": "MIT",
+  "engines": { "orca": ">=1.4.246" },
+  "main": "main.mjs",
+  "capabilities": [{ "kind": "workspace:read" }],
+  "contributes": {
+    "events": [{ "on": "workspace.changed" }]
+  }
+}

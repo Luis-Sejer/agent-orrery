@@ -22,6 +22,7 @@ pnpm demo          # build, then serve made-up sessions on http://127.0.0.1:4780
 node scripts/demo.mjs --no-server --root <dir> [--scenario <file.mjs>]   # made-up agents beside your real ones, via AGENT_ORRERY_EXTRA_CLAUDE_DIRS=<dir>/claude
 pnpm screenshots   # retake the README screenshots from the demo (needs Chrome)
 docker compose up -d --build   # the always-on install; rebuild after every change
+orca plugin dev load orca-plugin   # Orca: opens the orrery split on the right of each workspace you visit
 ```
 
 The server lists `web/dist` once at start-up. Restart it after `pnpm build`, or the page asks for files it doesn't know.
