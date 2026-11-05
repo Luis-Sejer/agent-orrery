@@ -20,6 +20,16 @@
   .stage {
     height: 70vh;
   }
+  /* The clean view without a drawer has nothing under the stage, so the stage takes the rest of the
+     window (a tall, narrow pane such as a split beside your editor). */
+  .app.clean:not(.with-drawer):has(> .stage:not(.reading)) {
+    height: 100dvh;
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas: 'toolbar' 'stage';
+  }
+  .app.clean:not(.with-drawer) .stage:not(.reading) {
+    height: auto;
+  }
   /* Stacked, the side panel is as long as it needs to be, and nothing in it is pinned. */
   .inbox,
   .inbox-scroll {
