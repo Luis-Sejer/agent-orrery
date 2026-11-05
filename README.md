@@ -176,6 +176,7 @@ Needs Node 24 and pnpm (`corepack enable`).
 pnpm install
 pnpm build
 pnpm start        # http://127.0.0.1:4777
+pnpm kiosk        # macOS: open it full-screen in Chrome (⌘Q to quit)
 ```
 
 </details>

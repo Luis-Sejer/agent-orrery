@@ -30,7 +30,8 @@
     "typecheck": "tsc --noEmit -p web",
     "test": "node --test \"*.test.mjs\" && vitest run --config web/vite.config.ts",
     "demo": "pnpm build && node scripts/demo.mjs",
-    "screenshots": "pnpm build && node scripts/screenshots.mjs"
+    "screenshots": "pnpm build && node scripts/screenshots.mjs",
+    "kiosk": "open -na 'Google Chrome' --args --kiosk --app=http://127.0.0.1:4777 --user-data-dir=/tmp/orrery-kiosk"
   },
   "devDependencies": {
     "@fontsource/instrument-serif": "5.3.0",
