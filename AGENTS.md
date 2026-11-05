@@ -23,6 +23,7 @@ node scripts/demo.mjs --no-server --root <dir> [--scenario <file.mjs>]   # made-
 pnpm kiosk         # macOS: Chrome full-screen on the running server; quit with ⌘Q
 pnpm screenshots   # retake the README screenshots from the demo (needs Chrome)
 docker compose up -d --build   # the always-on install; rebuild after every change
+orca plugin dev load orca-plugin   # Orca: opens the orrery split on the right of each workspace you visit
 ```
 
 The server lists `web/dist` once at start-up. Restart it after `pnpm build`, or the page asks for files it doesn't know.
