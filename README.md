@@ -237,7 +237,7 @@ Set these in your shell, or in a `.env` file next to `compose.yaml`.
 
 | Variable | Default | What it does |
 |---|---|---|
-| `AGENT_ORRERY_CODE_DIR` | `~/Documents/GitHub` | Folder holding your repositories, shared read-only with the container so it can tell which repo an agent works in (Docker only) |
+| `AGENT_ORRERY_CODE_DIR` | `~/Documents/GitHub` | Folder holding your repositories, shared read-only with the container so it can tell which repo an agent works in (Docker only). Mount more folders in `compose.override.yaml` (INSTALL.md, step 3) |
 | `AGENT_ORRERY_UID` / `AGENT_ORRERY_GID` | `501` / `20` | Your user and group id; Claude Code's files are readable only by you (Docker only) |
 | `AGENT_ORRERY_PORT` | `4777` | Port on this machine |
 | `AGENT_ORRERY_WINDOW_HOURS` | `6` | How far back to show sessions and agents; also in Settings → Advanced |
@@ -324,7 +324,7 @@ A repository is a monorepo when its root declares a workspace (`pnpm-workspace.y
 <details>
 <summary><strong>Why is an agent in the wrong room?</strong></summary>
 
-The room is the repository its tools touched most. An agent that only ran shell commands, without paths, stays with its session. In Docker, repositories outside `AGENT_ORRERY_CODE_DIR` can't be seen.
+The room is the repository its tools touched most. An agent that only ran shell commands, without paths, stays with its session. In Docker, repositories outside `AGENT_ORRERY_CODE_DIR` can't be seen unless you mount their folder in `compose.override.yaml` (INSTALL.md, step 3).
 
 </details>
 

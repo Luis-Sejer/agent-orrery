@@ -9,3 +9,4 @@ menubar/build/
 docs/src/build/
 data/
 .showcase/
+compose.override.yaml

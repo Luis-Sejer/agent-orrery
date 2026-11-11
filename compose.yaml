@@ -42,7 +42,7 @@ services:
       - ${HOME}/.claude/sessions:${HOME}/.claude/sessions:ro
       # Your plan's usage, if you set up the status line bridge (INSTALL.md, "Plan usage").
       - ${HOME}/.claude/orrery:${HOME}/.claude/orrery:ro
-      # Only read to tell which folders are git repositories.
+      # Only read to tell which folders are git repositories. More folders go in compose.override.yaml (INSTALL.md).
       - ${AGENT_ORRERY_CODE_DIR:-${HOME}/Documents/GitHub}:${AGENT_ORRERY_CODE_DIR:-${HOME}/Documents/GitHub}:ro
     read_only: true
     cap_drop:
