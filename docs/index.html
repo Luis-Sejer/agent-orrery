@@ -360,7 +360,7 @@ pnpm demo</pre>
         </details>
         <details>
           <summary>Why is an agent in the wrong room?</summary>
-          <p>The room is the repository its tools touched most. An agent that only ran shell commands, without paths, stays with its session. In Docker, repositories outside <code>AGENT_ORRERY_CODE_DIR</code> can’t be seen.</p>
+          <p>The room is the repository its tools touched most. An agent that only ran shell commands, without paths, stays with its session. In Docker, repositories outside <code>AGENT_ORRERY_CODE_DIR</code> can’t be seen unless you mount their folder in <code>compose.override.yaml</code> (INSTALL.md, step 3).</p>
         </details>
         <details>
           <summary>How accurate is the cost?</summary>

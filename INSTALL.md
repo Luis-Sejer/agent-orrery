@@ -50,6 +50,17 @@ EOF
 
 Replace `AGENT_ORRERY_CODE_DIR` and `AGENT_ORRERY_PORT` with what you found. `$HOME` is fine in the code folder; write a full path, not `~`.
 
+If their repositories or worktrees live in more than one folder (Orca keeps worktrees in `~/orca/workspaces`, for example), mount the others read-only, each at the same path inside the container. Docker Compose reads `compose.override.yaml` on its own, and git ignores it:
+
+```bash
+cat > compose.override.yaml <<EOF
+services:
+  agent-orrery:
+    volumes:
+      - $HOME/orca/workspaces:$HOME/orca/workspaces:ro
+EOF
+```
+
 ## 4. Start it
 
 ```bash
