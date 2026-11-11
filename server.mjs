@@ -40,6 +40,9 @@ const DATA_DIR = process.env.AGENT_ORRERY_DATA_DIR ?? join(homedir(), '.config',
 // Claude Code keeps a small status file per running session here, named by its process id.
 const SESSIONS_DIR = join(CLAUDE_DIR, 'sessions')
 const EXTRA_SESSIONS_DIRS = EXTRA_CLAUDE_DIRS.map((dir) => join(dir, 'sessions'))
+// Orca runs Claude Code with a folder of its own per account, <profile>/home. Its projects folder links
+// back to yours, but its status files stay there; without them a quiet Orca session reads as ended.
+const ORCA_PROFILES_DIR = process.env.AGENT_ORRERY_ORCA_PROFILES ?? join(homedir(), 'Library', 'Application Support', 'orca', 'claude-profiles')
 // Only these names are opened; the folder also holds each session's secret key file.
 const STATUS_FILE = /^\d{1,10}\.json$/
 // Your plan's usage, written by the status line bridge (statusline/orrery-usage.sh), if you set it up.
@@ -154,7 +157,8 @@ async function readLiveSessions() {
   const own = await readStatusDir(SESSIONS_DIR)
   // Unknown stays unknown: an extra folder never decides that your own sessions have closed.
   if (!own) return null
-  for (const dir of EXTRA_SESSIONS_DIRS) own.push(...((await readStatusDir(dir)) ?? []))
+  const profiles = (await readdir(ORCA_PROFILES_DIR).catch(() => [])).map((profile) => join(ORCA_PROFILES_DIR, profile, 'home', 'sessions'))
+  for (const dir of [...EXTRA_SESSIONS_DIRS, ...profiles]) own.push(...((await readStatusDir(dir)) ?? []))
   return own
 }
 

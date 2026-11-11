@@ -97,6 +97,8 @@ export function waitPhrase(waiting: Waiting | null): string {
   if (waiting?.reason === 'question') return waiting.probably ? 'is probably asking you a question' : 'asked you a question'
   if (waiting?.reason === 'permission') return 'needs your permission'
   if (waiting?.reason === 'dialog') return 'needs your input'
+  if (waiting?.ended === 'interrupted') return 'stopped'
+  if (waiting?.ended === 'failed') return 'stopped on an API error'
   return 'finished'
 }
 
@@ -112,9 +114,10 @@ export function describeStatus(node: AgentNode, now: number): string {
   const status = statusOf(node, now)
   if (status === 'waiting') {
     if (node.waiting?.reason !== 'reply') return waitingLine(node, now)
-    return `Finished, waiting on you, ${ago(waitingSince(node), now)} ago`
+    return `${waitSentence(node.waiting)}, waiting on you, ${ago(waitingSince(node), now)} ago`
   }
-  if (node.awaiting) return `Waiting on ${awaitingText(node.awaiting)}`
+  // Only background shells left: Orca's "monitoring".
+  if (node.awaiting) return node.awaiting.agents === 0 && node.awaiting.shells > 0 ? `Monitoring ${counted(node.awaiting.shells, 'a shell', 'shells')}` : `Waiting on ${awaitingText(node.awaiting)}`
   if (isQuiet(node, now)) {
     if (!node.pendingTool) return `Quiet for ${ago(node.lastAt, now)}`
     const running = `${toolLabel(node.pendingTool.name)} has run for ${ago(node.pendingTool.since, now)}`

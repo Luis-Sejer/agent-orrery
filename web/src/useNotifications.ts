@@ -46,7 +46,7 @@ export function useNotifications({ nodes, now, loaded, onOpen }: NotificationOpt
     if (enabled && lookingElsewhere()) {
       for (const node of fresh) {
         const where = node.room ? ` in ${node.room}` : ''
-        const body = node.waiting && node.waiting.reason !== 'reply' ? `${waitSentence(node.waiting)}${where}` : `Finished${where}, waiting on you`
+        const body = node.waiting && (node.waiting.reason !== 'reply' || node.waiting.ended) ? `${waitSentence(node.waiting)}${where}` : `Finished${where}, waiting on you`
         const notification = new Notification(node.label, { body, tag: node.id })
         notification.onclick = () => {
           window.focus()

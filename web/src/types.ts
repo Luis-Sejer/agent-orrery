@@ -8,6 +8,8 @@ export type WaitReason = 'question' | 'permission' | 'dialog' | 'reply'
 export interface Waiting {
   reason: WaitReason
   since: number
+  // How a turn that's over ended, when not by finishing: you stopped it, or an API error did.
+  ended?: 'interrupted' | 'failed'
   // Inferred, not written: Claude Code writes a question only once you've answered it.
   probably?: boolean
 }

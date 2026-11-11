@@ -435,6 +435,7 @@ test('usage takes the final output count from the last record of a message, and 
   assert.deepEqual(Object.keys(node.usage), ['claude-opus-5-5'])
   assert.deepEqual(node.usage['claude-opus-5-5'], { input: 10, output: 6431, cacheRead: 100, cacheWrite5m: 0, cacheWrite1h: 0 })
   assert.equal(node.waiting?.reason, 'reply')
+  assert.equal(node.waiting?.ended, 'failed')
 })
 
 test('a hand-back wakes its session without a second line, and a stop leaves the session waiting', () => {
@@ -452,6 +453,7 @@ test('a hand-back wakes its session without a second line, and a stop leaves the
   applyLines(graph, 'lead', line({ type: 'user', timestamp: at(4), message: { content: [{ type: 'text', text: '[Request interrupted by user]' }] } }))
   lead = snapshot(graph, 0).nodes.find((node) => node.id === 'lead')
   assert.equal(lead.waiting?.reason, 'reply')
+  assert.equal(lead.waiting?.ended, 'interrupted')
   assert.ok(!JSON.stringify([snapshot(graph, 0), timeline(graph, 'lead')]).includes('SECRET'))
 })
 

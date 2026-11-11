@@ -58,8 +58,12 @@ services:
   agent-orrery:
     volumes:
       - $HOME/orca/workspaces:$HOME/orca/workspaces:ro
+      # Orca's own Claude Code folders: only each session's status file (<pid>.json) is read.
+      - $HOME/Library/Application Support/orca/claude-profiles:$HOME/Library/Application Support/orca/claude-profiles:ro
 EOF
 ```
+
+With Orca, mount its `claude-profiles` folder as above. Orca runs Claude Code from a folder of its own, and without its status files a session that has been quiet for two minutes counts as ended and leaves the canvas.
 
 ## 4. Start it
 

@@ -123,6 +123,9 @@ describe('waits', () => {
     expect(waitingLine(waiting(20), NOW)).toBe('Finished, 20 min ago')
     expect(waitingLine(waiting(7, 'question'), NOW)).toBe('Asked you a question, 7 min ago')
     expect(describeStatus(waiting(20), NOW)).toBe('Finished, waiting on you, 20 min ago')
+    const stopped = (ended: 'interrupted' | 'failed') => ({ ...waiting(20), waiting: { reason: 'reply' as const, since: NOW - 20 * 60_000, ended } })
+    expect(describeStatus(stopped('interrupted'), NOW)).toBe('Stopped, waiting on you, 20 min ago')
+    expect(waitingLine(stopped('failed'), NOW)).toBe('Stopped on an API error, 20 min ago')
   })
 })
 
@@ -142,7 +145,7 @@ describe('waiting on background shells', () => {
   it('keeps a session running while a shell it started in the background still runs', () => {
     const node = awaitAgents({ nodes: [lead({ background: [{ name: 'Bash', since: NOW - 5 * 60_000 }] })], messages: [] }, NOW).nodes[0]
     expect(statusOf(node, NOW)).toBe('running')
-    expect(describeStatus(node, NOW)).toBe('Waiting on a shell')
+    expect(describeStatus(node, NOW)).toBe('Monitoring a shell')
   })
 
   it('shows a session gone quiet mid-turn while its subagents work as waiting on them, not as quiet', () => {
@@ -202,7 +205,7 @@ describe("Claude Code's own status", () => {
 
   it('waits on a background shell, and on you once idle', () => {
     const [shell] = settle(session({ waiting: turnOver, live: { status: 'shell', since: NOW } }))
-    expect(describeStatus(shell, NOW)).toBe('Waiting on a shell')
+    expect(describeStatus(shell, NOW)).toBe('Monitoring a shell')
     const [idle] = settle(session({ lastAt: NOW - 30 * MINUTE, live: { status: 'idle', since: NOW - MINUTE } }))
     expect(statusOf(idle, NOW)).toBe('waiting')
   })

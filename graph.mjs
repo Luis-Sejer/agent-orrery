@@ -582,7 +582,7 @@ export function applyRecord(graph, nodeId, record) {
       const content = record.message?.content
       closeBackgroundTask(node, idsIn(typeof content === 'string' ? content : ''))
     } else if (isInterruption(record)) {
-      node.waiting = { reason: 'reply', since: at }
+      node.waiting = { reason: 'reply', since: at, ended: 'interrupted' }
       if (node.kind === 'session') addEvent(node, { at, activity: 'listening', text: 'You stopped it', repo: null })
     } else if (origin?.kind === 'peer' && origin.from && !origin.handback) {
       // A hand-back answers a spawn the graph already shows, so only other messages add a line.
@@ -596,8 +596,9 @@ export function applyRecord(graph, nodeId, record) {
     const content = record.message?.content ?? []
     node.handedBack = content.some((block) => block?.type === 'tool_use' && block.name === HANDBACK_TOOL)
     // An API error ends the turn too: the session waits for you to try again.
-    const turnEnded = record.message?.stop_reason === 'end_turn' || node.handedBack || record.isApiErrorMessage === true
-    node.waiting = turnEnded ? { reason: 'reply', since: at } : null
+    const failed = record.isApiErrorMessage === true
+    const turnEnded = record.message?.stop_reason === 'end_turn' || node.handedBack || failed
+    node.waiting = turnEnded ? { reason: 'reply', since: at, ...(failed && { ended: 'failed' }) } : null
     addUsage(node, record.message)
     if (turnEnded) node.openTools.clear()
     if (!turnEnded && !content.some((block) => block?.type === 'tool_use')) node.activity = 'solving'

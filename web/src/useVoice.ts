@@ -19,7 +19,7 @@ const sayable = (text: string) => text.replace(/[-_/]+/g, ' ')
 
 export function announcement(node: AgentNode): string {
   const where = node.room ? ` in ${sayable(node.room)}` : ''
-  if (node.waiting && node.waiting.reason !== 'reply') return `${node.label} ${waitPhrase(node.waiting)}${where}.`
+  if (node.waiting && (node.waiting.reason !== 'reply' || node.waiting.ended)) return `${node.label} ${waitPhrase(node.waiting)}${where}.`
   return `${node.label} is waiting on you${where}.`
 }
 
